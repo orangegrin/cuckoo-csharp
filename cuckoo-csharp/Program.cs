@@ -1,12 +1,53 @@
 ﻿using System;
+using System.Linq;
+using ExchangeSharp;
+using System.Collections.Generic;
+using System.IO;
+using System.Security;
+using System.Threading.Tasks;
+using cuckoo_csharp.Strategy.Arbitrage;
 
 namespace cuckoo_csharp
 {
     class Program
     {
+
         static void Main(string[] args)
         {
-            Console.WriteLine("Hello World!");
+
+            BuildKeys();
+            new CrossMarket(GetCrossMarketConfig()).Start();
+            while (true)
+            {
+                Console.ReadLine();
+            }
+        }
+
+        static void BuildKeys()
+        {
+            string publickey = "2xrwtDdMimp5Oi3F6oSmtsew";
+            string privatekey = "rxgzE8FCETaWXxXAXe5daqxRJWshqJoD-ERIipxdC_H2hexs";
+            CryptoUtility.SaveUnprotectedStringsToFile(ExchangeName.BitMEX, new string[2] { publickey, privatekey });
+
+            publickey = "440757a5-e78ac402-84903e36-194b1";
+            privatekey = "7f0a0c5c-24fd0bb9-eb64134f-2e1b6";
+            CryptoUtility.SaveUnprotectedStringsToFile(ExchangeName.HBDM, new string[2] { publickey, privatekey });
+        }
+
+        static CrossMarketConfig GetCrossMarketConfig()
+        {
+            var crossMarketConfig = new CrossMarketConfig();
+            crossMarketConfig.ExchangeNameA = ExchangeName.BitMEX;
+            crossMarketConfig.ExchangeNameB = ExchangeName.HBDM;
+            crossMarketConfig.SymbolA = "XBTUSD";
+            crossMarketConfig.SymbolB = "BTC_CW";
+            crossMarketConfig.MaxQty = 100;
+            crossMarketConfig.MinGapRate = 0.0015m;
+            crossMarketConfig.FeesA = -0.00025m;
+            crossMarketConfig.FeesB = 0.00025m;
+            crossMarketConfig.PendingOrderRatio = 0.6m;
+            crossMarketConfig.MinUnit = 0.5m;
+            return crossMarketConfig;
         }
     }
 }
