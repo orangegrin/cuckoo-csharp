@@ -135,7 +135,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
             mExchangeBAPI.GetOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
             mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
-            //mExchangeBAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            //mExchangeAAPI.GetPositionDetailsWebSocket(OnPositionAHandler);
 
         }
     }
