@@ -85,14 +85,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         }
 
+
         #endregion
         public void Start()
         {
             Console.WriteLine("Start");
             mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
-            mExchangeAAPI.LoadAPIKeys(ExchangeName.HBDM);
-            mExchangeBAPI.GetOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
-            //mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            //mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
+            //mExchangeBAPI.GetOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
+            mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            mExchangeAAPI.GetPositionDetailsWebSocket(OnPositionAHandler);
 
         }
     }
