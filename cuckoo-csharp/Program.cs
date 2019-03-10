@@ -25,13 +25,13 @@ namespace cuckoo_csharp
 
         static void BuildKeys()
         {
-            string publickey = "2xrwtDdMimp5Oi3F6oSmtsew";
-            string privatekey = "rxgzE8FCETaWXxXAXe5daqxRJWshqJoD-ERIipxdC_H2hexs";
-            CryptoUtility.SaveUnprotectedStringsToFile(ExchangeName.BitMEX, new string[2] { publickey, privatekey });
+            string publickey1 = "5lgcC6qWZ2NhIjHh0pm-V6rf";//"2xrwtDdMimp5Oi3F6oSmtsew";
+            string privatekey1 = "fdMqXsPN-39_XwaPZqnH1EuZH47Rf4-E1Bl9ZQXcrjZxw09F";//"rxgzE8FCETaWXxXAXe5daqxRJWshqJoD-ERIipxdC_H2hexs";
+            CryptoUtility.SaveUnprotectedStringsToFile(ExchangeName.BitMEX, new string[2] { publickey1, privatekey1 });
 
-            publickey = "440757a5-e78ac402-84903e36-194b1";
-            privatekey = "7f0a0c5c-24fd0bb9-eb64134f-2e1b6";
-            CryptoUtility.SaveUnprotectedStringsToFile(ExchangeName.HBDM, new string[2] { publickey, privatekey });
+            string publickey2 = "440757a5-e78ac402-84903e36-194b1";
+            string privatekey2 = "7f0a0c5c-24fd0bb9-eb64134f-2e1b6";
+            CryptoUtility.SaveUnprotectedStringsToFile(ExchangeName.HBDM, new string[2] { publickey2, privatekey2 });
         }
 
         static CrossMarketConfig GetCrossMarketConfig()

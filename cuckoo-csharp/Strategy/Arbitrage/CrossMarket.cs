@@ -12,6 +12,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private IExchangeAPI mExchangeAAPI;
         private IExchangeAPI mExchangeBAPI;
         private ExchangeOrderBook mOrderbookB;
+        /// <summary>
+        /// 当前A交易所的仓位
+        /// </summary>
+        private ExchangeMarginPositionResult mPosition;
 
         public CrossMarket(CrossMarketConfig config)
         {
@@ -46,7 +50,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Amount = amount
             };
         }
-        
+
 
         decimal NormalizationMinUnit(decimal price)
         {
@@ -64,6 +68,26 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mOrderbookB = orderbook;
             var bidFirst = GetBidFirst(orderbook);
             var askFirst = GetAskFirst(orderbook);
+            if (mPosition != null)
+            {
+                if (mPosition.Amount != 0)
+                {
+                    // 先平仓
+                    Console.WriteLine("准备平仓");
+                    ClosePosition(orderbook);
+                }
+                else
+                {
+                    Console.WriteLine("双向开仓");
+                    //双向开仓
+                    ConvergeOrders(orderbook);
+                }
+            }
+            else//表示刚刚开始程序，先开仓
+            {   //双向开仓
+                Console.WriteLine("首次开仓");
+                ConvergeOrders(orderbook);
+            }
             Console.WriteLine("bid：" + bidFirst.ToString() + " ask:" + askFirst.ToString());
         }
 
@@ -82,17 +106,36 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <param name="order"></param>
         void OnOrderAHandler(ExchangeOrderResult order)
         {
+            Console.WriteLine(order.ToString());
+        }
+        #endregion
+        #region 
+        ExchangeOrderPrice GetLimitOrderPair(ExchangeOrderBook orderBook)
+        {
+            ExchangeOrderPrice exchangeOrderPrice = new ExchangeOrderPrice();
+
+            return exchangeOrderPrice;
+        }
+        void ClosePosition(ExchangeOrderBook orderBook)
+        {
+
 
         }
+        void ConvergeOrders(ExchangeOrderBook orderbook)
+        {
 
+        }
         #endregion
+
+
         public void Start()
         {
             Console.WriteLine("Start");
             mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
-            mExchangeAAPI.LoadAPIKeys(ExchangeName.HBDM);
+            mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
             mExchangeBAPI.GetOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
-            //mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            //mExchangeBAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
 
         }
     }
@@ -110,4 +153,27 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         public decimal MinUnit;
 
     }
+    #region Enum
+    enum Side
+    {
+        Buy = 0,
+        Sell,
+    }
+    enum OrderType
+    {
+        Limit = 0,
+        Market,
+    }
+    enum OrderResultType
+    {
+        Unknown = 0,
+        Filled,
+        FilledPartially,
+        Pending,
+        Error,
+        Canceled,
+        PendingCancel,
+    }
+    #endregion
 }
+
