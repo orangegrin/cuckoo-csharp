@@ -139,6 +139,19 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     SwitchStateToClosePosition();
                 }
             }
+
+            // 如果订单状态是取消则清空ask和bid
+            if (order.Result == ExchangeAPIOrderResult.Canceled)
+            {
+                if (mAskOrder != null && mAskOrder.OrderId == order.OrderId)
+                {
+                    mAskOrder = null;
+                }
+                if (mBidPrder != null && mBidPrder.OrderId == order.OrderId)
+                {
+                    mBidPrder = null;
+                }
+            }
         }
         /// <summary>
         /// 切换到开仓状态
