@@ -236,20 +236,23 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <param name="request"></param>
         void OrderFilter(ExchangeOrderRequest request)
         {
-            if (request.IsBuy)
+            lock (mOrderBookA)
             {
-                var bidFirst = mOrderBookA.Bids.First().Value;
-                if (request.Price > bidFirst.Price)
+                if (request.IsBuy)
                 {
-                    request.Price = bidFirst.Price;
+                    var bidFirst = mOrderBookA.Bids.First().Value;
+                    if (request.Price > bidFirst.Price)
+                    {
+                        request.Price = bidFirst.Price;
+                    }
                 }
-            }
-            else
-            {
-                var askFirst = mOrderBookA.Asks.First().Value;
-                if (request.Price < askFirst.Price)
+                else
                 {
-                    request.Price = askFirst.Price;
+                    var askFirst = mOrderBookA.Asks.First().Value;
+                    if (request.Price < askFirst.Price)
+                    {
+                        request.Price = askFirst.Price;
+                    }
                 }
             }
         }
@@ -264,7 +267,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             if (result == null)
                 return true;
-            var priceDiff = (result.Price - request.Price) / request.Price;
+            var priceDiff = (result.Price - request.Price) / request.Price / mConfig.MinIRS;
             var amountDiff = (result.Amount - request.Amount) / request.Amount;
             if (Math.Abs(priceDiff) < 0.2m && Math.Abs(amountDiff) < 0.2m)
             {
