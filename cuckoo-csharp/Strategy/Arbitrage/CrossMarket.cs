@@ -12,13 +12,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private IExchangeAPI mExchangeAAPI;
         private IExchangeAPI mExchangeBAPI;
         /// <summary>
+        /// A交易所的的订单薄
+        /// </summary>
+        private ExchangeOrderBook mOrderBookA;
+        /// <summary>
         /// B交易所的订单薄
         /// </summary>
         private ExchangeOrderBook mOrderbookB;
-        /// <summary>
-        /// 当前A交易所的仓位
-        /// </summary>
-        private ExchangeMarginPositionResult mPosition;
         /// <summary>
         /// 当价的做空订单
         /// </summary>
@@ -104,36 +104,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mOrderbookB = orderbook;
             var bidFirst = GetBidFirst(orderbook);
             var askFirst = GetAskFirst(orderbook);
-            //if (mPosition != null)
-            //{
-            //    if (mPosition.Amount != 0)
-            //    {
-            //        // 先平仓
-            //        Console.WriteLine("准备平仓");
-            //        ClosePosition(orderbook);
-            //    }
-            //    else
-            //    {
-            //        //双向开仓
-            //        Console.WriteLine("双向开仓");
-            //    }
-            //}
-            //else//表示刚刚开始程序，先开仓
-            //{   //双向开仓
-            //    Console.WriteLine("首次开仓");
-            //}
             Console.WriteLine("bid：" + bidFirst.ToString() + " ask:" + askFirst.ToString());
         }
 
-
-        /// <summary>
-        /// 当A交易所的仓位发生改变时触发
-        /// </summary>
-        /// <param name="position"></param>
-        void OnPositionAHandler(ExchangeMarginPositionResult position)
+        void OnOrderbookAHandler(ExchangeOrderBook orderbook)
         {
-            mPosition = position;
+            mOrderBookA = orderbook;
         }
+
         /// <summary>
         /// 当A交易所的订单发生改变时候触发
         /// </summary>
@@ -241,9 +219,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Console.WriteLine("Start");
             mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
             mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
-            mExchangeBAPI.GetOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
+            mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 25, mConfig.SymbolA);
+            mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
             mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
-            //mExchangeAAPI.GetPositionDetailsWebSocket(OnPositionAHandler);
 
         }
     }
