@@ -43,58 +43,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mConfig.ExchangeNameA);
             mExchangeBAPI = ExchangeAPI.GetExchangeAPI(mConfig.ExchangeNameB);
         }
-        #region private utils
-        /// <summary>
-        /// 获取价格深度合并后的买一价
-        /// </summary>
-        /// <param name="orderBook"></param>
-        /// <returns></returns>
-        ExchangeOrderPrice GetBidFirst(ExchangeOrderBook orderBook)
-        {
-            var first = orderBook.Bids.First();
-            var price = first.Key * (1 - mConfig.MinIRS);
-            price = NormalizationMinUnit(price);
-            var amount = orderBook.Bids.Where(op => op.Key > price).Select((op) => { return op.Value.Amount; }).Sum();
-            return new ExchangeOrderPrice()
-            {
-                Price = price,
-                Amount = amount
-            };
-        }
-        /// <summary>
-        /// 获取价格深度合并后的卖一价
-        /// </summary>
-        /// <param name="orderBook"></param>
-        /// <returns></returns>
-        ExchangeOrderPrice GetAskFirst(ExchangeOrderBook orderBook)
-        {
-            var first = orderBook.Asks.First();
-            var price = first.Key * (1 + mConfig.MinIRS);
-            price = NormalizationMinUnit(price);
-            var amount = orderBook.Asks.Where(op => op.Key < price).Select((op) => { return op.Value.Amount; }).Sum();
-            return new ExchangeOrderPrice()
-            {
-                Price = price,
-                Amount = amount
-            };
-        }
-
-        /// <summary>
-        /// 将价格整理成最小单位
-        /// 当最小单位为0.5时
-        /// 1.1 => 1
-        /// 1.4 =>  1.05
-        /// 1.8 => 2
-        /// </summary>
-        /// <param name="price"></param>
-        /// <returns></returns>
-        decimal NormalizationMinUnit(decimal price)
-        {
-            var s = 1 / mConfig.MinPriceUnit;
-            return Math.Round(price * s) / s;
-        }
-        #endregion
-        #region Handler
+        #region handler
         /// <summary>
         /// 当B交易所的订单发生改变时
         /// </summary>
@@ -153,25 +102,61 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
             }
         }
-        /// <summary>
-        /// 切换到开仓状态
-        /// </summary>
-        void SwicthStateToOpenPosition()
-        {
-            isClosePositionState = false;
-            mCloseOrder = null;
-        }
-        /// <summary>
-        /// 切换到平仓状态
-        /// </summary>
-        void SwitchStateToClosePosition()
-        {
-            isClosePositionState = true;
-            mExchangeAAPI.CancelOrderAsync(mAskOrder.OrderId);
-            mExchangeAAPI.CancelOrderAsync(mBidPrder.OrderId);
-        }
+
         #endregion
-        #region  
+
+
+        #region private utils
+        /// <summary>
+        /// 获取价格深度合并后的买一价
+        /// </summary>
+        /// <param name="orderBook"></param>
+        /// <returns></returns>
+        ExchangeOrderPrice GetBidFirst(ExchangeOrderBook orderBook)
+        {
+            var first = orderBook.Bids.First();
+            var price = first.Key * (1 - mConfig.MinIRS);
+            price = NormalizationMinUnit(price);
+            var amount = orderBook.Bids.Where(op => op.Key > price).Select((op) => { return op.Value.Amount; }).Sum();
+            return new ExchangeOrderPrice()
+            {
+                Price = price,
+                Amount = amount
+            };
+        }
+        /// <summary>
+        /// 获取价格深度合并后的卖一价
+        /// </summary>
+        /// <param name="orderBook"></param>
+        /// <returns></returns>
+        ExchangeOrderPrice GetAskFirst(ExchangeOrderBook orderBook)
+        {
+            var first = orderBook.Asks.First();
+            var price = first.Key * (1 + mConfig.MinIRS);
+            price = NormalizationMinUnit(price);
+            var amount = orderBook.Asks.Where(op => op.Key < price).Select((op) => { return op.Value.Amount; }).Sum();
+            return new ExchangeOrderPrice()
+            {
+                Price = price,
+                Amount = amount
+            };
+        }
+
+        /// <summary>
+        /// 将价格整理成最小单位
+        /// 当最小单位为0.5时
+        /// 1.1 => 1
+        /// 1.4 =>  1.05
+        /// 1.8 => 2
+        /// </summary>
+        /// <param name="price"></param>
+        /// <returns></returns>
+        decimal NormalizationMinUnit(decimal price)
+        {
+            var s = 1 / mConfig.MinPriceUnit;
+            return Math.Round(price * s) / s;
+        }
+
         /// <summary>
         /// 根据orderbook数据计算对手交易所的限价单开仓价格与数量
         /// 买价 = 对手卖价 * （1 - 利润比） - 交易手续费 * 2 - 标准差
@@ -218,13 +203,26 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //TODO 计算两个交易所MA的价差
             return 0m;
         }
-
-        void ClosePosition(ExchangeOrderBook orderBook)
+        /// <summary>
+        /// 切换到开仓状态
+        /// </summary>
+        void SwicthStateToOpenPosition()
         {
-
-
+            isClosePositionState = false;
+            mCloseOrder = null;
         }
+        /// <summary>
+        /// 切换到平仓状态
+        /// </summary>
+        void SwitchStateToClosePosition()
+        {
+            isClosePositionState = true;
+            mExchangeAAPI.CancelOrderAsync(mAskOrder.OrderId);
+            mExchangeAAPI.CancelOrderAsync(mBidPrder.OrderId);
+        }
+
         #endregion
+
 
 
         public void Start()
