@@ -167,7 +167,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
                 foreach (var o in orders)
                 {
-                    mCloseOrder = o;
+                    if (o.IsBuy)
+                    {
+                        mBidOrder = o;
+                    }
+                    else
+                    {
+                        mAskOrder = o;
+                    }
                 }
             }
         }
@@ -184,19 +191,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 IsBuy = !mFilledOrder.IsBuy,
             };
             var requests = OrdersFilter(req);
+
             if (requests.Length > 0)
             {
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
                 foreach (var o in orders)
                 {
-                    if (o.IsBuy)
-                    {
-                        mBidOrder = o;
-                    }
-                    else
-                    {
-                        mAskOrder = o;
-                    }
+                    mCloseOrder = o;
                 }
             }
         }
