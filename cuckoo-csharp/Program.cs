@@ -52,7 +52,7 @@ namespace cuckoo_csharp
             crossMarketConfig.FeesA = -0.00025m;
             crossMarketConfig.FeesB = 0.00025m;
             crossMarketConfig.PendingOrderRatio = 0.6m;
-            crossMarketConfig.MinUnit = 0.5m;
+            crossMarketConfig.MinPriceUnit = 0.5m;
             return crossMarketConfig;
         }
     }

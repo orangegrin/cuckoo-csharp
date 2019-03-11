@@ -11,6 +11,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private CrossMarketConfig mConfig;
         private IExchangeAPI mExchangeAAPI;
         private IExchangeAPI mExchangeBAPI;
+        /// <summary>
+        /// B交易所的订单薄
+        /// </summary>
         private ExchangeOrderBook mOrderbookB;
         /// <summary>
         /// 当前A交易所的仓位
@@ -24,7 +27,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeBAPI = ExchangeAPI.GetExchangeAPI(mConfig.ExchangeNameB);
         }
         #region private utils
-
+        /// <summary>
+        /// 获取价格深度合并后的买一价
+        /// </summary>
+        /// <param name="orderBook"></param>
+        /// <returns></returns>
         ExchangeOrderPrice GetBidFirst(ExchangeOrderBook orderBook)
         {
             var first = orderBook.Bids.First();
@@ -37,7 +44,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Amount = amount
             };
         }
-
+        /// <summary>
+        /// 获取价格深度合并后的卖一价
+        /// </summary>
+        /// <param name="orderBook"></param>
+        /// <returns></returns>
         ExchangeOrderPrice GetAskFirst(ExchangeOrderBook orderBook)
         {
             var first = orderBook.Asks.First();
@@ -51,10 +62,18 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             };
         }
 
-
+        /// <summary>
+        /// 将价格整理成最小单位
+        /// 当最小单位为0.5时
+        /// 1.1 => 1
+        /// 1.4 =>  1.05
+        /// 1.8 => 2
+        /// </summary>
+        /// <param name="price"></param>
+        /// <returns></returns>
         decimal NormalizationMinUnit(decimal price)
         {
-            var s = 1 / mConfig.MinUnit;
+            var s = 1 / mConfig.MinPriceUnit;
             return Math.Round(price * s) / s;
         }
         #endregion
@@ -98,7 +117,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <param name="position"></param>
         void OnPositionAHandler(ExchangeMarginPositionResult position)
         {
-
+            mPosition = position;
         }
         /// <summary>
         /// 当A交易所的订单发生改变时候触发
@@ -109,13 +128,54 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Console.WriteLine(order.ToString());
         }
         #endregion
-        #region 
-        ExchangeOrderPrice GetLimitOrderPair(ExchangeOrderBook orderBook)
+        #region  
+        /// <summary>
+        /// 根据orderbook数据计算对手交易所的限价单开仓价格与数量
+        /// 买价 = 对手卖价 * （1 - 利润比） - 交易手续费 * 2 - 标准差
+        /// </summary>
+        /// <param name="orderBook"></param>
+        /// <returns></returns>
+        ExchangeOrderPrice GetLimitBidOrderPair(ExchangeOrderBook orderBook)
         {
-            ExchangeOrderPrice exchangeOrderPrice = new ExchangeOrderPrice();
-
-            return exchangeOrderPrice;
+            var orderPrice = new ExchangeOrderPrice();
+            var askFirst = GetAskFirst(orderBook);
+            var fees = mConfig.Fees * askFirst.Price;
+            var price = askFirst.Price * (1 - mConfig.MinGapRate) - fees * 2 - GetStandardDev();
+            var amount = askFirst.Amount * mConfig.PendingOrderRatio;
+            orderPrice.Amount = amount;
+            orderPrice.Price = price;
+            return orderPrice;
         }
+        /// <summary>
+        /// 根据orderbook数据计算对手交易所的限价单开仓价格与数量
+        /// 卖价 = 对手买价 * （1 + 利润比） + 交易手续费 * 2 + 标准差
+        /// </summary>
+        /// <param name="orderBook"></param>
+        /// <returns></returns>
+        ExchangeOrderPrice GetLimitAskOrderPair(ExchangeOrderBook orderBook)
+        {
+            var orderPrice = new ExchangeOrderPrice();
+            var bidFirst = GetBidFirst(orderBook);
+            var fees = mConfig.Fees * bidFirst.Price;
+            var price = bidFirst.Price * (mConfig.MinGapRate + 1) + fees * 2 + GetStandardDev();
+            var amount = bidFirst.Amount * mConfig.PendingOrderRatio;
+            orderPrice.Amount = amount;
+            orderPrice.Price = price;
+            return orderPrice;
+        }
+
+        /// <summary>
+        /// 获取两个交易所的MA的差
+        /// </summary>
+        /// <returns></returns>
+        decimal GetStandardDev()
+        {
+            string periodfreq = mConfig.PeriodFreq;
+            float timeperiod = mConfig.TimePeriod;
+            //TODO 计算两个交易所MA的价差
+            return 0m;
+        }
+
         void ClosePosition(ExchangeOrderBook orderBook)
         {
 
@@ -141,18 +201,61 @@ namespace cuckoo_csharp.Strategy.Arbitrage
     }
     public struct CrossMarketConfig
     {
+        /// <summary>
+        /// A交易所名称
+        /// </summary>
         public string ExchangeNameA;
+        /// <summary>
+        /// B交易所名称
+        /// </summary>
         public string ExchangeNameB;
+        /// <summary>
+        /// A交易所币种的Symbol
+        /// </summary>
         public string SymbolA;
+        /// <summary>
+        /// B交易所币种的的Symbol
+        /// </summary>
         public string SymbolB;
         public int MaxQty;
         public decimal MinGapRate;
+        /// <summary>
+        /// A交易所手续费
+        /// </summary>
         public decimal FeesA;
+        /// <summary>
+        /// B交易所手续费
+        /// </summary>
         public decimal FeesB;
+        /// <summary>
+        /// 待定订单比例
+        /// </summary>
         public decimal PendingOrderRatio;
-        public decimal MinUnit;
+        /// <summary>
+        /// 最小价格单位
+        /// </summary>
+        public decimal MinPriceUnit;
+        /// <summary>
+        /// 期间频率 Min,H,D,M
+        /// </summary>
+        public string PeriodFreq;
+        /// <summary>
+        /// 时间长度
+        /// </summary>
+        public float TimePeriod;
+        /// <summary>
+        /// 两个交易所的总交易手续费率
+        /// </summary>
+        public decimal Fees
+        {
+            get
+            {
+                return FeesA + FeesB;
+            }
+        }
 
     }
+
     #region Enum
     enum Side
     {
