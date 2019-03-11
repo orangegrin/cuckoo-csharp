@@ -19,6 +19,23 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 当前A交易所的仓位
         /// </summary>
         private ExchangeMarginPositionResult mPosition;
+        /// <summary>
+        /// 当价的做空订单
+        /// </summary>
+        private ExchangeOrderResult mAskOrder;
+        /// <summary>
+        /// 当前的做多订单
+        /// </summary>
+        private ExchangeOrderResult mBidPrder;
+        /// <summary>
+        /// 当前的平仓订单
+        /// </summary>
+        private ExchangeOrderResult mCloseOrder;
+        /// <summary>
+        /// 当前已成交的订单
+        /// </summary>
+        private ExchangeOrderResult mFilledOrder;
+        private bool isClosePositionState = false;
 
         public CrossMarket(CrossMarketConfig config)
         {
@@ -87,26 +104,24 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mOrderbookB = orderbook;
             var bidFirst = GetBidFirst(orderbook);
             var askFirst = GetAskFirst(orderbook);
-            if (mPosition != null)
-            {
-                if (mPosition.Amount != 0)
-                {
-                    // 先平仓
-                    Console.WriteLine("准备平仓");
-                    ClosePosition(orderbook);
-                }
-                else
-                {
-                    Console.WriteLine("双向开仓");
-                    //双向开仓
-                    ConvergeOrders(orderbook);
-                }
-            }
-            else//表示刚刚开始程序，先开仓
-            {   //双向开仓
-                Console.WriteLine("首次开仓");
-                ConvergeOrders(orderbook);
-            }
+            //if (mPosition != null)
+            //{
+            //    if (mPosition.Amount != 0)
+            //    {
+            //        // 先平仓
+            //        Console.WriteLine("准备平仓");
+            //        ClosePosition(orderbook);
+            //    }
+            //    else
+            //    {
+            //        //双向开仓
+            //        Console.WriteLine("双向开仓");
+            //    }
+            //}
+            //else//表示刚刚开始程序，先开仓
+            //{   //双向开仓
+            //    Console.WriteLine("首次开仓");
+            //}
             Console.WriteLine("bid：" + bidFirst.ToString() + " ask:" + askFirst.ToString());
         }
 
@@ -126,6 +141,43 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         void OnOrderAHandler(ExchangeOrderResult order)
         {
             Console.WriteLine(order.ToString());
+
+            // TODO 战且不处理部分成交的问题
+            //if (ExchangeAPIOrderResult.FilledPartially == order.Result)
+            //{
+            //    mExchangeAAPI.CancelOrderAsync(order.OrderId);
+            //}
+
+
+            if (order.Result == ExchangeAPIOrderResult.Filled)
+            {
+                mFilledOrder = order;
+                if (mCloseOrder != null && mCloseOrder.OrderId == order.OrderId)
+                {
+                    SwicthStateToOpenPosition();
+                }
+                else
+                {
+                    SwitchStateToClosePosition();
+                }
+            }
+        }
+        /// <summary>
+        /// 切换到开仓状态
+        /// </summary>
+        void SwicthStateToOpenPosition()
+        {
+            isClosePositionState = false;
+            mCloseOrder = null;
+        }
+        /// <summary>
+        /// 切换到平仓状态
+        /// </summary>
+        void SwitchStateToClosePosition()
+        {
+            isClosePositionState = true;
+            mExchangeAAPI.CancelOrderAsync(mAskOrder.OrderId);
+            mExchangeAAPI.CancelOrderAsync(mBidPrder.OrderId);
         }
         #endregion
         #region  
@@ -179,10 +231,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         void ClosePosition(ExchangeOrderBook orderBook)
         {
 
-
-        }
-        void ConvergeOrders(ExchangeOrderBook orderbook)
-        {
 
         }
         #endregion
