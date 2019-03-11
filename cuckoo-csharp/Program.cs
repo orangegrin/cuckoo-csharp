@@ -48,10 +48,10 @@ namespace cuckoo_csharp
             crossMarketConfig.SymbolA = "XBTUSD";
             crossMarketConfig.SymbolB = "BTC_CW";
             crossMarketConfig.MaxQty = 100;
-            crossMarketConfig.MinGapRate = 0.0015m;
+            crossMarketConfig.MinIRS = 0.0015m;
             crossMarketConfig.FeesA = -0.00025m;
             crossMarketConfig.FeesB = 0.00025m;
-            crossMarketConfig.PendingOrderRatio = 0.6m;
+            crossMarketConfig.POR = 0.6m;
             crossMarketConfig.MinPriceUnit = 0.5m;
             return crossMarketConfig;
         }

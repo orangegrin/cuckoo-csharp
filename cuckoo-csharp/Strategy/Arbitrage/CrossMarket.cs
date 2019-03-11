@@ -35,7 +35,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         ExchangeOrderPrice GetBidFirst(ExchangeOrderBook orderBook)
         {
             var first = orderBook.Bids.First();
-            var price = first.Key * (1 - mConfig.MinGapRate);
+            var price = first.Key * (1 - mConfig.MinIRS);
             price = NormalizationMinUnit(price);
             var amount = orderBook.Bids.Where(op => op.Key > price).Select((op) => { return op.Value.Amount; }).Sum();
             return new ExchangeOrderPrice()
@@ -52,7 +52,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         ExchangeOrderPrice GetAskFirst(ExchangeOrderBook orderBook)
         {
             var first = orderBook.Asks.First();
-            var price = first.Key * (1 + mConfig.MinGapRate);
+            var price = first.Key * (1 + mConfig.MinIRS);
             price = NormalizationMinUnit(price);
             var amount = orderBook.Asks.Where(op => op.Key < price).Select((op) => { return op.Value.Amount; }).Sum();
             return new ExchangeOrderPrice()
@@ -140,8 +140,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var orderPrice = new ExchangeOrderPrice();
             var askFirst = GetAskFirst(orderBook);
             var fees = mConfig.Fees * askFirst.Price;
-            var price = askFirst.Price * (1 - mConfig.MinGapRate) - fees * 2 - GetStandardDev();
-            var amount = askFirst.Amount * mConfig.PendingOrderRatio;
+            var price = askFirst.Price * (1 - mConfig.MinIRS) - fees * 2 - GetStandardDev();
+            var amount = askFirst.Amount * mConfig.POR;
             orderPrice.Amount = amount;
             orderPrice.Price = price;
             return orderPrice;
@@ -157,8 +157,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var orderPrice = new ExchangeOrderPrice();
             var bidFirst = GetBidFirst(orderBook);
             var fees = mConfig.Fees * bidFirst.Price;
-            var price = bidFirst.Price * (mConfig.MinGapRate + 1) + fees * 2 + GetStandardDev();
-            var amount = bidFirst.Amount * mConfig.PendingOrderRatio;
+            var price = bidFirst.Price * (mConfig.MinIRS + 1) + fees * 2 + GetStandardDev();
+            var amount = bidFirst.Amount * mConfig.POR;
             orderPrice.Amount = amount;
             orderPrice.Price = price;
             return orderPrice;
@@ -217,8 +217,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// B交易所币种的的Symbol
         /// </summary>
         public string SymbolB;
+        /// <summary>
+        /// 最大交易量
+        /// maximum quantity
+        /// </summary>
         public int MaxQty;
-        public decimal MinGapRate;
+        /// <summary>
+        /// Minimum Interest Rate Spread
+        /// 要求的最小利差
+        /// </summary>
+        public decimal MinIRS;
         /// <summary>
         /// A交易所手续费
         /// </summary>
@@ -228,9 +236,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         public decimal FeesB;
         /// <summary>
+        /// Pending order ratio
         /// 待定订单比例
         /// </summary>
-        public decimal PendingOrderRatio;
+        public decimal POR;
         /// <summary>
         /// 最小价格单位
         /// </summary>
