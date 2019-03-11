@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using ExchangeSharp;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace cuckoo_csharp.Strategy.Arbitrage
 {
@@ -39,6 +40,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 是否为平仓状态
         /// </summary>
         private bool isClosePositionState = false;
+        /// <summary>
+        /// 正在操作订单
+        /// </summary>
+        private bool isOperatingOrder = false;
 
         public CrossMarket(CrossMarketConfig config)
         {
@@ -51,16 +56,21 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 当B交易所的订单发生改变时
         /// </summary>
         /// <param name="orderbook"></param>
-        void OnOrderbookBHandler(ExchangeOrderBook orderbook)
+        async void OnOrderbookBHandler(ExchangeOrderBook orderbook)
         {
             mOrderbookB = orderbook;
-            if (!isClosePositionState)
+            if (!isOperatingOrder)
             {
-                OpenPosition();
-            }
-            else
-            {
-                ClosePosition();
+                isOperatingOrder = true;
+                if (!isClosePositionState)
+                {
+                    await OpenPosition();
+                }
+                else
+                {
+                    await ClosePosition();
+                }
+                isOperatingOrder = false;
             }
         }
 
@@ -77,14 +87,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             if (order.MarketSymbol != mConfig.SymbolA)
                 return;
-            Console.WriteLine(order.ToString());
-
             // TODO 战且不处理部分成交的问题
             //if (ExchangeAPIOrderResult.FilledPartially == order.Result)
             //{
             //    mExchangeAAPI.CancelOrderAsync(order.OrderId);
             //}
-
 
             if (order.Result == ExchangeAPIOrderResult.Filled)
             {
@@ -134,7 +141,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <summary>
         /// 开仓
         /// </summary>
-        void OpenPosition()
+        async Task OpenPosition()
         {
             if (mOrderBookA == null)
                 return;
@@ -144,43 +151,63 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 Amount = bidPrice.Amount,
                 Price = bidPrice.Price,
+                MarketSymbol = mConfig.SymbolA,
                 IsBuy = true
             };
             var askReq = new ExchangeOrderRequest()
             {
                 Amount = askPrice.Amount,
                 Price = askPrice.Price,
+                MarketSymbol = mConfig.SymbolA,
                 IsBuy = false
             };
-            OpenLimitOrder(bidReq, askReq);
+            var requests = OrdersFilter(bidReq, askReq);
+            if (requests.Length > 0)
+            {
+                var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
+                foreach (var o in orders)
+                {
+                    mCloseOrder = o;
+                }
+            }
         }
         /// <summary>
         /// 平仓
         /// </summary>
-        void ClosePosition()
+        async Task ClosePosition()
         {
             var req = new ExchangeOrderRequest()
             {
                 Amount = mFilledOrder.Amount,
                 Price = mFilledOrder.IsBuy ? GetBidFirst(mOrderbookB).Price : GetAskFirst(mOrderbookB).Price,
+                MarketSymbol = mConfig.SymbolA,
                 IsBuy = !mFilledOrder.IsBuy,
             };
-            OpenLimitOrder(req);
+            var requests = OrdersFilter(req);
+            if (requests.Length > 0)
+            {
+                var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
+                foreach (var o in orders)
+                {
+                    if (o.IsBuy)
+                    {
+                        mBidOrder = o;
+                    }
+                    else
+                    {
+                        mAskOrder = o;
+                    }
+                }
+            }
         }
 
 
-        void OpenLimitOrder(params ExchangeOrderRequest[] requests)
-        {
-            requests = OrderFilter(requests);
-            Logger.Debug("OpenLimitOrder");
-            //mExchangeAAPI.PlaceOrdersAsync(requests);
-        }
         /// <summary>
         /// 价格过滤器
         /// </summary>
         /// <param name="requests"></param>
         /// <returns></returns>
-        ExchangeOrderRequest[] OrderFilter(ExchangeOrderRequest[] requests)
+        ExchangeOrderRequest[] OrdersFilter(params ExchangeOrderRequest[] requests)
         {
             List<ExchangeOrderRequest> list = new List<ExchangeOrderRequest>();
             var len = requests.Count();
@@ -188,6 +215,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 var req = requests[i];
                 OrderFilter(req);
+                if (req.Amount > mConfig.MaxQty)
+                    req.Amount = mConfig.MaxQty;
                 if (isClosePositionState)
                 {
                     if (LimitOrderFilter2(req, mCloseOrder))
