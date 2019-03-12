@@ -133,10 +133,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             var req = new ExchangeOrderRequest();
             req.Amount = order.Amount;
-            req.Price = order.Amount;
+            req.Price = order.Price;
             req.IsBuy = !order.IsBuy;
             req.IsMargin = true;
-            req.OrderType = ExchangeSharp.OrderType.Market;
+            req.OrderType = OrderType.Market;
+            //mExchangeBAPI.PlaceOrderAsync(req);
+            Console.WriteLine("ReverseOpenMarketOrder:" + order.ToString());
         }
         /// <summary>
         /// 开仓
