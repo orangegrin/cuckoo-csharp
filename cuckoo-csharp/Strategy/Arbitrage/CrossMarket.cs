@@ -302,27 +302,5 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
     }
 
-    #region Enum
-    enum Side
-    {
-        Buy = 0,
-        Sell,
-    }
-    enum OrderType
-    {
-        Limit = 0,
-        Market,
-    }
-    enum OrderResultType
-    {
-        Unknown = 0,
-        Filled,
-        FilledPartially,
-        Pending,
-        Error,
-        Canceled,
-        PendingCancel,
-    }
-    #endregion
 }
 
