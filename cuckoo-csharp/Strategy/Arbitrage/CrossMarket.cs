@@ -62,13 +62,20 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (!isOperatingOrder)
             {
                 isOperatingOrder = true;
-                if (!isClosePositionState)
+                try
                 {
-                    await OpenPosition();
+                    if (!isClosePositionState)
+                    {
+                        await OpenPosition();
+                    }
+                    else if (mAskOrder == null && mBidOrder == null && mFilledOrder != null)
+                    {
+                        await ClosePosition();
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    await ClosePosition();
+                    Console.WriteLine(ex.ToString());
                 }
                 isOperatingOrder = false;
             }
@@ -79,6 +86,24 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mOrderBookA = orderbook;
         }
 
+        bool IsMyOrder(string orderId)
+        {
+            if (mAskOrder != null && mAskOrder.OrderId == orderId)
+            {
+                return true;
+            }
+            if (mBidOrder != null && mBidOrder.OrderId == orderId)
+            {
+                return true;
+            }
+
+            if (mCloseOrder != null && mCloseOrder.OrderId == orderId)
+            {
+                return true;
+            }
+
+            return false;
+        }
         /// <summary>
         /// 当A交易所的订单发生改变时候触发
         /// </summary>
@@ -92,9 +117,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //{
             //    mExchangeAAPI.CancelOrderAsync(order.OrderId);
             //}
-            Console.WriteLine(order.ToString());
-            if (order.Result == ExchangeAPIOrderResult.Filled)
+
+            if (order.Result == ExchangeAPIOrderResult.Filled && IsMyOrder(order.OrderId))
             {
+                Console.WriteLine("-------------------- Order Filed ---------------------------");
+                Console.WriteLine(order.ToString());
                 mFilledOrder = order;
                 if (mCloseOrder != null && mCloseOrder.OrderId == order.OrderId)
                 {
@@ -105,12 +132,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     SwitchStateToClosePosition();
                 }
                 ReverseOpenMarketOrder(order);
-
             }
 
             // 如果订单状态是取消则清空ask和bid
             if (order.Result == ExchangeAPIOrderResult.Canceled)
             {
+                Console.WriteLine("-------------------- Order Canceled ---------------------------");
+                Console.WriteLine(order.ToString());
                 if (mAskOrder != null && mAskOrder.OrderId == order.OrderId)
                 {
                     mAskOrder = null;
@@ -138,7 +166,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             req.IsMargin = true;
             req.OrderType = OrderType.Market;
             //mExchangeBAPI.PlaceOrderAsync(req);
-            Console.WriteLine("ReverseOpenMarketOrder:" + order.ToString());
+            Console.WriteLine("----------------------------ReverseOpenMarketOrder---------------------------");
+            Console.WriteLine(order.ToString());
         }
         /// <summary>
         /// 开仓
@@ -177,6 +206,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var requests = OrdersFilter(bidReq, askReq);
             if (requests.Length > 0 && !isClosePositionState)
             {
+                Console.WriteLine("--------------- OpenPosition ------------------");
                 if (mBidOrder != null)
                     Console.WriteLine(mBidOrder.OrderId);
                 if (mAskOrder != null)
@@ -217,6 +247,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 if (!isClosePositionState)
                     return;
+                Console.WriteLine("--------------- ClosePosition ------------------");
+                if (mCloseOrder != null)
+                    Console.WriteLine(mCloseOrder.OrderId);
+                Console.WriteLine(req.ToString());
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
                 foreach (var o in orders)
                 {
@@ -411,9 +445,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         async void SwitchStateToClosePosition()
         {
             isClosePositionState = true;
-            isOperatingOrder = true;
             await mExchangeAAPI.CancelOrderAsync("all", mConfig.SymbolA);
-            isOperatingOrder = false;
+            mAskOrder = null;
+            mBidOrder = null;
         }
 
         #endregion
