@@ -62,7 +62,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (!isOperatingOrder)
             {
                 isOperatingOrder = true;
-                if (!isClosePositionState)
+                if (!isClosePositionState)//TODO 开仓状态继续开仓？
                 {
                     await OpenPosition();
                 }
