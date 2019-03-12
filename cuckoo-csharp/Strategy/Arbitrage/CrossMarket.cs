@@ -62,7 +62,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (!isOperatingOrder)
             {
                 isOperatingOrder = true;
-                if (!isClosePositionState)//TODO 开仓状态继续开仓？
+                if (!isClosePositionState)
                 {
                     await OpenPosition();
                 }
@@ -175,6 +175,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var requests = OrdersFilter(bidReq, askReq);
             if (requests.Length > 0)
             {
+                if (isClosePositionState)
+                    return;
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
                 foreach (var o in orders)
                 {
@@ -200,11 +202,17 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Price = mFilledOrder.IsBuy ? GetBidFirst(mOrderbookB).Price : GetAskFirst(mOrderbookB).Price,
                 MarketSymbol = mConfig.SymbolA,
                 IsBuy = !mFilledOrder.IsBuy,
+                ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
             };
+            if (mCloseOrder != null)
+            {
+                req.ExtraParameters.Add("orderID", mCloseOrder.OrderId);
+            }
             var requests = OrdersFilter(req);
-
             if (requests.Length > 0)
             {
+                if (!isClosePositionState)
+                    return;
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
                 foreach (var o in orders)
                 {
