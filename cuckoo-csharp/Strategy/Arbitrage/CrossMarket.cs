@@ -152,15 +152,26 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Amount = bidPrice.Amount,
                 Price = bidPrice.Price,
                 MarketSymbol = mConfig.SymbolA,
-                IsBuy = true
+                IsBuy = true,
+                ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
             };
             var askReq = new ExchangeOrderRequest()
             {
                 Amount = askPrice.Amount,
                 Price = askPrice.Price,
                 MarketSymbol = mConfig.SymbolA,
-                IsBuy = false
+                IsBuy = false,
+                ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
             };
+
+            if (mAskOrder != null)
+            {
+                askReq.ExtraParameters.Add("orderID", mAskOrder.OrderId);
+            }
+            if (mBidOrder != null)
+            {
+                bidReq.ExtraParameters.Add("orderID", mBidOrder.OrderId);
+            }
             var requests = OrdersFilter(bidReq, askReq);
             if (requests.Length > 0)
             {
