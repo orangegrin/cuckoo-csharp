@@ -92,7 +92,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //{
             //    mExchangeAAPI.CancelOrderAsync(order.OrderId);
             //}
-
+            Console.WriteLine(order.ToString());
             if (order.Result == ExchangeAPIOrderResult.Filled)
             {
                 mFilledOrder = order;
@@ -175,10 +175,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 bidReq.ExtraParameters.Add("orderID", mBidOrder.OrderId);
             }
             var requests = OrdersFilter(bidReq, askReq);
-            if (requests.Length > 0)
+            if (requests.Length > 0 && !isClosePositionState)
             {
-                if (isClosePositionState)
-                    return;
+                if (mBidOrder != null)
+                    Console.WriteLine(mBidOrder.OrderId);
+                if (mAskOrder != null)
+                    Console.WriteLine(mAskOrder.OrderId);
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
                 foreach (var o in orders)
                 {
@@ -406,11 +408,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <summary>
         /// 切换到平仓状态
         /// </summary>
-        void SwitchStateToClosePosition()
+        async void SwitchStateToClosePosition()
         {
             isClosePositionState = true;
-            mExchangeAAPI.CancelOrderAsync(mAskOrder.OrderId);
-            mExchangeAAPI.CancelOrderAsync(mBidOrder.OrderId);
+            isOperatingOrder = true;
+            await mExchangeAAPI.CancelOrderAsync("all", mConfig.SymbolA);
+            isOperatingOrder = false;
         }
 
         #endregion
