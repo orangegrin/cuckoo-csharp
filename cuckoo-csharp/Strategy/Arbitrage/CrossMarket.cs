@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using ExchangeSharp;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace cuckoo_csharp.Strategy.Arbitrage
 {
@@ -26,7 +27,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <summary>
         /// 当前的做多订单
         /// </summary>
-        private ExchangeOrderResult mBidPrder;
+        private ExchangeOrderResult mBidOrder;
         /// <summary>
         /// 当前的平仓订单
         /// </summary>
@@ -35,7 +36,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 当前已成交的订单
         /// </summary>
         private ExchangeOrderResult mFilledOrder;
+        /// <summary>
+        /// 是否为平仓状态
+        /// </summary>
         private bool isClosePositionState = false;
+        /// <summary>
+        /// 正在操作订单
+        /// </summary>
+        private bool isOperatingOrder = false;
 
         public CrossMarket(CrossMarketConfig config)
         {
@@ -48,12 +56,22 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 当B交易所的订单发生改变时
         /// </summary>
         /// <param name="orderbook"></param>
-        void OnOrderbookBHandler(ExchangeOrderBook orderbook)
+        async void OnOrderbookBHandler(ExchangeOrderBook orderbook)
         {
             mOrderbookB = orderbook;
-            var bidFirst = GetBidFirst(orderbook);
-            var askFirst = GetAskFirst(orderbook);
-            Console.WriteLine("bid：" + bidFirst.ToString() + " ask:" + askFirst.ToString());
+            if (!isOperatingOrder)
+            {
+                isOperatingOrder = true;
+                if (!isClosePositionState)
+                {
+                    await OpenPosition();
+                }
+                else
+                {
+                    await ClosePosition();
+                }
+                isOperatingOrder = false;
+            }
         }
 
         void OnOrderbookAHandler(ExchangeOrderBook orderbook)
@@ -67,14 +85,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <param name="order"></param>
         void OnOrderAHandler(ExchangeOrderResult order)
         {
-            Console.WriteLine(order.ToString());
-
+            if (order.MarketSymbol != mConfig.SymbolA)
+                return;
             // TODO 战且不处理部分成交的问题
             //if (ExchangeAPIOrderResult.FilledPartially == order.Result)
             //{
             //    mExchangeAAPI.CancelOrderAsync(order.OrderId);
             //}
-
 
             if (order.Result == ExchangeAPIOrderResult.Filled)
             {
@@ -87,6 +104,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 {
                     SwitchStateToClosePosition();
                 }
+                ReverseOpenMarketOrder(order);
+
             }
 
             // 如果订单状态是取消则清空ask和bid
@@ -96,9 +115,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 {
                     mAskOrder = null;
                 }
-                if (mBidPrder != null && mBidPrder.OrderId == order.OrderId)
+                if (mBidOrder != null && mBidOrder.OrderId == order.OrderId)
                 {
-                    mBidPrder = null;
+                    mBidOrder = null;
                 }
             }
         }
@@ -108,6 +127,156 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         #region private utils
         /// <summary>
+        /// 反向市价开仓
+        /// </summary>
+        void ReverseOpenMarketOrder(ExchangeOrderResult order)
+        {
+            var req = new ExchangeOrderRequest();
+            req.Amount = order.Amount;
+            req.Price = order.Amount;
+            req.IsBuy = !order.IsBuy;
+            req.IsMargin = true;
+            req.OrderType = ExchangeSharp.OrderType.Market;
+        }
+        /// <summary>
+        /// 开仓
+        /// </summary>
+        async Task OpenPosition()
+        {
+            if (mOrderBookA == null)
+                return;
+            var bidPrice = GetLimitBidOrderPair(mOrderbookB);
+            var askPrice = GetLimitAskOrderPair(mOrderbookB);
+            var bidReq = new ExchangeOrderRequest()
+            {
+                Amount = bidPrice.Amount,
+                Price = bidPrice.Price,
+                MarketSymbol = mConfig.SymbolA,
+                IsBuy = true
+            };
+            var askReq = new ExchangeOrderRequest()
+            {
+                Amount = askPrice.Amount,
+                Price = askPrice.Price,
+                MarketSymbol = mConfig.SymbolA,
+                IsBuy = false
+            };
+            var requests = OrdersFilter(bidReq, askReq);
+            if (requests.Length > 0)
+            {
+                var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
+                foreach (var o in orders)
+                {
+                    if (o.IsBuy)
+                    {
+                        mBidOrder = o;
+                    }
+                    else
+                    {
+                        mAskOrder = o;
+                    }
+                }
+            }
+        }
+        /// <summary>
+        /// 平仓
+        /// </summary>
+        async Task ClosePosition()
+        {
+            var req = new ExchangeOrderRequest()
+            {
+                Amount = mFilledOrder.Amount,
+                Price = mFilledOrder.IsBuy ? GetBidFirst(mOrderbookB).Price : GetAskFirst(mOrderbookB).Price,
+                MarketSymbol = mConfig.SymbolA,
+                IsBuy = !mFilledOrder.IsBuy,
+            };
+            var requests = OrdersFilter(req);
+
+            if (requests.Length > 0)
+            {
+                var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
+                foreach (var o in orders)
+                {
+                    mCloseOrder = o;
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// 价格过滤器
+        /// </summary>
+        /// <param name="requests"></param>
+        /// <returns></returns>
+        ExchangeOrderRequest[] OrdersFilter(params ExchangeOrderRequest[] requests)
+        {
+            List<ExchangeOrderRequest> list = new List<ExchangeOrderRequest>();
+            var len = requests.Count();
+            for (int i = 0; i < len; i++)
+            {
+                var req = requests[i];
+                OrderFilter(req);
+                if (req.Amount > mConfig.MaxQty)
+                    req.Amount = mConfig.MaxQty;
+                if (isClosePositionState)
+                {
+                    if (LimitOrderFilter2(req, mCloseOrder))
+                        list.Add(req);
+                }
+                else if (LimitOrderFilter2(req, req.IsBuy ? mBidOrder : mAskOrder))
+                {
+                    list.Add(req);
+                }
+            }
+            return list.ToArray();
+        }
+        /// <summary>
+        /// 检查当前价格是否会形成市价单
+        /// </summary>
+        /// <param name="request"></param>
+        void OrderFilter(ExchangeOrderRequest request)
+        {
+            lock (mOrderBookA)
+            {
+                if (request.IsBuy)
+                {
+                    var bidFirst = mOrderBookA.Bids.First().Value;
+                    if (request.Price > bidFirst.Price)
+                    {
+                        request.Price = bidFirst.Price;
+                    }
+                }
+                else
+                {
+                    var askFirst = mOrderBookA.Asks.First().Value;
+                    if (request.Price < askFirst.Price)
+                    {
+                        request.Price = askFirst.Price;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 检查是否需要修改
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="result"></param>
+        /// <returns></returns>
+        bool LimitOrderFilter2(ExchangeOrderRequest request, ExchangeOrderResult result)
+        {
+            if (result == null)
+                return true;
+            var priceDiff = (result.Price - request.Price) / request.Price / mConfig.MinIRS;
+            var amountDiff = (result.Amount - request.Amount) / request.Amount;
+            if (Math.Abs(priceDiff) < 0.2m && Math.Abs(amountDiff) < 0.2m)
+            {
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>
         /// 获取价格深度合并后的买一价
         /// </summary>
         /// <param name="orderBook"></param>
@@ -115,7 +284,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         ExchangeOrderPrice GetBidFirst(ExchangeOrderBook orderBook)
         {
             var first = orderBook.Bids.First();
-            var price = first.Key * (1 - mConfig.MinIRS);
+            var price = first.Key - mConfig.MinPriceUnit;
             price = NormalizationMinUnit(price);
             var amount = orderBook.Bids.Where(op => op.Key > price).Select((op) => { return op.Value.Amount; }).Sum();
             return new ExchangeOrderPrice()
@@ -132,7 +301,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         ExchangeOrderPrice GetAskFirst(ExchangeOrderBook orderBook)
         {
             var first = orderBook.Asks.First();
-            var price = first.Key * (1 + mConfig.MinIRS);
+            var price = first.Key + mConfig.MinPriceUnit;
             price = NormalizationMinUnit(price);
             var amount = orderBook.Asks.Where(op => op.Key < price).Select((op) => { return op.Value.Amount; }).Sum();
             return new ExchangeOrderPrice()
@@ -170,8 +339,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var fees = mConfig.Fees * askFirst.Price;
             var price = askFirst.Price * (1 - mConfig.MinIRS) - fees * 2 - GetStandardDev();
             var amount = askFirst.Amount * mConfig.POR;
+            price = mExchangeAAPI.PriceComplianceCheck(price);
+            amount = mExchangeAAPI.AmountComplianceCheck(amount);
             orderPrice.Amount = amount;
-            orderPrice.Price = price;
+            orderPrice.Price = NormalizationMinUnit(price);
             return orderPrice;
         }
         /// <summary>
@@ -188,7 +359,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var price = bidFirst.Price * (mConfig.MinIRS + 1) + fees * 2 + GetStandardDev();
             var amount = bidFirst.Amount * mConfig.POR;
             orderPrice.Amount = amount;
-            orderPrice.Price = price;
+            orderPrice.Price = NormalizationMinUnit(price);
             return orderPrice;
         }
 
@@ -218,7 +389,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             isClosePositionState = true;
             mExchangeAAPI.CancelOrderAsync(mAskOrder.OrderId);
-            mExchangeAAPI.CancelOrderAsync(mBidPrder.OrderId);
+            mExchangeAAPI.CancelOrderAsync(mBidOrder.OrderId);
         }
 
         #endregion
