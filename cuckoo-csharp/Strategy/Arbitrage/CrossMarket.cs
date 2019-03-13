@@ -208,7 +208,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             req.IsBuy = !order.IsBuy;
             req.IsMargin = true;
             req.OrderType = OrderType.Market;
-            //mExchangeBAPI.PlaceOrderAsync(req);
+            mExchangeBAPI.PlaceOrderAsync(req);
             Console.WriteLine("----------------------------ReverseOpenMarketOrder---------------------------");
             Console.WriteLine(order.OrderId);
         }
