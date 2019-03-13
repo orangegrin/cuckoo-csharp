@@ -507,24 +507,28 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         public void Start()
         {
             Console.WriteLine("Start");
-            mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
-            mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
-            mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 25, mConfig.SymbolA);
+            //mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
+            //mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
+            //mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 25, mConfig.SymbolA);
+
             //mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
             //mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            testc();
 
         }
         public async Task testc()
         {
-            ExchangeOrderRequest req = new ExchangeOrderRequest()
-            {
-                Amount = 200m,
-                Price = 3848,
-                IsBuy = true,
-                MarketSymbol = mConfig.SymbolB,
-                OrderType = OrderType.Market,
-            };
-            ExchangeOrderResult re = await mExchangeBAPI.PlaceOrderAsync(req);
+            await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, 60, null, null, 150);
+            //获取订单
+            //ExchangeOrderRequest req = new ExchangeOrderRequest()
+            //{
+            //    Amount = 200m,
+            //    Price = 3848,
+            //    IsBuy = true,
+            //    MarketSymbol = mConfig.SymbolB,
+            //    OrderType = OrderType.Market,
+            //};
+            //ExchangeOrderResult re = await mExchangeBAPI.PlaceOrderAsync(req);
         }
     }
     public struct CrossMarketConfig
