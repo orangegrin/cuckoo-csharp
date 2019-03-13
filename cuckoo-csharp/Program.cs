@@ -56,6 +56,8 @@ namespace cuckoo_csharp
             crossMarketConfig.FeesB = 0.00025m;
             crossMarketConfig.POR = 0.6m;
             crossMarketConfig.MinPriceUnit = 0.5m;
+            crossMarketConfig.PeriodFreq = 60;
+            crossMarketConfig.TimePeriod = 30;
             return crossMarketConfig;
         }
     }

@@ -47,11 +47,23 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         public CrossMarket(CrossMarketConfig config)
         {
+
             mConfig = config;
             mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mConfig.ExchangeNameA);
             mExchangeBAPI = ExchangeAPI.GetExchangeAPI(mConfig.ExchangeNameB);
         }
         #region handler
+        bool isReady
+        {
+            get
+            {
+                if (smaA == null)
+                    return false;
+                if (smaB == null)
+                    return false;
+                return true;
+            }
+        }
         /// <summary>
         /// 当B交易所的订单发生改变时
         /// </summary>
@@ -59,6 +71,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         async void OnOrderbookBHandler(ExchangeOrderBook orderbook)
         {
             mOrderbookB = orderbook;
+            if (!isReady)
+                return;
             if (mRunningTask == null || mRunningTask.IsCompleted)
             {
                 try
@@ -428,7 +442,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var orderPrice = new ExchangeOrderPrice();
             var askFirst = GetAskFirst(orderBook);
             var fees = mConfig.Fees * askFirst.Price;
-            var price = askFirst.Price * (1 - mConfig.MinIRS) - fees * 2 - GetStandardDev();
+            var price = askFirst.Price * (1 - mConfig.MinIRS) - fees * 2 + GetStandardDev();
             var amount = askFirst.Amount * mConfig.POR;
             price = mExchangeAAPI.PriceComplianceCheck(price);
             amount = mExchangeAAPI.AmountComplianceCheck(amount);
@@ -460,23 +474,34 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <returns></returns>
         decimal GetStandardDev()
         {
-            string periodfreq = mConfig.PeriodFreq;
-            float timeperiod = mConfig.TimePeriod;
-            //TODO 计算两个交易所MA的价差
-            return 0m;
+            var dev = smaA[0] - smaB[0];
+            return dev.ConvertInvariant<decimal>();
         }
-        private MarketCandle[] marketCandleA;
-        private MarketCandle[] marketCandleB;
-        async void GetExchangeCandle()
+        private IEnumerable<MarketCandle> marketCandleA;
+        private IEnumerable<MarketCandle> marketCandleB;
+        private double[] smaA;
+        private double[] smaB;
+
+        private async Task GetExchangeCandles(int periodSeconds)
         {
-            var periodSeconds = 60;
+            marketCandleA = await mExchangeAAPI.GetCandlesAsync(mConfig.SymbolA, periodSeconds, limit: 100);
+            marketCandleB = await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, periodSeconds, limit: 100);
+            var closeA = marketCandleA.Select((candle, index) => { return candle.ClosePrice.ConvertInvariant<float>(); }).Reverse();
+            var closeB = marketCandleB.Select((candle, index) => { return candle.ClosePrice.ConvertInvariant<float>(); }).Reverse();
+            int outBegIdx;
+            int outNBElement;
+            smaA = new double[closeA.Count()];
+            smaB = new double[closeB.Count()];
+            TicTacTec.TA.Library.Core.Sma(0, closeA.Count() - 1, closeA.ToArray(), mConfig.TimePeriod, out outBegIdx, out outNBElement, smaA);
+            TicTacTec.TA.Library.Core.Sma(0, closeB.Count() - 1, closeB.ToArray(), mConfig.TimePeriod, out outBegIdx, out outNBElement, smaB);
+            Console.WriteLine(GetStandardDev());
+            await Task.Delay(periodSeconds * 1000);
+        }
+        private async void WhileGetExchangeCandles()
+        {
             while (true)
             {
-                await Task.Delay(periodSeconds * 1000);
-                var start = DateTime.Now;
-                var end = DateTime.Now;
-                marketCandleA = (await mExchangeAAPI.GetCandlesAsync(mConfig.SymbolA, periodSeconds, start, end)).ToArray();
-                marketCandleB = (await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, periodSeconds, start, end)).ToArray();
+                await GetExchangeCandles(mConfig.PeriodFreq);
             }
         }
         /// <summary>
@@ -514,9 +539,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Console.WriteLine("Start");
             mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
             mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
-            mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 25, mConfig.SymbolA);
-            mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
-            mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            WhileGetExchangeCandles();
+            //mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 25, mConfig.SymbolA);
+            //mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
+            //mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
 
         }
     }
@@ -566,13 +592,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         public decimal MinPriceUnit;
         /// <summary>
-        /// 期间频率 Min,H,D,M
+        /// 期间频率 单位为（秒）
         /// </summary>
-        public string PeriodFreq;
+        public int PeriodFreq;
         /// <summary>
         /// 时间长度
         /// </summary>
-        public float TimePeriod;
+        public int TimePeriod;
         /// <summary>
         /// 两个交易所的总交易手续费率
         /// </summary>

@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Cryptowatcher.TA-LIb-Core" Version="1.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\ExchangeSharp\ExchangeSharp\ExchangeSharp.csproj" />
   </ItemGroup>
 
