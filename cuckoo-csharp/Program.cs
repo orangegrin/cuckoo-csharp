@@ -50,7 +50,7 @@ namespace cuckoo_csharp
             crossMarketConfig.ExchangeNameB = ExchangeName.HBDM;
             crossMarketConfig.SymbolA = "XBTUSD";
             crossMarketConfig.SymbolB = "BTC_CW";
-            crossMarketConfig.MaxQty = 10;
+            crossMarketConfig.MaxQty = 100;
             crossMarketConfig.MinIRS = 0.0001m;
             crossMarketConfig.FeesA = -0.00025m;
             crossMarketConfig.FeesB = 0.00025m;
