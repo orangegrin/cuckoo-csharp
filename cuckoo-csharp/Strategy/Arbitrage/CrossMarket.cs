@@ -165,9 +165,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (order.MarketSymbol != mConfig.SymbolA)
                 return;
             if (!IsMyOrder(order.OrderId))
-            {
                 return;
-            }
+
+            if (mAskOrder != null && mAskOrder.OrderId == order.OrderId)
+                mAskOrder = order;
+            if (mBidOrder != null && mBidOrder.OrderId == order.OrderId)
+                mBidOrder = order;
+            if (mCloseOrder != null && mCloseOrder.OrderId == order.OrderId)
+                mCloseOrder = order;
+
             switch (order.Result)
             {
                 case ExchangeAPIOrderResult.Unknown:
@@ -262,11 +268,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 {
                     if (o.IsBuy)
                     {
-                        mBidOrder = o;
+                        if (mAskOrder == null)
+                            mBidOrder = o;
                     }
                     else
                     {
-                        mAskOrder = o;
+                        if (mAskOrder == null)
+                            mAskOrder = o;
                     }
                 }
                 if (mBidOrder.Result == ExchangeAPIOrderResult.Canceled)
