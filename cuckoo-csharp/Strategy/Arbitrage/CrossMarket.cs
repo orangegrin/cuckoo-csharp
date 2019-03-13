@@ -507,17 +507,18 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         public void Start()
         {
             Console.WriteLine("Start");
-            //mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
-            //mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
-            //mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 25, mConfig.SymbolA);
+            mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
+            mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
+            mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 25, mConfig.SymbolA);
 
             //mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
             //mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
-            testc();
+            //testc();
 
         }
         public async Task testc()
         {
+            //蜡烛线
             await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, 60, null, null, 150);
             //获取订单
             //ExchangeOrderRequest req = new ExchangeOrderRequest()
