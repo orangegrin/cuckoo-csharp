@@ -98,7 +98,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         void OnOrderbookAHandler(ExchangeOrderBook orderbook)
         {
             mOrderBookA = orderbook;
-            
+
         }
 
         bool IsMyOrder(string orderId)
@@ -201,7 +201,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <summary>
         /// 反向市价开仓
         /// </summary>
-        void ReverseOpenMarketOrder(ExchangeOrderResult order)
+        async void ReverseOpenMarketOrder(ExchangeOrderResult order)
         {
             var req = new ExchangeOrderRequest();
             req.Amount = order.Amount;
@@ -209,9 +209,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             req.IsBuy = !order.IsBuy;
             req.IsMargin = true;
             req.OrderType = OrderType.Market;
-            mExchangeBAPI.PlaceOrderAsync(req);
+            req.MarketSymbol = mConfig.SymbolB;
             Console.WriteLine("----------------------------ReverseOpenMarketOrder---------------------------");
-            Console.WriteLine(order.OrderId);
+            Console.WriteLine(res.ToString());
+            var res = await mExchangeBAPI.PlaceOrderAsync(req);
+            Console.WriteLine(res.OrderId);
         }
         /// <summary>
         /// 开仓
@@ -535,7 +537,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
 
 
-        public void Start()
+        public async void Start()
         {
             Console.WriteLine("Start");
             mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
@@ -544,7 +546,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 25, mConfig.SymbolA);
             mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
             mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
-
         }
     }
     public struct CrossMarketConfig
