@@ -98,6 +98,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         void OnOrderbookAHandler(ExchangeOrderBook orderbook)
         {
             mOrderBookA = orderbook;
+            
         }
 
         bool IsMyOrder(string orderId)
@@ -540,9 +541,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
             mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
             WhileGetExchangeCandles();
-            //mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 25, mConfig.SymbolA);
-            //mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
-            //mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 25, mConfig.SymbolA);
+            mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
+            mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
 
         }
     }
