@@ -43,7 +43,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <summary>
         /// 正在操作订单
         /// </summary>
-        private bool isOperatingOrder = false;
         private Task mRunningTask;
 
         public CrossMarket(CrossMarketConfig config)
@@ -108,11 +107,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         void OnOrderFilled(ExchangeOrderResult order)
         {
             Console.WriteLine("-------------------- Order Filed ---------------------------");
-            Console.WriteLine(order.ToString());
+            Console.WriteLine(order.OrderId);
             mFilledOrder = order;
-            if (order.OrderId == mAskOrder.OrderId)
+            if (mAskOrder != null && order.OrderId == mAskOrder.OrderId)
                 mAskOrder = null;
-            if (order.OrderId == mBidOrder.OrderId)
+            if (mBidOrder != null && order.OrderId == mBidOrder.OrderId)
                 mBidOrder = null;
             if (mCloseOrder != null && mCloseOrder.OrderId == order.OrderId)
             {
@@ -127,7 +126,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         void OnOrderCanceled(ExchangeOrderResult order)
         {
             Console.WriteLine("-------------------- Order Canceled ---------------------------");
-            Console.WriteLine(order.ToString());
+            Console.WriteLine(order.OrderId);
             if (mAskOrder != null && mAskOrder.OrderId == order.OrderId)
             {
                 mAskOrder = null;
@@ -135,6 +134,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (mBidOrder != null && mBidOrder.OrderId == order.OrderId)
             {
                 mBidOrder = null;
+            }
+            if (mCloseOrder != null && mCloseOrder.OrderId == order.OrderId)
+            {
+                mCloseOrder = null;
             }
 
         }
@@ -193,7 +196,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             req.OrderType = OrderType.Market;
             //mExchangeBAPI.PlaceOrderAsync(req);
             Console.WriteLine("----------------------------ReverseOpenMarketOrder---------------------------");
-            Console.WriteLine(order.ToString());
+            Console.WriteLine(order.OrderId);
         }
         /// <summary>
         /// 开仓
@@ -249,6 +252,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         mAskOrder = o;
                     }
                 }
+                if (mBidOrder.Result == ExchangeAPIOrderResult.Canceled)
+                    OnOrderCanceled(mBidOrder);
+                if (mAskOrder.Result == ExchangeAPIOrderResult.Canceled)
+                    OnOrderCanceled(mAskOrder);
             }
         }
         /// <summary>
@@ -276,12 +283,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Console.WriteLine("--------------- ClosePosition ------------------");
                 if (mCloseOrder != null)
                     Console.WriteLine(mCloseOrder.OrderId);
-                Console.WriteLine(req.ToString());
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
                 foreach (var o in orders)
                 {
                     mCloseOrder = o;
                 }
+                if (mCloseOrder.Result == ExchangeAPIOrderResult.Canceled)
+                    OnOrderCanceled(mCloseOrder);
             }
         }
 
@@ -457,11 +465,26 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //TODO 计算两个交易所MA的价差
             return 0m;
         }
+        private MarketCandle[] marketCandleA;
+        private MarketCandle[] marketCandleB;
+        async void GetExchangeCandle()
+        {
+            var periodSeconds = 60;
+            while (true)
+            {
+                await Task.Delay(periodSeconds * 1000);
+                var start = DateTime.Now;
+                var end = DateTime.Now;
+                marketCandleA = (await mExchangeAAPI.GetCandlesAsync(mConfig.SymbolA, periodSeconds, start, end)).ToArray();
+                marketCandleB = (await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, periodSeconds, start, end)).ToArray();
+            }
+        }
         /// <summary>
         /// 切换到开仓状态
         /// </summary>
         void SwicthStateToOpenPosition()
         {
+            Console.WriteLine("---------------------Switch State to Open Position-----------------------------");
             isClosePositionState = false;
             mCloseOrder = null;
         }
@@ -470,6 +493,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         async void SwitchStateToClosePosition()
         {
+            Console.WriteLine("---------------------Switch State to Close Position-----------------------------");
             isClosePositionState = true;
             if (mBidOrder != null)
                 mRunningTask = mExchangeAAPI.CancelOrderAsync(mBidOrder.OrderId, mConfig.SymbolA);
