@@ -211,8 +211,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             req.OrderType = OrderType.Market;
             req.MarketSymbol = mConfig.SymbolB;
             Console.WriteLine("----------------------------ReverseOpenMarketOrder---------------------------");
-            Console.WriteLine(res.ToString());
             var res = await mExchangeBAPI.PlaceOrderAsync(req);
+            Console.WriteLine(res.ToString());
             Console.WriteLine(res.OrderId);
         }
         /// <summary>
