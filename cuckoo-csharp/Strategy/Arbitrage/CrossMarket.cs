@@ -76,7 +76,26 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         void OnOrderbookAHandler(ExchangeOrderBook orderbook)
         {
+            if (mOrderBookA == null)
+            {
+               
+
+                //HuobiApi api = new HuobiApi("440757a5-e78ac402-84903e36-194b1", "7f0a0c5c-24fd0bb9-eb64134f-2e1b6");
+                //OrderPlaceRequest req = new OrderPlaceRequest();
+                //req.volume = "1";
+                //req.direction = "buy";
+                //req.price = "3856";
+                //req.offset = "open";
+                //req.lever_rate = "10";
+                //req.contract_code = "BTC181214";
+                //req.order_price_type = "opponent";
+                //req.symbol = "BTC";
+                //req.contract_type = "this_week";
+                //var result = api.OrderPlace(req);
+            }
+            Logger.Debug(orderbook.ToString());
             mOrderBookA = orderbook;
+            
         }
 
         /// <summary>
@@ -402,9 +421,21 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
             mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
             mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 25, mConfig.SymbolA);
-            mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
-            mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            //mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
+            //mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
 
+        }
+        public async Task testc()
+        {
+            ExchangeOrderRequest req = new ExchangeOrderRequest()
+            {
+                Amount = 200m,
+                Price = 3848,
+                IsBuy = true,
+                MarketSymbol = mConfig.SymbolB,
+                OrderType = OrderType.Market,
+            };
+            ExchangeOrderResult re = await mExchangeBAPI.PlaceOrderAsync(req);
         }
     }
     public struct CrossMarketConfig
