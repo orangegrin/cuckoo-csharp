@@ -545,7 +545,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
 
 
-        public async void Start()
+        public void Start()
         {
             Console.WriteLine("Start");
             mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
