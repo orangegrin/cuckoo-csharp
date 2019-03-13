@@ -44,6 +44,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 正在操作订单
         /// </summary>
         private bool isOperatingOrder = false;
+        private Task mRunningTask;
 
         public CrossMarket(CrossMarketConfig config)
         {
@@ -59,18 +60,25 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         async void OnOrderbookBHandler(ExchangeOrderBook orderbook)
         {
             mOrderbookB = orderbook;
-            if (!isOperatingOrder)
+            if (mRunningTask == null || mRunningTask.IsCompleted)
             {
-                isOperatingOrder = true;
-                if (!isClosePositionState)//TODO 开仓状态继续开仓？
+                try
                 {
-                    await OpenPosition();
+                    if (!isClosePositionState)
+                    {
+                        mRunningTask = OpenPosition();
+                    }
+                    else if (mAskOrder == null && mBidOrder == null && mFilledOrder != null)
+                    {
+                        mRunningTask = ClosePosition();
+                    }
+                    if (mRunningTask != null)
+                        await mRunningTask;
                 }
-                else
+                catch (Exception ex)
                 {
-                    await ClosePosition();
+                    Console.WriteLine(ex.ToString());
                 }
-                isOperatingOrder = false;
             }
         }
 
@@ -98,6 +106,57 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             
         }
 
+        bool IsMyOrder(string orderId)
+        {
+            if (mAskOrder != null && mAskOrder.OrderId == orderId)
+            {
+                return true;
+            }
+            if (mBidOrder != null && mBidOrder.OrderId == orderId)
+            {
+                return true;
+            }
+
+            if (mCloseOrder != null && mCloseOrder.OrderId == orderId)
+            {
+                return true;
+            }
+
+            return false;
+        }
+        void OnOrderFilled(ExchangeOrderResult order)
+        {
+            Console.WriteLine("-------------------- Order Filed ---------------------------");
+            Console.WriteLine(order.ToString());
+            mFilledOrder = order;
+            if (order.OrderId == mAskOrder.OrderId)
+                mAskOrder = null;
+            if (order.OrderId == mBidOrder.OrderId)
+                mBidOrder = null;
+            if (mCloseOrder != null && mCloseOrder.OrderId == order.OrderId)
+            {
+                SwicthStateToOpenPosition();
+            }
+            else
+            {
+                SwitchStateToClosePosition();
+            }
+            ReverseOpenMarketOrder(order);
+        }
+        void OnOrderCanceled(ExchangeOrderResult order)
+        {
+            Console.WriteLine("-------------------- Order Canceled ---------------------------");
+            Console.WriteLine(order.ToString());
+            if (mAskOrder != null && mAskOrder.OrderId == order.OrderId)
+            {
+                mAskOrder = null;
+            }
+            if (mBidOrder != null && mBidOrder.OrderId == order.OrderId)
+            {
+                mBidOrder = null;
+            }
+
+        }
         /// <summary>
         /// 当A交易所的订单发生改变时候触发
         /// </summary>
@@ -106,38 +165,33 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             if (order.MarketSymbol != mConfig.SymbolA)
                 return;
-            // TODO 战且不处理部分成交的问题
-            //if (ExchangeAPIOrderResult.FilledPartially == order.Result)
-            //{
-            //    mExchangeAAPI.CancelOrderAsync(order.OrderId);
-            //}
-
-            if (order.Result == ExchangeAPIOrderResult.Filled)
+            if (!IsMyOrder(order.OrderId))
             {
-                mFilledOrder = order;
-                if (mCloseOrder != null && mCloseOrder.OrderId == order.OrderId)
-                {
-                    SwicthStateToOpenPosition();
-                }
-                else
-                {
-                    SwitchStateToClosePosition();
-                }
-                ReverseOpenMarketOrder(order);
-
+                return;
             }
-
-            // 如果订单状态是取消则清空ask和bid
-            if (order.Result == ExchangeAPIOrderResult.Canceled)
+            switch (order.Result)
             {
-                if (mAskOrder != null && mAskOrder.OrderId == order.OrderId)
-                {
-                    mAskOrder = null;
-                }
-                if (mBidOrder != null && mBidOrder.OrderId == order.OrderId)
-                {
-                    mBidOrder = null;
-                }
+                case ExchangeAPIOrderResult.Unknown:
+                    break;
+                case ExchangeAPIOrderResult.Filled:
+                    OnOrderFilled(order);
+                    break;
+                case ExchangeAPIOrderResult.FilledPartially:
+                    // TODO 战且不处理部分成交的问题
+                    break;
+                case ExchangeAPIOrderResult.Pending:
+                    break;
+                case ExchangeAPIOrderResult.Error:
+                    break;
+                case ExchangeAPIOrderResult.Canceled:
+                    OnOrderCanceled(order);
+                    break;
+                case ExchangeAPIOrderResult.FilledPartiallyAndCancelled:
+                    break;
+                case ExchangeAPIOrderResult.PendingCancel:
+                    break;
+                default:
+                    break;
             }
         }
 
@@ -152,10 +206,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             var req = new ExchangeOrderRequest();
             req.Amount = order.Amount;
-            req.Price = order.Amount;
+            req.Price = order.Price;
             req.IsBuy = !order.IsBuy;
             req.IsMargin = true;
-            req.OrderType = ExchangeSharp.OrderType.Market;
+            req.OrderType = OrderType.Market;
+            //mExchangeBAPI.PlaceOrderAsync(req);
+            Console.WriteLine("----------------------------ReverseOpenMarketOrder---------------------------");
+            Console.WriteLine(order.ToString());
         }
         /// <summary>
         /// 开仓
@@ -171,18 +228,34 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Amount = bidPrice.Amount,
                 Price = bidPrice.Price,
                 MarketSymbol = mConfig.SymbolA,
-                IsBuy = true
+                IsBuy = true,
+                ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
             };
             var askReq = new ExchangeOrderRequest()
             {
                 Amount = askPrice.Amount,
                 Price = askPrice.Price,
                 MarketSymbol = mConfig.SymbolA,
-                IsBuy = false
+                IsBuy = false,
+                ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
             };
-            var requests = OrdersFilter(bidReq, askReq);
-            if (requests.Length > 0)
+
+            if (mAskOrder != null)
             {
+                askReq.ExtraParameters.Add("orderID", mAskOrder.OrderId);
+            }
+            if (mBidOrder != null)
+            {
+                bidReq.ExtraParameters.Add("orderID", mBidOrder.OrderId);
+            }
+            var requests = OrdersFilter(bidReq, askReq);
+            if (requests.Length > 0 && !isClosePositionState)
+            {
+                Console.WriteLine("--------------- OpenPosition ------------------");
+                if (mBidOrder != null)
+                    Console.WriteLine(mBidOrder.OrderId);
+                if (mAskOrder != null)
+                    Console.WriteLine(mAskOrder.OrderId);
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
                 foreach (var o in orders)
                 {
@@ -208,11 +281,21 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Price = mFilledOrder.IsBuy ? GetBidFirst(mOrderbookB).Price : GetAskFirst(mOrderbookB).Price,
                 MarketSymbol = mConfig.SymbolA,
                 IsBuy = !mFilledOrder.IsBuy,
+                ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
             };
+            if (mCloseOrder != null)
+            {
+                req.ExtraParameters.Add("orderID", mCloseOrder.OrderId);
+            }
             var requests = OrdersFilter(req);
-
             if (requests.Length > 0)
             {
+                if (!isClosePositionState)
+                    return;
+                Console.WriteLine("--------------- ClosePosition ------------------");
+                if (mCloseOrder != null)
+                    Console.WriteLine(mCloseOrder.OrderId);
+                Console.WriteLine(req.ToString());
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
                 foreach (var o in orders)
                 {
@@ -404,11 +487,17 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <summary>
         /// 切换到平仓状态
         /// </summary>
-        void SwitchStateToClosePosition()
+        async void SwitchStateToClosePosition()
         {
             isClosePositionState = true;
-            mExchangeAAPI.CancelOrderAsync(mAskOrder.OrderId);
-            mExchangeAAPI.CancelOrderAsync(mBidOrder.OrderId);
+            if (mBidOrder != null)
+                mRunningTask = mExchangeAAPI.CancelOrderAsync(mBidOrder.OrderId, mConfig.SymbolA);
+            if (mAskOrder != null)
+                mRunningTask = mExchangeAAPI.CancelOrderAsync(mAskOrder.OrderId, mConfig.SymbolA);
+            await mRunningTask;
+            mAskOrder = null;
+            mBidOrder = null;
+
         }
 
         #endregion
