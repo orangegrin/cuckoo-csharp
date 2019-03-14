@@ -299,8 +299,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var slippage = 0.0003m;
             var priceBid = GetBidFirst(mOrderbookB).Price;
             var priceAsk = GetAskFirst(mOrderbookB).Price;
-            priceBid = priceBid * (1m - slippage);
-            priceBid = priceBid * (1m + slippage);
+            priceBid = NormalizationMinUnit(priceBid * (1m - slippage));
+            priceAsk = NormalizationMinUnit(priceAsk * (1m + slippage));
             var req = new ExchangeOrderRequest()
             {
                 Amount = mFilledOrder.Amount,
