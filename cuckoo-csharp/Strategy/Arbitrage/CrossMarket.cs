@@ -85,12 +85,18 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         mRunningTask = ClosePosition();
                     }
-                    if (mRunningTask != null)
+                    if (mRunningTask != null && !mRunningTask.IsCompleted)
+                    {
+                        var ticks = DateTime.Now.Ticks;
                         await mRunningTask;
+                        Console.WriteLine(DateTime.Now.Ticks - ticks);
+                    }
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine(ex.ToString());
+                    mRunningTask = Task.Delay(1000);
+                    await mRunningTask;
                 }
             }
         }
@@ -217,7 +223,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             req.OrderType = OrderType.Market;
             req.MarketSymbol = mConfig.SymbolB;
             Console.WriteLine("----------------------------ReverseOpenMarketOrder---------------------------");
+            var ticks = DateTime.Now.Ticks;
             var res = await mExchangeBAPI.PlaceOrderAsync(req);
+            Console.WriteLine(DateTime.Now.Ticks - ticks);
             Console.WriteLine(res.ToString());
             Console.WriteLine(res.OrderId);
         }
@@ -485,6 +493,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <returns></returns>
         decimal GetStandardDev()
         {
+            return 0m;
             var dev = smaA[0] - smaB[0];
             return dev.ConvertInvariant<decimal>();
         }
