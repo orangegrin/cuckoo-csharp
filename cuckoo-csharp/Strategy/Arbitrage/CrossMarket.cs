@@ -319,6 +319,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (!isClosePositionState)
                     return;
                 Console.WriteLine("--------------- ClosePosition ------------------");
+                Console.WriteLine("{0},{1},{1},{3}", priceBid, priceAsk, mOrderbookB.Bids[0].Price, mOrderbookB.Asks[0].Price);
                 if (mCloseOrder != null)
                     Console.WriteLine(mCloseOrder.OrderId);
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
@@ -513,17 +514,25 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         private async Task GetExchangeCandles(int periodSeconds)
         {
-            marketCandleA = await mExchangeAAPI.GetCandlesAsync(mConfig.SymbolA, periodSeconds, limit: 100);
-            marketCandleB = await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, periodSeconds, limit: 100);
-            var closeA = marketCandleA.Select((candle, index) => { return candle.ClosePrice.ConvertInvariant<float>(); }).Reverse();
-            var closeB = marketCandleB.Select((candle, index) => { return candle.ClosePrice.ConvertInvariant<float>(); }).Reverse();
-            int outBegIdx;
-            int outNBElement;
-            smaA = new double[closeA.Count()];
-            smaB = new double[closeB.Count()];
-            TicTacTec.TA.Library.Core.Sma(0, closeA.Count() - 1, closeA.ToArray(), mConfig.TimePeriod, out outBegIdx, out outNBElement, smaA);
-            TicTacTec.TA.Library.Core.Sma(0, closeB.Count() - 1, closeB.ToArray(), mConfig.TimePeriod, out outBegIdx, out outNBElement, smaB);
-            Console.WriteLine(GetStandardDev());
+            try
+            {
+                marketCandleA = await mExchangeAAPI.GetCandlesAsync(mConfig.SymbolA, periodSeconds, limit: 100);
+                marketCandleB = await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, periodSeconds, limit: 100);
+                var closeA = marketCandleA.Select((candle, index) => { return candle.ClosePrice.ConvertInvariant<float>(); }).Reverse();
+                var closeB = marketCandleB.Select((candle, index) => { return candle.ClosePrice.ConvertInvariant<float>(); }).Reverse();
+                int outBegIdx;
+                int outNBElement;
+                smaA = new double[closeA.Count()];
+                smaB = new double[closeB.Count()];
+                TicTacTec.TA.Library.Core.Sma(0, closeA.Count() - 1, closeA.ToArray(), mConfig.TimePeriod, out outBegIdx, out outNBElement, smaA);
+                TicTacTec.TA.Library.Core.Sma(0, closeB.Count() - 1, closeB.ToArray(), mConfig.TimePeriod, out outBegIdx, out outNBElement, smaB);
+                Console.WriteLine(GetStandardDev());
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+            }
             await Task.Delay(periodSeconds * 1000);
         }
         private async void WhileGetExchangeCandles()
@@ -563,11 +572,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         #endregion
 
-
-
         public void Start()
         {
-            Console.WriteLine("Start");
+            Console.WriteLine("Start {0},{1},{1},{3}", 1m, 2m, 3m, 4m);
             mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
             mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
             WhileGetExchangeCandles();
