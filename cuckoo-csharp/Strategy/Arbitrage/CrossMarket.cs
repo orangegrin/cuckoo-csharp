@@ -94,8 +94,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(ex.ToString());
                     mRunningTask = Task.Delay(1000);
+                    Console.WriteLine(ex.ToString());
                     await mRunningTask;
                 }
             }
@@ -285,9 +285,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             mAskOrder = o;
                     }
                 }
-                if (mBidOrder.Result == ExchangeAPIOrderResult.Canceled)
+                if (mBidOrder != null && mBidOrder.Result == ExchangeAPIOrderResult.Canceled)
                     OnOrderCanceled(mBidOrder);
-                if (mAskOrder.Result == ExchangeAPIOrderResult.Canceled)
+                if (mAskOrder != null && mAskOrder.Result == ExchangeAPIOrderResult.Canceled)
                     OnOrderCanceled(mAskOrder);
             }
         }
@@ -296,10 +296,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         async Task ClosePosition()
         {
+            var slippage = 0.0003m;
+            var priceBid = GetBidFirst(mOrderbookB).Price;
+            var priceAsk = GetAskFirst(mOrderbookB).Price;
+            priceBid = priceBid * (1m - slippage);
+            priceBid = priceBid * (1m + slippage);
             var req = new ExchangeOrderRequest()
             {
                 Amount = mFilledOrder.Amount,
-                Price = mFilledOrder.IsBuy ? GetBidFirst(mOrderbookB).Price : GetAskFirst(mOrderbookB).Price,
+                Price = mFilledOrder.IsBuy ? priceBid : priceAsk,
                 MarketSymbol = mConfig.SymbolA,
                 IsBuy = !mFilledOrder.IsBuy,
                 ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
@@ -547,6 +552,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             await mRunningTask;
             mAskOrder = null;
             mBidOrder = null;
+            mRunningTask = Task.Delay(60 * 1000);
+            await mRunningTask;
 
         }
 
