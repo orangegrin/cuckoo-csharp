@@ -94,9 +94,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 catch (Exception ex)
                 {
-                    mRunningTask = Task.Delay(1000);
-                    Console.WriteLine(ex.ToString());
+                    mRunningTask = Task.Delay(5 * 1000);
                     await mRunningTask;
+                    Console.WriteLine(ex.ToString());
                 }
             }
         }
@@ -142,7 +142,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 SwitchStateToClosePosition();
             }
-            ReverseOpenMarketOrder(order);
+            try
+            {
+                ReverseOpenMarketOrder(order);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+            }
+
         }
         void OnOrderCanceled(ExchangeOrderResult order)
         {
@@ -566,8 +574,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             await mRunningTask;
             mAskOrder = null;
             mBidOrder = null;
-            mRunningTask = Task.Delay(60 * 1000);
-            await mRunningTask;
 
         }
 
