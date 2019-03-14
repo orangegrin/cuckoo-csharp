@@ -267,6 +267,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (requests.Length > 0 && !isClosePositionState)
             {
                 Console.WriteLine("--------------- OpenPosition ------------------");
+                Console.WriteLine("{0},{1},{2},{3}", bidReq.Price, askPrice.Price, mOrderbookB.Bids.First().Value.Price, mOrderbookB.Asks.First().Value.Price);
                 if (mBidOrder != null)
                     Console.WriteLine(mBidOrder.OrderId);
                 if (mAskOrder != null)
@@ -319,7 +320,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (!isClosePositionState)
                     return;
                 Console.WriteLine("--------------- ClosePosition ------------------");
-                Console.WriteLine("{0},{1},{1},{3}", priceBid, priceAsk, mOrderbookB.Bids[0].Price, mOrderbookB.Asks[0].Price);
+                Console.WriteLine("{0},{1},{2},{3}", priceBid, priceAsk, mOrderbookB.Bids.First().Value.Price, mOrderbookB.Asks.First().Value.Price);
                 if (mCloseOrder != null)
                     Console.WriteLine(mCloseOrder.OrderId);
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
@@ -574,7 +575,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         public void Start()
         {
-            Console.WriteLine("Start {0},{1},{1},{3}", 1m, 2m, 3m, 4m);
+            Console.WriteLine("Start {0},{1},{2},{3}", 1m, 2m, 3m, 4m);
             mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
             mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
             WhileGetExchangeCandles();
