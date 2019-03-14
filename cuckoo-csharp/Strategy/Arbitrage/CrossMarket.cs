@@ -225,10 +225,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             var req = new ExchangeOrderRequest();
             req.Amount = order.Amount;
-            req.Price = order.Price;
             req.IsBuy = !order.IsBuy;
+            req.Price = req.IsBuy ? order.Price * 1.02m : order.Price * 0.98m;
             req.IsMargin = true;
-            req.OrderType = OrderType.Market;
+            req.OrderType = OrderType.Limit;
             req.MarketSymbol = mConfig.SymbolB;
             Console.WriteLine("----------------------------ReverseOpenMarketOrder---------------------------");
             var ticks = DateTime.Now.Ticks;
