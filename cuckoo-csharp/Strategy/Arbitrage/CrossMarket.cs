@@ -304,7 +304,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var req = new ExchangeOrderRequest()
             {
                 Amount = mFilledOrder.Amount,
-                Price = mFilledOrder.IsBuy ? priceBid : priceAsk,
+                Price = mFilledOrder.IsBuy ? priceAsk : priceBid,
                 MarketSymbol = mConfig.SymbolA,
                 IsBuy = !mFilledOrder.IsBuy,
                 ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
@@ -470,6 +470,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var amount = askFirst.Amount * mConfig.POR;
             price = mExchangeAAPI.PriceComplianceCheck(price);
             amount = mExchangeAAPI.AmountComplianceCheck(amount);
+            amount = mExchangeBAPI.AmountComplianceCheck(amount);
             orderPrice.Amount = amount;
             orderPrice.Price = NormalizationMinUnit(price);
             return orderPrice;
@@ -487,6 +488,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var fees = mConfig.Fees * bidFirst.Price;
             var price = bidFirst.Price * (mConfig.MinIRS + 1) + fees * 2 + GetStandardDev();
             var amount = bidFirst.Amount * mConfig.POR;
+            price = mExchangeAAPI.PriceComplianceCheck(price);
+            amount = mExchangeAAPI.AmountComplianceCheck(amount);
+            amount = mExchangeBAPI.AmountComplianceCheck(amount);
             orderPrice.Amount = amount;
             orderPrice.Price = NormalizationMinUnit(price);
             return orderPrice;
