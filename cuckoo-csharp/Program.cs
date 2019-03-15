@@ -15,7 +15,7 @@ namespace cuckoo_csharp
         static void Main(string[] args)
         {
             var config1 = GetCrossMarketConfig();
-            config1.MinIRS = 0.0012m;
+            config1.MinIRS = 0.0013m;
             config1.MaxQty = 100;
             new CrossMarket(config1).Start();
             var config2 = GetCrossMarketConfig();
@@ -45,8 +45,8 @@ namespace cuckoo_csharp
             crossMarketConfig.FeesB = 0.0003m;
             crossMarketConfig.POR = 0.6m;
             crossMarketConfig.MinPriceUnit = 0.5m;
-            crossMarketConfig.PeriodFreq = 60;
-            crossMarketConfig.TimePeriod = 30;
+            crossMarketConfig.PeriodFreq = 60 * 60;
+            crossMarketConfig.TimePeriod = 60;
             return crossMarketConfig;
         }
     }
