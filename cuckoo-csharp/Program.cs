@@ -18,11 +18,16 @@ namespace cuckoo_csharp
             BuildKeys();
             var config1 = GetCrossMarketConfig();
             config1.MinIRS = 0.0012m;
+            config1.MaxQty = 100;
             new CrossMarket(config1).Start();
             var config2 = GetCrossMarketConfig();
-            config2.MinIRS = 0.0025m;
+            config2.MinIRS = 0.0024m;
             config2.MaxQty = 200;
             new CrossMarket(config2).Start();
+            var config3 = GetCrossMarketConfig();
+            config3.MinIRS = 0.0042m;
+            config3.MaxQty = 400;
+            new CrossMarket(config3).Start();
             while (true)
             {
                 Console.ReadLine();

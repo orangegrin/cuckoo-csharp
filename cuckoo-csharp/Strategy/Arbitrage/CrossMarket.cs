@@ -94,9 +94,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(ex.ToString());
-                    mRunningTask = Task.Delay(1000);
+                    mRunningTask = Task.Delay(5 * 1000);
                     await mRunningTask;
+                    Console.WriteLine(ex.ToString());
                 }
             }
         }
@@ -142,7 +142,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 SwitchStateToClosePosition();
             }
-            ReverseOpenMarketOrder(order);
+            try
+            {
+                ReverseOpenMarketOrder(order);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+            }
+
         }
         void OnOrderCanceled(ExchangeOrderResult order)
         {
@@ -217,10 +225,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             var req = new ExchangeOrderRequest();
             req.Amount = order.Amount;
-            req.Price = order.Price;
             req.IsBuy = !order.IsBuy;
+            req.Price = req.IsBuy ? order.Price * 1.02m : order.Price * 0.98m;
             req.IsMargin = true;
-            req.OrderType = OrderType.Market;
+            req.OrderType = OrderType.Limit;
             req.MarketSymbol = mConfig.SymbolB;
             Console.WriteLine("----------------------------ReverseOpenMarketOrder---------------------------");
             var ticks = DateTime.Now.Ticks;
@@ -267,6 +275,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (requests.Length > 0 && !isClosePositionState)
             {
                 Console.WriteLine("--------------- OpenPosition ------------------");
+                Console.WriteLine("{0},{1},{2},{3}", bidReq.Price, askPrice.Price, mOrderbookB.Bids.First().Value.Price, mOrderbookB.Asks.First().Value.Price);
                 if (mBidOrder != null)
                     Console.WriteLine(mBidOrder.OrderId);
                 if (mAskOrder != null)
@@ -285,9 +294,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             mAskOrder = o;
                     }
                 }
-                if (mBidOrder.Result == ExchangeAPIOrderResult.Canceled)
+                if (mBidOrder != null && mBidOrder.Result == ExchangeAPIOrderResult.Canceled)
                     OnOrderCanceled(mBidOrder);
-                if (mAskOrder.Result == ExchangeAPIOrderResult.Canceled)
+                if (mAskOrder != null && mAskOrder.Result == ExchangeAPIOrderResult.Canceled)
                     OnOrderCanceled(mAskOrder);
             }
         }
@@ -296,10 +305,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         async Task ClosePosition()
         {
+            var slippage = 0.0003m;
+            var priceBid = GetBidFirst(mOrderbookB).Price;
+            var priceAsk = GetAskFirst(mOrderbookB).Price;
+            priceBid = NormalizationMinUnit(priceBid * (1m - slippage));
+            priceAsk = NormalizationMinUnit(priceAsk * (1m + slippage));
             var req = new ExchangeOrderRequest()
             {
                 Amount = mFilledOrder.Amount,
-                Price = mFilledOrder.IsBuy ? GetBidFirst(mOrderbookB).Price : GetAskFirst(mOrderbookB).Price,
+                Price = mFilledOrder.IsBuy ? priceAsk : priceBid,
                 MarketSymbol = mConfig.SymbolA,
                 IsBuy = !mFilledOrder.IsBuy,
                 ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
@@ -314,6 +328,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (!isClosePositionState)
                     return;
                 Console.WriteLine("--------------- ClosePosition ------------------");
+                Console.WriteLine("{0},{1},{2},{3}", priceBid, priceAsk, mOrderbookB.Bids.First().Value.Price, mOrderbookB.Asks.First().Value.Price);
                 if (mCloseOrder != null)
                     Console.WriteLine(mCloseOrder.OrderId);
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
@@ -465,6 +480,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var amount = askFirst.Amount * mConfig.POR;
             price = mExchangeAAPI.PriceComplianceCheck(price);
             amount = mExchangeAAPI.AmountComplianceCheck(amount);
+            amount = mExchangeBAPI.AmountComplianceCheck(amount);
             orderPrice.Amount = amount;
             orderPrice.Price = NormalizationMinUnit(price);
             return orderPrice;
@@ -482,6 +498,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var fees = mConfig.Fees * bidFirst.Price;
             var price = bidFirst.Price * (mConfig.MinIRS + 1) + fees * 2 + GetStandardDev();
             var amount = bidFirst.Amount * mConfig.POR;
+            price = mExchangeAAPI.PriceComplianceCheck(price);
+            amount = mExchangeAAPI.AmountComplianceCheck(amount);
+            amount = mExchangeBAPI.AmountComplianceCheck(amount);
             orderPrice.Amount = amount;
             orderPrice.Price = NormalizationMinUnit(price);
             return orderPrice;
@@ -504,17 +523,25 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         private async Task GetExchangeCandles(int periodSeconds)
         {
-            marketCandleA = await mExchangeAAPI.GetCandlesAsync(mConfig.SymbolA, periodSeconds, limit: 100);
-            marketCandleB = await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, periodSeconds, limit: 100);
-            var closeA = marketCandleA.Select((candle, index) => { return candle.ClosePrice.ConvertInvariant<float>(); }).Reverse();
-            var closeB = marketCandleB.Select((candle, index) => { return candle.ClosePrice.ConvertInvariant<float>(); }).Reverse();
-            int outBegIdx;
-            int outNBElement;
-            smaA = new double[closeA.Count()];
-            smaB = new double[closeB.Count()];
-            TicTacTec.TA.Library.Core.Sma(0, closeA.Count() - 1, closeA.ToArray(), mConfig.TimePeriod, out outBegIdx, out outNBElement, smaA);
-            TicTacTec.TA.Library.Core.Sma(0, closeB.Count() - 1, closeB.ToArray(), mConfig.TimePeriod, out outBegIdx, out outNBElement, smaB);
-            Console.WriteLine(GetStandardDev());
+            try
+            {
+                marketCandleA = await mExchangeAAPI.GetCandlesAsync(mConfig.SymbolA, periodSeconds, limit: 100);
+                marketCandleB = await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, periodSeconds, limit: 100);
+                var closeA = marketCandleA.Select((candle, index) => { return candle.ClosePrice.ConvertInvariant<float>(); }).Reverse();
+                var closeB = marketCandleB.Select((candle, index) => { return candle.ClosePrice.ConvertInvariant<float>(); }).Reverse();
+                int outBegIdx;
+                int outNBElement;
+                smaA = new double[closeA.Count()];
+                smaB = new double[closeB.Count()];
+                TicTacTec.TA.Library.Core.Sma(0, closeA.Count() - 1, closeA.ToArray(), mConfig.TimePeriod, out outBegIdx, out outNBElement, smaA);
+                TicTacTec.TA.Library.Core.Sma(0, closeB.Count() - 1, closeB.ToArray(), mConfig.TimePeriod, out outBegIdx, out outNBElement, smaB);
+                Console.WriteLine(GetStandardDev());
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+            }
             await Task.Delay(periodSeconds * 1000);
         }
         private async void WhileGetExchangeCandles()
@@ -552,11 +579,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         #endregion
 
-
-
         public void Start()
         {
-            Console.WriteLine("Start");
+            Console.WriteLine("Start {0},{1},{2},{3}", 1m, 2m, 3m, 4m);
             mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
             mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
             WhileGetExchangeCandles();
