@@ -309,7 +309,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         async Task ClosePosition()
         {
-            var slippage = 0.0002m;
+            var slippage = 0.0001m;
             var priceBid = GetBidFirst(mOrderbookB).Price + GetStandardDev();
             var priceAsk = GetAskFirst(mOrderbookB).Price + GetStandardDev();
             priceBid = NormalizationMinUnit(priceBid * (1m - slippage));
@@ -429,7 +429,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var first = orderBook.Bids.First();
             var price = first.Key - mConfig.MinPriceUnit;
             price = NormalizationMinUnit(price);
-            var amount = orderBook.Bids.Where(op => op.Key > price).Select((op) => { return op.Value.Amount; }).Sum();
+            var amount = orderBook.Bids.Where(op => op.Key >= price).Select((op) => { return op.Value.Amount; }).Sum();
             return new ExchangeOrderPrice()
             {
                 Price = price,
@@ -446,7 +446,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var first = orderBook.Asks.First();
             var price = first.Key + mConfig.MinPriceUnit;
             price = NormalizationMinUnit(price);
-            var amount = orderBook.Asks.Where(op => op.Key < price).Select((op) => { return op.Value.Amount; }).Sum();
+            var amount = orderBook.Asks.Where(op => op.Key <= price).Select((op) => { return op.Value.Amount; }).Sum();
             return new ExchangeOrderPrice()
             {
                 Price = price,
@@ -478,10 +478,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         ExchangeOrderPrice GetLimitBidOrderPair(ExchangeOrderBook orderBook)
         {
             var orderPrice = new ExchangeOrderPrice();
-            var askFirst = GetAskFirst(orderBook);
-            var fees = mConfig.Fees * askFirst.Price;
-            var price = askFirst.Price * (1 - mConfig.MinIRS) - fees * 2 + GetStandardDev();
-            var amount = askFirst.Amount * mConfig.POR;
+            var bidFirst = GetBidFirst(orderBook);
+            var fees = mConfig.Fees * bidFirst.Price;
+            var price = bidFirst.Price * (1 - mConfig.MinIRS) - fees * 2 + GetStandardDev();
+            var amount = bidFirst.Amount * mConfig.POR;
             price = mExchangeAAPI.PriceComplianceCheck(price);
             amount = mExchangeAAPI.AmountComplianceCheck(amount);
             amount = mExchangeBAPI.AmountComplianceCheck(amount);
@@ -498,10 +498,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         ExchangeOrderPrice GetLimitAskOrderPair(ExchangeOrderBook orderBook)
         {
             var orderPrice = new ExchangeOrderPrice();
-            var bidFirst = GetBidFirst(orderBook);
-            var fees = mConfig.Fees * bidFirst.Price;
-            var price = bidFirst.Price * (mConfig.MinIRS + 1) + fees * 2 + GetStandardDev();
-            var amount = bidFirst.Amount * mConfig.POR;
+            var askFirst = GetAskFirst(orderBook);
+            var fees = mConfig.Fees * askFirst.Price;
+            var price = askFirst.Price * (mConfig.MinIRS + 1) + fees * 2 + GetStandardDev();
+            var amount = askFirst.Amount * mConfig.POR;
             price = mExchangeAAPI.PriceComplianceCheck(price);
             amount = mExchangeAAPI.AmountComplianceCheck(amount);
             amount = mExchangeBAPI.AmountComplianceCheck(amount);
@@ -516,7 +516,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <returns></returns>
         decimal GetStandardDev()
         {
-            var dev = smaA[0] - smaB[0];
+            var dev = smaA[3] - smaB[3];
             return dev.ConvertInvariant<decimal>();
         }
         private IEnumerable<MarketCandle> marketCandleA;
