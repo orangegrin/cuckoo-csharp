@@ -309,9 +309,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         async Task ClosePosition()
         {
-            var slippage = 0.0003m;
-            var priceBid = GetBidFirst(mOrderbookB).Price;
-            var priceAsk = GetAskFirst(mOrderbookB).Price;
+            var slippage = 0.0002m;
+            var priceBid = GetBidFirst(mOrderbookB).Price + GetStandardDev();
+            var priceAsk = GetAskFirst(mOrderbookB).Price + GetStandardDev();
             priceBid = NormalizationMinUnit(priceBid * (1m - slippage));
             priceAsk = NormalizationMinUnit(priceAsk * (1m + slippage));
             var req = new ExchangeOrderRequest()
