@@ -226,16 +226,18 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var req = new ExchangeOrderRequest();
             req.Amount = order.Amount;
             req.IsBuy = !order.IsBuy;
-            req.Price = req.IsBuy ? order.Price * 1.02m : order.Price * 0.98m;
+            req.Price = req.IsBuy ? order.Price * 1.01m : order.Price * 0.99m;
             req.IsMargin = true;
             req.OrderType = OrderType.Limit;
             req.MarketSymbol = mConfig.SymbolB;
             Console.WriteLine("----------------------------ReverseOpenMarketOrder---------------------------");
             var ticks = DateTime.Now.Ticks;
             var res = await mExchangeBAPI.PlaceOrderAsync(req);
+            mRunningTask = Task.Delay(5 * 1000);
             Console.WriteLine(DateTime.Now.Ticks - ticks);
             Console.WriteLine(res.ToString());
             Console.WriteLine(res.OrderId);
+
         }
         /// <summary>
         /// 开仓
