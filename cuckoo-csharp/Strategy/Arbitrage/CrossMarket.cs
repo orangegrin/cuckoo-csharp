@@ -226,7 +226,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var req = new ExchangeOrderRequest();
             req.Amount = order.Amount;
             req.IsBuy = !order.IsBuy;
-            req.Price = req.IsBuy ? order.Price * 1.01m : order.Price * 0.99m;
+            var buyPrice = mOrderbookB.Asks.First().Value.Price * 1.015m;
+            var sellPrice = mOrderbookB.Bids.First().Value.Price * 0.985m;
+            req.Price = req.IsBuy ? buyPrice : sellPrice;
             req.IsMargin = true;
             req.OrderType = OrderType.Limit;
             req.MarketSymbol = mConfig.SymbolB;
