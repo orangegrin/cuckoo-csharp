@@ -516,7 +516,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <returns></returns>
         decimal GetStandardDev()
         {
-            return 0m;
             var dev = smaA[0] - smaB[0];
             return dev.ConvertInvariant<decimal>();
         }
