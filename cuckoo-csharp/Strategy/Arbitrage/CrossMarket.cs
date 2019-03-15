@@ -563,6 +563,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 25, mConfig.SymbolA);
             mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
             mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+
+//             mExchangeBAPI.PlaceOrderAsync(new ExchangeOrderResult
+//             {
+//                 Amount = 100,
+//                 AmountFilled = 0,
+//                 Price = 3888,
+//                 IsBuy = false,
+//                 MarketSymbol = mConfig.SymbolB,
+//             });
         }
     }
     public struct CrossMarketConfig
