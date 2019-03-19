@@ -598,6 +598,28 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 //                 MarketSymbol = mConfig.SymbolB,
 //             });
         }
+        public async Task testc()
+        {
+            //蜡烛线
+            //await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, 60, null, null, 150);
+            //获取订单
+            IExchangeAPI mExchangeCAPI = ExchangeAPI.GetExchangeAPI(ExchangeName.GateioDM);
+            mExchangeCAPI.LoadAPIKeys(ExchangeName.GateioDM);
+
+            ExchangeOrderRequest req = new ExchangeOrderRequest()
+            {
+                Amount = 100,
+                Price = 3848,
+                IsBuy = true,
+                MarketSymbol = mConfig.SymbolC,
+                OrderType = OrderType.Market,
+            };
+            //ExchangeOrderResult re = await mExchangeBAPI.PlaceOrderAsync(req);
+            ExchangeOrderResult re = await mExchangeCAPI.PlaceOrderAsync(req);
+            //long lastTime = DateTime.Now.Ticks;
+            //Console.WriteLine(new DateTime( lastTime).);
+
+        }
     }
     public struct CrossMarketConfig
     {
@@ -617,6 +639,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// B交易所币种的的Symbol
         /// </summary>
         public string SymbolB;
+        /// <summary>
+        /// C交易所币种的的Symbol
+        /// </summary>
+        public string SymbolC;
         /// <summary>
         /// 最大交易量
         /// maximum quantity

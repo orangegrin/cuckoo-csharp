@@ -19,11 +19,11 @@ namespace cuckoo_csharp
             var config1 = GetCrossMarketConfig();
             config1.MinIRS = 0.0012m;
             config1.MaxQty = 100;
-            new CrossMarket(config1).Start();
+            //new CrossMarket(config1).Start();
             var config2 = GetCrossMarketConfig();
             config2.MinIRS = 0.0024m;
             config2.MaxQty = 200;
-            new CrossMarket(config2).Start();
+            //new CrossMarket(config2).Start();
             var config3 = GetCrossMarketConfig();
             config3.MinIRS = 0.0042m;
             config3.MaxQty = 400;
@@ -52,8 +52,10 @@ namespace cuckoo_csharp
             string publickey2 = "440757a5-e78ac402-84903e36-194b1";
             string privatekey2 = "7f0a0c5c-24fd0bb9-eb64134f-2e1b6";
             CryptoUtility.SaveUnprotectedStringsToFile(ExchangeName.HBDM, new string[2] { publickey2, privatekey2 });
+            string publickey3 = "52442d6f217c94e99ee10581c050598f";
+            string privatekey3 = "3a565f3b7873aaab6f8c6d17135d6dde484c14119c15080887047e16ac91e8ef";
+            CryptoUtility.SaveUnprotectedStringsToFile(ExchangeName.GateioDM, new string[2] { publickey3, privatekey3 });
         }
-
         static CrossMarketConfig GetCrossMarketConfig()
         {
             var crossMarketConfig = new CrossMarketConfig();
@@ -61,6 +63,7 @@ namespace cuckoo_csharp
             crossMarketConfig.ExchangeNameB = ExchangeName.HBDM;
             crossMarketConfig.SymbolA = "XBTUSD";
             crossMarketConfig.SymbolB = "BTC_CW";
+            crossMarketConfig.SymbolC = "BTC_USD";
             crossMarketConfig.MaxQty = 100;
             crossMarketConfig.MinIRS = 0.002m;
             crossMarketConfig.FeesA = -0.00025m;
