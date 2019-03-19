@@ -44,10 +44,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 正在操作订单
         /// </summary>
         private Task mRunningTask;
+        /// <summary>
+        /// 自身id
+        /// </summary>
+        private int mId;
 
-        public CrossMarket(CrossMarketConfig config)
+
+        public CrossMarket(CrossMarketConfig config, int mId)
         {
-
+            this.mId = mId;
             mConfig = config;
             mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mConfig.ExchangeNameA);
             mExchangeBAPI = ExchangeAPI.GetExchangeAPI(mConfig.ExchangeNameB);
@@ -89,7 +94,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         var ticks = DateTime.Now.Ticks;
                         await mRunningTask;
-                        Console.WriteLine(DateTime.Now.Ticks - ticks);
+                        Console.WriteLine("mId:"+mId+"  "+"OnOrderbookBHandler mRunningTask use time:" + (DateTime.Now.Ticks - ticks));
                     }
                 }
                 catch (Exception ex)
@@ -127,7 +132,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         void OnOrderFilled(ExchangeOrderResult order)
         {
-            Console.WriteLine("-------------------- Order Filed ---------------------------");
+            Console.WriteLine("mId:"+mId+"  "+"-------------------- Order Filed ---------------------------");
             Console.WriteLine(order.OrderId);
             mFilledOrder = order;
             if (mAskOrder != null && order.OrderId == mAskOrder.OrderId)
@@ -154,7 +159,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         void OnOrderCanceled(ExchangeOrderResult order)
         {
-            Console.WriteLine("-------------------- Order Canceled ---------------------------");
+            Console.WriteLine("mId:"+mId+"  "+"-------------------- Order Canceled ---------------------------");
             Console.WriteLine(order.OrderId);
             if (mAskOrder != null && mAskOrder.OrderId == order.OrderId)
             {
@@ -232,10 +237,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             req.IsMargin = true;
             req.OrderType = OrderType.Limit;
             req.MarketSymbol = mConfig.SymbolB;
-            Console.WriteLine("----------------------------ReverseOpenMarketOrder---------------------------");
+            Console.WriteLine("mId:"+mId+"  "+"----------------------------ReverseOpenMarketOrder---------------------------");
             var ticks = DateTime.Now.Ticks;
             var res = await mExchangeBAPI.PlaceOrderAsync(req);
             mRunningTask = Task.Delay(5 * 1000);
+            await mRunningTask;
             Console.WriteLine(DateTime.Now.Ticks - ticks);
             Console.WriteLine(res.ToString());
             Console.WriteLine(res.OrderId);
@@ -278,12 +284,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var requests = OrdersFilter(bidReq, askReq);
             if (requests.Length > 0 && !isClosePositionState)
             {
-                Console.WriteLine("--------------- OpenPosition ------------------");
-                Console.WriteLine("{0},{1},{2},{3}", bidReq.Price, askPrice.Price, mOrderbookB.Bids.First().Value.Price, mOrderbookB.Asks.First().Value.Price);
+                Console.WriteLine("mId:"+mId+"  "+"--------------- OpenPosition ------------------");
+                Console.WriteLine("mId:"+mId+"  "+"{0},{1},{2},{3}", bidReq.Price, askPrice.Price, mOrderbookB.Bids.First().Value.Price, mOrderbookB.Asks.First().Value.Price);
                 if (mBidOrder != null)
-                    Console.WriteLine(mBidOrder.OrderId);
+                    Console.WriteLine("mId:"+mId+"  "+"mBidOrder.OrderId:" + mBidOrder.OrderId);
                 if (mAskOrder != null)
-                    Console.WriteLine(mAskOrder.OrderId);
+                    Console.WriteLine("mId:"+mId+"  "+"mAskOrder.OrderId:" + mAskOrder.OrderId);
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
                 foreach (var o in orders)
                 {
@@ -331,8 +337,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 if (!isClosePositionState)
                     return;
-                Console.WriteLine("--------------- ClosePosition ------------------");
-                Console.WriteLine("{0},{1},{2},{3}", priceBid, priceAsk, mOrderbookB.Bids.First().Value.Price, mOrderbookB.Asks.First().Value.Price);
+                Console.WriteLine("mId:"+mId+"  "+"--------------- ClosePosition ------------------");
+                Console.WriteLine("mId:"+mId+"  "+"{0},{1},{2},{3}", priceBid, priceAsk, mOrderbookB.Bids.First().Value.Price, mOrderbookB.Asks.First().Value.Price);
                 if (mCloseOrder != null)
                     Console.WriteLine(mCloseOrder.OrderId);
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
@@ -559,7 +565,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         void SwicthStateToOpenPosition()
         {
-            Console.WriteLine("---------------------Switch State to Open Position-----------------------------");
+            Console.WriteLine("mId:"+mId+"  "+"---------------------Switch State to Open Position-----------------------------");
             isClosePositionState = false;
             mCloseOrder = null;
         }
@@ -568,7 +574,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         async void SwitchStateToClosePosition()
         {
-            Console.WriteLine("---------------------Switch State to Close Position-----------------------------");
+            Console.WriteLine("mId:"+mId+"  "+"---------------------Switch State to Close Position-----------------------------");
             isClosePositionState = true;
             if (mBidOrder != null)
                 mRunningTask = mExchangeAAPI.CancelOrderAsync(mBidOrder.OrderId, mConfig.SymbolA);
@@ -584,7 +590,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         public void Start()
         {
-            Console.WriteLine("Start {0},{1},{2},{3}", 1m, 2m, 3m, 4m);
+            Console.WriteLine("mId:"+mId+"  "+"Start {0},{1},{2},{3}", 1m, 2m, 3m, 4m);
             mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
             mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
             WhileGetExchangeCandles();
