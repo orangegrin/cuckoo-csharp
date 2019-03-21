@@ -14,13 +14,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private ExchangeMarginPositionResult mPosition;
         private decimal mInitialPrice;
         private decimal mLastPrice;
+        private decimal mLastTransactionPrice;
         private SortedDictionary<decimal, ExchangeOrderResult> mOrderDic = new SortedDictionary<decimal, ExchangeOrderResult>();
-        private decimal mInitialQty;
+        private decimal mInitialAmount;
+        private decimal mHedgeAmount;
         private decimal mTotalAmount
         {
             get
             {
-                return mInitialQty + mPosition.Amount;
+                return mInitialAmount + (mPosition.Amount - mHedgeAmount);
             }
         }
         public LadderBack(Config config)
@@ -36,8 +38,19 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeAPI.GetTradesWebSocket(OnTradesHandler, mConfig.Symbol);
             while (true)
             {
-                OnLastPriceChangedHandler();
                 await Task.Delay(1000 * 10);
+                if (mLastPrice == mInitialPrice)
+                    continue;
+                if (mPosition == null)
+                    continue;
+                Console.WriteLine("======================={0}=============================", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                Console.WriteLine("Initial Price:" + mInitialPrice);
+                Console.WriteLine("Last Price:" + mLastPrice);
+                Console.WriteLine("Last Transaction Price:" + mLastTransactionPrice);
+                Console.WriteLine("Total Amount:" + mTotalAmount);
+                LoopHandler();
+                LoopHandler2();
+
             }
         }
 
@@ -49,26 +62,49 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (mInitialPrice == 0)
                 {
                     mInitialPrice = mLastPrice;
-                    mInitialQty = mConfig.KeepValue / mInitialPrice;
+                    mLastTransactionPrice = mInitialPrice;
+                    mInitialAmount = mConfig.KeepValue / mInitialPrice;
                 }
-                //OnLastPriceChangedHandler();
             }
         }
 
-        private void OnLastPriceChangedHandler()
+        private async void LoopHandler2()
         {
-            if (mLastPrice == mInitialPrice)
-                return;
-            if (mPosition == null)
-                return;
+            var qty = mConfig.KeepValue;
+            if (mLastPrice / mInitialPrice < 1m - 0.0075m)
+            {
+                if (Math.Abs(mPosition.Amount * mLastPrice) < mConfig.KeepValue / 2)
+                {
+                    if (mHedgeAmount < 0)
+                        qty = qty * 2;
+                    Console.WriteLine("Market Sell:" + qty);
+                    var orderResult = await mExchangeAPI.PlaceOrderAsync(new ExchangeOrderRequest { MarketSymbol = mConfig.Symbol, Amount = qty, IsBuy = false, OrderType = OrderType.Limit, Price = Math.Round(mLastPrice / 2) });
+                    mHedgeAmount = orderResult.Amount / orderResult.Price;
+                }
+            }
+            if (mLastPrice / mInitialPrice > 1m + 0.0075m)
+            {
+                if (mPosition.Amount * mLastPrice < mConfig.KeepValue / 2)
+                {
+                    if (mHedgeAmount > 0)
+                        qty = qty * 2;
+                    Console.WriteLine("Market Buy:" + qty);
+                    var orderResult = await mExchangeAPI.PlaceOrderAsync(new ExchangeOrderRequest { MarketSymbol = mConfig.Symbol, Amount = qty, IsBuy = true, OrderType = OrderType.Limit, Price = Math.Round(mLastPrice * 2) });
 
-            Console.WriteLine("Initial Price:" + mInitialPrice);
-            Console.WriteLine("Last Price:" + mLastPrice);
+                    mHedgeAmount = orderResult.Amount / orderResult.Price;
+                }
+            }
+            //Console.WriteLine("Total Amount:" + mTotalAmount);
+        }
+
+        private void LoopHandler()
+        {
             var buyOrders = GetBuyOrders();
             var sellOrders = GetSellOrders();
             var requestOrders = new List<ExchangeOrderRequest>();
             requestOrders.AddRange(buyOrders);
             requestOrders.AddRange(sellOrders);
+            var requestOrders2 = new List<ExchangeOrderRequest>(requestOrders.ToArray());
             foreach (var order in mOrderDic)
             {
                 bool isMatch = false;
@@ -78,6 +114,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         req.ExtraParameters.Add("orderID", order.Value.OrderId);
                         isMatch = true;
+                        if (req.Amount == order.Value.Amount)
+                            requestOrders2.Remove(req);
                         break;
                     }
                 }
@@ -93,7 +131,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                 }
             }
-            mExchangeAPI.PlaceOrdersAsync(requestOrders.ToArray());
+            if (requestOrders2.Count > 0)
+            {
+                mExchangeAPI.PlaceOrdersAsync(requestOrders2.ToArray());
+                foreach (var order in requestOrders2)
+                {
+                    Console.WriteLine("{0},{1},{2}", order.IsBuy ? "Buy" : "Sell", order.Price, order.Amount);
+                }
+            }
         }
 
         decimal NormalizationMinUnit(decimal price)
@@ -105,17 +150,17 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             decimal soldAmount = 0m;
             List<ExchangeOrderRequest> orderRequests = new List<ExchangeOrderRequest>();
-            for (int i = 0; i < stepCount; i++)
+            for (int i = 1; i < stepCount; i++)
             {
-                var stepLen = (mLastPrice - mInitialPrice) / mInitialPrice / mConfig.Step;
+                var stepLen = (mLastPrice - mLastTransactionPrice) / mLastTransactionPrice / mConfig.Step;
                 var stepLenUp = NormalizationMinUnit(stepLen) + i * i * mConfig.Step;
-                var sellPrice = stepLenUp + mInitialPrice;
+                var sellPrice = stepLenUp + mLastTransactionPrice;
                 var sellQty = Math.Floor(sellPrice * (mTotalAmount - soldAmount) - mConfig.KeepValue);
-                if (sellQty == 0)
+                if (Math.Abs(sellQty) < 10)
                     continue;
                 soldAmount += sellQty / sellPrice;
                 decimal total = (mTotalAmount - soldAmount) * sellPrice;
-                Console.WriteLine("Sell: {0} , qty {1} , total {2}", sellPrice, sellQty, total);
+                //Console.WriteLine("Sell: {0} , qty {1} , total {2}", sellPrice, sellQty, total);
                 var req = new ExchangeOrderRequest()
                 {
                     Amount = Math.Abs(sellQty),
@@ -132,17 +177,17 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             decimal soldAmount = 0m;
             List<ExchangeOrderRequest> orderRequests = new List<ExchangeOrderRequest>();
-            for (int i = 0; i < stepCount; i++)
+            for (int i = 1; i < stepCount; i++)
             {
-                var stepLen = (mLastPrice - mInitialPrice) / mInitialPrice / mConfig.Step;
+                var stepLen = (mLastPrice - mLastTransactionPrice) / mLastTransactionPrice / mConfig.Step;
                 var stepLenDown = NormalizationMinUnit(stepLen) - i * i * mConfig.Step;
-                var buyPrice = stepLenDown + mInitialPrice;
+                var buyPrice = stepLenDown + mLastTransactionPrice;
                 var buyQty = Math.Floor(buyPrice * (mTotalAmount + soldAmount) - mConfig.KeepValue);
-                if (buyQty == 0)
+                if (Math.Abs(buyQty) < 10)
                     continue;
                 soldAmount -= buyQty / buyPrice;
                 decimal total = (mTotalAmount + soldAmount) * buyPrice;
-                Console.WriteLine("Buy: {0} , qty {1} , total {2}", buyPrice, Math.Abs(buyQty), total);
+                //Console.WriteLine("Buy: {0} , qty {1} , total {2}", buyPrice, Math.Abs(buyQty), total);
                 var req = new ExchangeOrderRequest()
                 {
                     Amount = Math.Abs(buyQty),
@@ -160,8 +205,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private void OnOrderDetailsHandler(ExchangeOrderResult order)
         {
             mOrderDic[order.Price] = order;
-            if (order.Result == ExchangeAPIOrderResult.Filled || order.Result == ExchangeAPIOrderResult.Canceled || order.Result == ExchangeAPIOrderResult.FilledPartially)
+            if (order.Result == ExchangeAPIOrderResult.Filled)
+            {
                 mOrderDic.Remove(order.Price);
+                mLastTransactionPrice = mLastPrice;
+            }
         }
 
         private void OnPositionHandler(ExchangeMarginPositionResult position)
