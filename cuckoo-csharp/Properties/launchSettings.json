@@ -1,0 +1,7 @@
+{
+  "profiles": {
+    "cuckoo-csharp": {
+      "commandName": "Project"
+    }
+  }
+}
