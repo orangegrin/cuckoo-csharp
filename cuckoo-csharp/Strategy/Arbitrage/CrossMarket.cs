@@ -44,13 +44,19 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 正在操作订单
         /// </summary>
         private Task mRunningTask;
+        /// <summary>
+        /// 自身id
+        /// </summary>
+        private int mId;
 
-        public CrossMarket(CrossMarketConfig config)
+
+        public CrossMarket(CrossMarketConfig config, int mId)
         {
-
+            this.mId = mId;
             mConfig = config;
             mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mConfig.ExchangeNameA);
             mExchangeBAPI = ExchangeAPI.GetExchangeAPI(mConfig.ExchangeNameB);
+
         }
         #region handler
         bool isReady
@@ -89,7 +95,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         var ticks = DateTime.Now.Ticks;
                         await mRunningTask;
-                        Console.WriteLine(DateTime.Now.Ticks - ticks);
+                        Console.WriteLine("mId:"+mId+"  "+"OnOrderbookBHandler mRunningTask use time:" + (DateTime.Now.Ticks - ticks));
                     }
                 }
                 catch (Exception ex)
@@ -127,8 +133,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         void OnOrderFilled(ExchangeOrderResult order)
         {
-            Console.WriteLine("-------------------- Order Filed ---------------------------");
-            Console.WriteLine(order.OrderId);
+            Console.WriteLine("mId:"+mId+"  "+"-------------------- Order Filed ---------------------------");
+            Console.WriteLine(order.ToString());
+            Console.WriteLine(order.ToExcleString());
             mFilledOrder = order;
             if (mAskOrder != null && order.OrderId == mAskOrder.OrderId)
                 mAskOrder = null;
@@ -154,8 +161,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         void OnOrderCanceled(ExchangeOrderResult order)
         {
-            Console.WriteLine("-------------------- Order Canceled ---------------------------");
-            Console.WriteLine(order.OrderId);
+            Console.WriteLine("mId:"+mId+"  "+"-------------------- Order Canceled ---------------------------");
+            Console.WriteLine(order.ToExcleString());
             if (mAskOrder != null && mAskOrder.OrderId == order.OrderId)
             {
                 mAskOrder = null;
@@ -191,23 +198,35 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             switch (order.Result)
             {
                 case ExchangeAPIOrderResult.Unknown:
+                    Console.WriteLine("mId:" + mId + "  " + "-------------------- Order Other ---------------------------");
+                    Console.WriteLine(order.ToExcleString());
                     break;
                 case ExchangeAPIOrderResult.Filled:
                     OnOrderFilled(order);
                     break;
                 case ExchangeAPIOrderResult.FilledPartially:
                     // TODO 战且不处理部分成交的问题
+                    Console.WriteLine("mId:" + mId + "  " + "-------------------- Order Other ---------------------------");
+                    Console.WriteLine(order.ToExcleString());
                     break;
                 case ExchangeAPIOrderResult.Pending:
+                    Console.WriteLine("mId:" + mId + "  " + "-------------------- Order Other ---------------------------");
+                    Console.WriteLine(order.ToExcleString());
                     break;
                 case ExchangeAPIOrderResult.Error:
+                    Console.WriteLine("mId:" + mId + "  " + "-------------------- Order Other ---------------------------");
+                    Console.WriteLine(order.ToExcleString());
                     break;
                 case ExchangeAPIOrderResult.Canceled:
                     OnOrderCanceled(order);
                     break;
                 case ExchangeAPIOrderResult.FilledPartiallyAndCancelled:
+                    Console.WriteLine("mId:" + mId + "  " + "-------------------- Order Other ---------------------------");
+                    Console.WriteLine(order.ToExcleString());
                     break;
                 case ExchangeAPIOrderResult.PendingCancel:
+                    Console.WriteLine("mId:" + mId + "  " + "-------------------- Order Other ---------------------------");
+                    Console.WriteLine(order.ToExcleString());
                     break;
                 default:
                     break;
@@ -223,19 +242,27 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         async void ReverseOpenMarketOrder(ExchangeOrderResult order)
         {
+            
             var req = new ExchangeOrderRequest();
             req.Amount = order.Amount;
             req.IsBuy = !order.IsBuy;
-            req.Price = req.IsBuy ? order.Price * 1.02m : order.Price * 0.98m;
+            var buyPrice = mOrderbookB.Asks.First().Value.Price * 1.015m;
+            var sellPrice = mOrderbookB.Bids.First().Value.Price * 0.985m;
+            req.Price = req.IsBuy ? NormalizationMinUnit(buyPrice) : NormalizationMinUnit(sellPrice);
             req.IsMargin = true;
             req.OrderType = OrderType.Limit;
             req.MarketSymbol = mConfig.SymbolB;
-            Console.WriteLine("----------------------------ReverseOpenMarketOrder---------------------------");
+            Console.WriteLine("mId:"+mId+"  "+"----------------------------ReverseOpenMarketOrder---------------------------");
+            Console.WriteLine(order.ToString());
+            Console.WriteLine(order.ToExcleString());
             var ticks = DateTime.Now.Ticks;
             var res = await mExchangeBAPI.PlaceOrderAsync(req);
+            mRunningTask = Task.Delay(5 * 1000);
+            await mRunningTask;
             Console.WriteLine(DateTime.Now.Ticks - ticks);
             Console.WriteLine(res.ToString());
             Console.WriteLine(res.OrderId);
+
         }
         /// <summary>
         /// 开仓
@@ -266,26 +293,37 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (mAskOrder != null)
             {
                 askReq.ExtraParameters.Add("orderID", mAskOrder.OrderId);
+                
             }
             if (mBidOrder != null)
             {
                 bidReq.ExtraParameters.Add("orderID", mBidOrder.OrderId);
+                
             }
             var requests = OrdersFilter(bidReq, askReq);
             if (requests.Length > 0 && !isClosePositionState)
             {
-                Console.WriteLine("--------------- OpenPosition ------------------");
-                Console.WriteLine("{0},{1},{2},{3}", bidReq.Price, askPrice.Price, mOrderbookB.Bids.First().Value.Price, mOrderbookB.Asks.First().Value.Price);
+                Console.WriteLine("mId:" + mId + "  " + "--------------- OpenPosition ------------------");
+                Console.WriteLine("mId:" + mId + "  " + "{0},{1},{2},{3}", bidReq.Price, askPrice.Price, mOrderbookB.Bids.First().Value.Price, mOrderbookB.Asks.First().Value.Price);
                 if (mBidOrder != null)
-                    Console.WriteLine(mBidOrder.OrderId);
+                {
+                    Console.WriteLine("mId:" + mId + "  " + "Change price mBidOrder.OrderId:" + mBidOrder.OrderId);
+                    Console.WriteLine("mId:" + mId + "  " + "mBidOrder.OrderId:" + mBidOrder.OrderId);
+                    Console.WriteLine("mId:" + mId + "  " + mBidOrder.ToExcleString());
+                }
+
                 if (mAskOrder != null)
-                    Console.WriteLine(mAskOrder.OrderId);
+                {
+                    Console.WriteLine("mId:" + mId + "  " + "Change price mAskOrder.OrderId:" + mAskOrder.OrderId);
+                    Console.WriteLine("mId:" + mId + "  " + "mAskOrder.OrderId:" + mAskOrder.OrderId);
+                    Console.WriteLine("mId:" + mId + "  " + mAskOrder.ToExcleString());
+                }
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
                 foreach (var o in orders)
                 {
                     if (o.IsBuy)
                     {
-                        if (mAskOrder == null)
+                        if (mBidOrder == null)
                             mBidOrder = o;
                     }
                     else
@@ -294,20 +332,37 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             mAskOrder = o;
                     }
                 }
-                if (mBidOrder != null && mBidOrder.Result == ExchangeAPIOrderResult.Canceled)
+                if (mBidOrder != null && (mBidOrder.Result == ExchangeAPIOrderResult.Canceled || mBidOrder.Result == ExchangeAPIOrderResult.Error))
+                {
                     OnOrderCanceled(mBidOrder);
-                if (mAskOrder != null && mAskOrder.Result == ExchangeAPIOrderResult.Canceled)
+                    Console.WriteLine("mId:" + mId + "  " + "mBidOrder OpenPosition  Canceled");
+                }
+                else
+                {
+                    Console.WriteLine("mId:" + mId + "orders.Length" + orders.Length + "  mBidOrder" + "--------------- OpenPosition OK ------------------");
+                    Console.WriteLine(mBidOrder.ToExcleString());
+                }
+                if (mAskOrder != null && (mAskOrder.Result == ExchangeAPIOrderResult.Canceled || mAskOrder.Result == ExchangeAPIOrderResult.Error))
+                {
                     OnOrderCanceled(mAskOrder);
+                    Console.WriteLine("mId:" + mId + "  " + "mAskOrder OpenPosition  Canceled");
+                }
+                else
+                {
+                    Console.WriteLine("mId:" + mId + "  mAskOrder" + "--------------- OpenPosition OK ------------------");
+                    Console.WriteLine(mAskOrder.ToExcleString());
+                }
             }
+
         }
         /// <summary>
         /// 平仓
         /// </summary>
         async Task ClosePosition()
         {
-            var slippage = 0.0003m;
-            var priceBid = GetBidFirst(mOrderbookB).Price;
-            var priceAsk = GetAskFirst(mOrderbookB).Price;
+            var slippage = 0.0001m;
+            var priceBid = GetBidFirst(mOrderbookB).Price + GetStandardDev();
+            var priceAsk = GetAskFirst(mOrderbookB).Price + GetStandardDev();
             priceBid = NormalizationMinUnit(priceBid * (1m - slippage));
             priceAsk = NormalizationMinUnit(priceAsk * (1m + slippage));
             var req = new ExchangeOrderRequest()
@@ -327,14 +382,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 if (!isClosePositionState)
                     return;
-                Console.WriteLine("--------------- ClosePosition ------------------");
-                Console.WriteLine("{0},{1},{2},{3}", priceBid, priceAsk, mOrderbookB.Bids.First().Value.Price, mOrderbookB.Asks.First().Value.Price);
+                Console.WriteLine("mId:"+mId+"  "+"--------------- ClosePosition ------------------");
+                Console.WriteLine("mId:"+mId+"  "+"{0},{1},{2},{3}", priceBid, priceAsk, mOrderbookB.Bids.First().Value.Price, mOrderbookB.Asks.First().Value.Price);
+                
                 if (mCloseOrder != null)
                     Console.WriteLine(mCloseOrder.OrderId);
                 var orders = await mExchangeAAPI.PlaceOrdersAsync(requests);
                 foreach (var o in orders)
                 {
                     mCloseOrder = o;
+                    Console.WriteLine(o.ToExcleString());
                 }
                 if (mCloseOrder.Result == ExchangeAPIOrderResult.Canceled)
                     OnOrderCanceled(mCloseOrder);
@@ -425,7 +482,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var first = orderBook.Bids.First();
             var price = first.Key - mConfig.MinPriceUnit;
             price = NormalizationMinUnit(price);
-            var amount = orderBook.Bids.Where(op => op.Key > price).Select((op) => { return op.Value.Amount; }).Sum();
+            var amount = orderBook.Bids.Where(op => op.Key >= price).Select((op) => { return op.Value.Amount; }).Sum();
             return new ExchangeOrderPrice()
             {
                 Price = price,
@@ -442,7 +499,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var first = orderBook.Asks.First();
             var price = first.Key + mConfig.MinPriceUnit;
             price = NormalizationMinUnit(price);
-            var amount = orderBook.Asks.Where(op => op.Key < price).Select((op) => { return op.Value.Amount; }).Sum();
+            var amount = orderBook.Asks.Where(op => op.Key <= price).Select((op) => { return op.Value.Amount; }).Sum();
             return new ExchangeOrderPrice()
             {
                 Price = price,
@@ -474,10 +531,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         ExchangeOrderPrice GetLimitBidOrderPair(ExchangeOrderBook orderBook)
         {
             var orderPrice = new ExchangeOrderPrice();
-            var askFirst = GetAskFirst(orderBook);
-            var fees = mConfig.Fees * askFirst.Price;
-            var price = askFirst.Price * (1 - mConfig.MinIRS) - fees * 2 + GetStandardDev();
-            var amount = askFirst.Amount * mConfig.POR;
+            var bidFirst = GetBidFirst(orderBook);
+            var fees = mConfig.Fees * bidFirst.Price;
+            var price = bidFirst.Price * (1 - mConfig.MinIRS) - fees * 2 + GetStandardDev();
+            var amount = bidFirst.Amount * mConfig.POR;
             price = mExchangeAAPI.PriceComplianceCheck(price);
             amount = mExchangeAAPI.AmountComplianceCheck(amount);
             amount = mExchangeBAPI.AmountComplianceCheck(amount);
@@ -494,10 +551,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         ExchangeOrderPrice GetLimitAskOrderPair(ExchangeOrderBook orderBook)
         {
             var orderPrice = new ExchangeOrderPrice();
-            var bidFirst = GetBidFirst(orderBook);
-            var fees = mConfig.Fees * bidFirst.Price;
-            var price = bidFirst.Price * (mConfig.MinIRS + 1) + fees * 2 + GetStandardDev();
-            var amount = bidFirst.Amount * mConfig.POR;
+            var askFirst = GetAskFirst(orderBook);
+            var fees = mConfig.Fees * askFirst.Price;
+            var price = askFirst.Price * (mConfig.MinIRS + 1) + fees * 2 + GetStandardDev();
+            var amount = askFirst.Amount * mConfig.POR;
             price = mExchangeAAPI.PriceComplianceCheck(price);
             amount = mExchangeAAPI.AmountComplianceCheck(amount);
             amount = mExchangeBAPI.AmountComplianceCheck(amount);
@@ -512,8 +569,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <returns></returns>
         decimal GetStandardDev()
         {
-            return 0m;
-            var dev = smaA[0] - smaB[0];
+            var dev = smaA[3] - smaB[3];
             return dev.ConvertInvariant<decimal>();
         }
         private IEnumerable<MarketCandle> marketCandleA;
@@ -525,8 +581,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             try
             {
-                marketCandleA = await mExchangeAAPI.GetCandlesAsync(mConfig.SymbolA, periodSeconds, limit: 100);
-                marketCandleB = await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, periodSeconds, limit: 100);
+                marketCandleA = await mExchangeAAPI.GetCandlesAsync(mConfig.SymbolA, periodSeconds, limit: 200);
+                marketCandleB = await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, periodSeconds, limit: 200);
                 var closeA = marketCandleA.Select((candle, index) => { return candle.ClosePrice.ConvertInvariant<float>(); }).Reverse();
                 var closeB = marketCandleB.Select((candle, index) => { return candle.ClosePrice.ConvertInvariant<float>(); }).Reverse();
                 int outBegIdx;
@@ -556,7 +612,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         void SwicthStateToOpenPosition()
         {
-            Console.WriteLine("---------------------Switch State to Open Position-----------------------------");
+            Console.WriteLine("mId:"+mId+"  "+"---------------------Switch State to Open Position-----------------------------");
             isClosePositionState = false;
             mCloseOrder = null;
         }
@@ -565,7 +621,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         async void SwitchStateToClosePosition()
         {
-            Console.WriteLine("---------------------Switch State to Close Position-----------------------------");
+            Console.WriteLine("mId:"+mId+"  "+"---------------------Switch State to Close Position-----------------------------");
             isClosePositionState = true;
             if (mBidOrder != null)
                 mRunningTask = mExchangeAAPI.CancelOrderAsync(mBidOrder.OrderId, mConfig.SymbolA);
@@ -581,7 +637,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         public void Start()
         {
-            Console.WriteLine("Start {0},{1},{2},{3}", 1m, 2m, 3m, 4m);
+            ExchangeOrderBook r = null;
+            //Console.WriteLine(r.Asks);
+            Console.WriteLine("mId:"+mId+"  "+"Start {0},{1},{2},{3}", 1m, 2m, 3m, 4m);
             mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
             mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
             WhileGetExchangeCandles();
@@ -589,35 +647,64 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 25, mConfig.SymbolB);
             mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
 
-//             mExchangeBAPI.PlaceOrderAsync(new ExchangeOrderResult
-//             {
-//                 Amount = 100,
-//                 AmountFilled = 0,
-//                 Price = 3888,
-//                 IsBuy = false,
-//                 MarketSymbol = mConfig.SymbolB,
-//             });
+
+
+            //testc();
+
+            //             mExchangeBAPI.PlaceOrderAsync(new ExchangeOrderResult
+            //             {
+            //                 Amount = 100,
+            //                 AmountFilled = 0,
+            //                 Price = 3888,
+            //                 IsBuy = false,
+            //                 MarketSymbol = mConfig.SymbolB,
+            //             });
         }
         public async Task testc()
         {
-            //蜡烛线
-            //await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, 60, null, null, 150);
-            //获取订单
-            IExchangeAPI mExchangeCAPI = ExchangeAPI.GetExchangeAPI(ExchangeName.GateioDM);
-            mExchangeCAPI.LoadAPIKeys(ExchangeName.GateioDM);
-
-            ExchangeOrderRequest req = new ExchangeOrderRequest()
-            {
-                Amount = 100,
-                Price = 3848,
-                IsBuy = true,
-                MarketSymbol = mConfig.SymbolC,
-                OrderType = OrderType.Market,
-            };
-            //ExchangeOrderResult re = await mExchangeBAPI.PlaceOrderAsync(req);
-            ExchangeOrderResult re = await mExchangeCAPI.PlaceOrderAsync(req);
+//             //蜡烛线
+//             await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, 60, null, null, 150);
+//             //获取订单
+//             IExchangeAPI mExchangeCAPI = ExchangeAPI.GetExchangeAPI(ExchangeName.GateioDM);
+//             mExchangeCAPI.LoadAPIKeys(ExchangeName.GateioDM);
+// 
+//             ExchangeOrderRequest req = new ExchangeOrderRequest()
+//             {
+//                 Amount = 100,
+//                 Price = 3848,
+//                 IsBuy = true,
+//                 MarketSymbol = mConfig.SymbolC,
+//                 OrderType = OrderType.Market,
+//             };
+//             //ExchangeOrderResult re = await mExchangeBAPI.PlaceOrderAsync(req);
+//             ExchangeOrderResult re = await mExchangeCAPI.PlaceOrderAsync(req);
             //long lastTime = DateTime.Now.Ticks;
             //Console.WriteLine(new DateTime( lastTime).);
+
+            //1 买入orderId1
+            var bidReq1 = new ExchangeOrderRequest()
+            {
+                Amount = 100,
+                Price = 4000,
+                MarketSymbol = mConfig.SymbolA,
+                IsBuy = false,
+                ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
+            };
+            var orders1 = await mExchangeAAPI.PlaceOrdersAsync(bidReq1);
+            //2 cancle roderId1
+            await mExchangeAAPI.CancelOrderAsync(orders1[0].OrderId, orders1[0].MarketSymbol);
+            //3 change orderId1 prices
+            var bidReq3 = new ExchangeOrderRequest()
+            {
+                Amount = 100,
+                Price = 4002,
+                MarketSymbol = mConfig.SymbolA,
+                IsBuy = false,
+                ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
+            };
+            bidReq3.ExtraParameters.Add("orderID", orders1[0].OrderId);
+            var orders3 = await mExchangeAAPI.PlaceOrdersAsync(bidReq3);
+            await Task.Delay(100);
 
         }
     }
