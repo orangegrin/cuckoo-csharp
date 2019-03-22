@@ -14,18 +14,18 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         private Dictionary<string, ExchangeOrderResult> mOrders = new Dictionary<string, ExchangeOrderResult>();
 
-        public decimal mNotionalValue
+        public decimal mAmount
         {
             get
             {
-                return mOrders.Select((op) => { if (op.Value.AveragePrice == 0) return 0; return op.Value.AmountFilled / op.Value.AveragePrice * (op.Value.IsBuy ? 1 : -1); }).Sum();
+                return mOrders.Select((op) => { return op.Value.AmountFilled * (op.Value.IsBuy ? 1 : -1); }).Sum();
             }
         }
-        public decimal mTargetValue
+        public decimal mTargetAmount
         {
             get
             {
-                var value = mConfig.KeepValue / mConfig.InitialPrice;
+                var value = mConfig.KeepValue;
                 return mTicker.Last > mConfig.InitialPrice ? value : -value;
             }
         }
@@ -101,7 +101,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         private Task LoopHandler()
         {
-            var diff = (mTargetValue - mNotionalValue) / mTargetValue;
+            var diff = (mTargetAmount - mAmount) / mTargetAmount;
             if (Math.Abs(diff) < 0.01m)
             {
                 Console.WriteLine("diff is too small, return {0}", diff);
@@ -144,7 +144,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             Console.WriteLine("Limit");
             decimal price = mTicker.Bid;
-            decimal qty = Math.Round((mTargetValue - mNotionalValue) * price);
+            decimal qty = Math.Round((mTargetAmount - mAmount));
             var req = new ExchangeOrderRequest { MarketSymbol = mConfig.Symbol, Price = price, Amount = qty, IsBuy = true, OrderType = OrderType.Limit, ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } } };
             if (mLimitBuyOrder != null)
             {
@@ -161,7 +161,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Console.WriteLine("Market");
             await CancelBuyOrder();
             decimal price = mTicker.Ask;
-            decimal qty = Math.Round((mTargetValue - mNotionalValue) * price);
+            decimal qty = Math.Round((mTargetAmount - mAmount));
             var req = new ExchangeOrderRequest { MarketSymbol = mConfig.Symbol, Amount = qty, IsBuy = true, OrderType = OrderType.Market };
             var order = await mExchangeAPI.PlaceOrderAsync(req);
             mOrders[order.OrderId] = order;
@@ -184,7 +184,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             Console.WriteLine("Limit");
             decimal price = mTicker.Ask;
-            decimal qty = Math.Round(Math.Abs(mTargetValue - mNotionalValue) * price);
+            decimal qty = Math.Round(Math.Abs(mTargetAmount - mAmount));
             var req = new ExchangeOrderRequest { MarketSymbol = mConfig.Symbol, Price = price, Amount = qty, IsBuy = false, OrderType = OrderType.Limit, ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } } };
             if (mLimitSellOrder != null)
             {
@@ -201,7 +201,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Console.WriteLine("Market");
             await CancelSellOrder();
             decimal price = mTicker.Bid;
-            decimal qty = Math.Round(Math.Abs(mTargetValue - mNotionalValue) * price);
+            decimal qty = Math.Round(Math.Abs(mTargetAmount - mAmount));
             var req = new ExchangeOrderRequest { MarketSymbol = mConfig.Symbol, Amount = qty, IsBuy = false, OrderType = OrderType.Market };
             var order = await mExchangeAPI.PlaceOrderAsync(req);
             mOrders[order.OrderId] = order;
