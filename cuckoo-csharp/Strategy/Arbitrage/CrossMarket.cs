@@ -256,14 +256,26 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Console.WriteLine(order.ToString());
             Console.WriteLine(order.ToExcleString());
             var ticks = DateTime.Now.Ticks;
-            var res = await mExchangeBAPI.PlaceOrderAsync(req);
-            mRunningTask = Task.Delay(5 * 1000);
-            await mRunningTask;
-            Console.WriteLine(DateTime.Now.Ticks - ticks);
-            Console.WriteLine(res.ToString());
-            Console.WriteLine(res.OrderId);
+            try
+            {
+                var res = await mExchangeBAPI.PlaceOrderAsync(req);
+                mRunningTask = Task.Delay(5 * 1000);
+                await mRunningTask;
+                Console.WriteLine(DateTime.Now.Ticks - ticks);
+                Console.WriteLine(res.ToString());
+                Console.WriteLine(res.OrderId);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(req.ToString());
+                Logger.Error(ex);
+                throw ex;
+            }
+            
+
 
         }
+
         /// <summary>
         /// 开仓
         /// </summary>
@@ -465,7 +477,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 return true;
             var priceDiff = (result.Price - request.Price) / request.Price / mConfig.MinIRS;
             var amountDiff = (result.Amount - request.Amount) / request.Amount;
-            if (Math.Abs(priceDiff) < 0.2m && Math.Abs(amountDiff) < 0.2m)
+            if (Math.Abs(priceDiff) < 0.3m && Math.Abs(amountDiff) < 0.2m)
             {
                 return false;
             }
@@ -569,13 +581,18 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <returns></returns>
         decimal GetStandardDev()
         {
-            var dev = smaA[3] - smaB[3];
+            var t1 = smaA.Take(100);
+            var t2 = smaB.Take(100);
+            
+            var dev = (t1.Sum()- t2.Sum())/100;
             return dev.ConvertInvariant<decimal>();
         }
         private IEnumerable<MarketCandle> marketCandleA;
         private IEnumerable<MarketCandle> marketCandleB;
         private double[] smaA;
         private double[] smaB;
+
+        private decimal last = 0;
 
         private async Task GetExchangeCandles(int periodSeconds)
         {
@@ -591,6 +608,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 smaB = new double[closeB.Count()];
                 TicTacTec.TA.Library.Core.Sma(0, closeA.Count() - 1, closeA.ToArray(), mConfig.TimePeriod, out outBegIdx, out outNBElement, smaA);
                 TicTacTec.TA.Library.Core.Sma(0, closeB.Count() - 1, closeB.ToArray(), mConfig.TimePeriod, out outBegIdx, out outNBElement, smaB);
+                decimal current = GetStandardDev();
+                if (last!=0)
+                {
+                    
+                    if(last> current)
+                    {
+                        Console.WriteLine("变小");
+                    }
+                }
+                last = current;
                 Console.WriteLine(GetStandardDev());
 
             }
@@ -598,7 +625,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 Console.WriteLine(ex.ToString());
             }
-            await Task.Delay(periodSeconds * 1000);
+            await Task.Delay(periodSeconds * 60000);
         }
         private async void WhileGetExchangeCandles()
         {
@@ -637,9 +664,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         public void Start()
         {
-            ExchangeOrderBook r = null;
-            //Console.WriteLine(r.Asks);
-            Console.WriteLine("mId:"+mId+"  "+"Start {0},{1},{2},{3}", 1m, 2m, 3m, 4m);
+            Console.WriteLine("mId:" + mId + "  " + "Start {0},{1},{2},{3}", 1m, 2m, 3m, 4m);
             mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
             mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);
             WhileGetExchangeCandles();
@@ -662,49 +687,58 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         public async Task testc()
         {
-//             //蜡烛线
-//             await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, 60, null, null, 150);
-//             //获取订单
-//             IExchangeAPI mExchangeCAPI = ExchangeAPI.GetExchangeAPI(ExchangeName.GateioDM);
-//             mExchangeCAPI.LoadAPIKeys(ExchangeName.GateioDM);
-// 
-//             ExchangeOrderRequest req = new ExchangeOrderRequest()
-//             {
-//                 Amount = 100,
-//                 Price = 3848,
-//                 IsBuy = true,
-//                 MarketSymbol = mConfig.SymbolC,
-//                 OrderType = OrderType.Market,
-//             };
-//             //ExchangeOrderResult re = await mExchangeBAPI.PlaceOrderAsync(req);
-//             ExchangeOrderResult re = await mExchangeCAPI.PlaceOrderAsync(req);
+            //             //蜡烛线
+            //             await mExchangeBAPI.GetCandlesAsync(mConfig.SymbolB, 60, null, null, 150);
+            //             //获取订单
+            //             IExchangeAPI mExchangeCAPI = ExchangeAPI.GetExchangeAPI(ExchangeName.GateioDM);
+            //             mExchangeCAPI.LoadAPIKeys(ExchangeName.GateioDM);
+            // 
+            ExchangeOrderRequest req = new ExchangeOrderRequest()
+            {
+                Amount = 100,
+                Price = 3888,
+                IsBuy = false,
+                MarketSymbol = mConfig.SymbolB,
+                OrderType = OrderType.Limit,
+            };
+            try
+            {
+                ExchangeOrderResult re = await mExchangeBAPI.PlaceOrderAsync(req);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                throw ex;
+            }
+            
+            //ExchangeOrderResult re = await mExchangeCAPI.PlaceOrderAsync(req);
             //long lastTime = DateTime.Now.Ticks;
             //Console.WriteLine(new DateTime( lastTime).);
 
             //1 买入orderId1
-            var bidReq1 = new ExchangeOrderRequest()
-            {
-                Amount = 100,
-                Price = 4000,
-                MarketSymbol = mConfig.SymbolA,
-                IsBuy = false,
-                ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
-            };
-            var orders1 = await mExchangeAAPI.PlaceOrdersAsync(bidReq1);
-            //2 cancle roderId1
-            await mExchangeAAPI.CancelOrderAsync(orders1[0].OrderId, orders1[0].MarketSymbol);
-            //3 change orderId1 prices
-            var bidReq3 = new ExchangeOrderRequest()
-            {
-                Amount = 100,
-                Price = 4002,
-                MarketSymbol = mConfig.SymbolA,
-                IsBuy = false,
-                ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
-            };
-            bidReq3.ExtraParameters.Add("orderID", orders1[0].OrderId);
-            var orders3 = await mExchangeAAPI.PlaceOrdersAsync(bidReq3);
-            await Task.Delay(100);
+            //var bidReq1 = new ExchangeOrderRequest()
+            //{
+            //    Amount = 100,
+            //    Price = 4000,
+            //    MarketSymbol = mConfig.SymbolA,
+            //    IsBuy = false,
+            //    ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
+            //};
+            //var orders1 = await mExchangeAAPI.PlaceOrdersAsync(bidReq1);
+            ////2 cancle roderId1
+            //await mExchangeAAPI.CancelOrderAsync(orders1[0].OrderId, orders1[0].MarketSymbol);
+            ////3 change orderId1 prices
+            //var bidReq3 = new ExchangeOrderRequest()
+            //{
+            //    Amount = 100,
+            //    Price = 4002,
+            //    MarketSymbol = mConfig.SymbolA,
+            //    IsBuy = false,
+            //    ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
+            //};
+            //bidReq3.ExtraParameters.Add("orderID", orders1[0].OrderId);
+            //var orders3 = await mExchangeAAPI.PlaceOrdersAsync(bidReq3);
+            //await Task.Delay(100);
 
         }
     }

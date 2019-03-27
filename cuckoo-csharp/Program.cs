@@ -17,18 +17,18 @@ namespace cuckoo_csharp
 
             BuildKeys();
             var config1 = GetCrossMarketConfig();
-            config1.MinIRS = 0.0012m;
-            config1.MaxQty = 100;
-            //new CrossMarket(config1).Start();
+            config1.MinIRS = 0.002m;
+            config1.MaxQty = 200;
+            new CrossMarket(config1,1).Start();
             var config2 = GetCrossMarketConfig();
-            config2.MinIRS = 0.0024m;
-            config2.MaxQty = 200;
-            //new CrossMarket(config2).Start();
+            config2.MinIRS = 0.003m;
+            config2.MaxQty = 300;
+            new CrossMarket(config2,2).Start();
             var config3 = GetCrossMarketConfig();
-            config3.MinIRS = 0.0042m;
-            config3.MaxQty = 400;
-            new CrossMarket(config3).Start();
-            while (true)
+            config3.MinIRS = 0.004m;
+            config3.MaxQty = 600;
+            new CrossMarket(config3,3).Start();
+            //while (true)
             {
                 Console.ReadLine();
             }
@@ -66,8 +66,12 @@ namespace cuckoo_csharp
             crossMarketConfig.SymbolC = "BTC_USD";
             crossMarketConfig.MaxQty = 100;
             crossMarketConfig.MinIRS = 0.002m;
+            //crossMarketConfig.FeesA = -0.00025m;
+            //crossMarketConfig.FeesB = 0.0003m;
             crossMarketConfig.FeesA = -0.00025m;
             crossMarketConfig.FeesB = 0.0003m;
+
+
             crossMarketConfig.POR = 0.6m;
             crossMarketConfig.MinPriceUnit = 0.5m;
             crossMarketConfig.PeriodFreq = 60;
