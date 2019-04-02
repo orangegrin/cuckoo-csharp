@@ -34,8 +34,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             mOrderBookA = order;
             OnOrderBookHandler();
-
-
         }
 
         private void OnOrderbookBHandler(ExchangeOrderBook order)
@@ -149,6 +147,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             public decimal CPDF;
             public decimal PerTrans;
             public decimal CurAmount;
+            /// <summary>
+            /// 最小价格单位
+            /// </summary>
+            public decimal MinPriceUnit=0.5m;
         }
     }
 }
