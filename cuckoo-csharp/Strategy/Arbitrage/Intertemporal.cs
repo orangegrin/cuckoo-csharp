@@ -154,6 +154,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// 最小价格单位
             /// </summary>
             public decimal MinPriceUnit=0.5m;
+
+
         }
     }
 }

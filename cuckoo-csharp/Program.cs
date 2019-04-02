@@ -32,10 +32,29 @@ namespace cuckoo_csharp
             //var config = new Intertemporal.IntertemporalConfig() { ExchangeNameA = ExchangeName.BitMEX, ExchangeNameB = ExchangeName.Binance, SymbolA = "XBTH19", SymbolB = "BTC_USDT", MaxQty = 50, OPDF = 0.008m, CPDF = 0.003m, PerTrans = 10 };
             //new Intertemporal(config).Start();
 
-            var config = new IntertemporalConfig()
+            var config1 = new IntertemporalConfig()
             { ExchangeNameA = ExchangeName.BitMEX, ExchangeNameB = ExchangeName.Binance, SymbolA = "XBTM19",
-                SymbolB = "BTC_USDT", MaxQty = 40, OPDF = 0.009m, CPDF = 0.016m , PerTrans = 15 ,CurAmount = 45 };
-            new IntertemporalPlus(config).Start();
+                SymbolB = "BTC_USDT", MaxQty = 40, OPDF = -0.007m, CPDF = -0.027m, PerTrans = 20 ,CurAmount = 0,ProfitRate = 0.004m,
+            };
+            new IntertemporalPlus(config1).Start();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             while (true)
             {
                 Console.ReadLine();
@@ -51,15 +70,21 @@ namespace cuckoo_csharp
             //BITMEX Account 2:
             //name: t295202690@gmail.com
             //pass: tii540105249
-            string publickey = "2xrwtDdMimp5Oi3F6oSmtsew";
-            string privatekey = "rxgzE8FCETaWXxXAXe5daqxRJWshqJoD-ERIipxdC_H2hexs";
+//             string publickey = "2xrwtDdMimp5Oi3F6oSmtsew";
+//             string privatekey = "rxgzE8FCETaWXxXAXe5daqxRJWshqJoD-ERIipxdC_H2hexs";
+
+            //t295202690@gmail.com
+            string publickey = "V8_9x3w_EAaauj7IwY9rcJPt";
+            string privatekey = "f88SX0cIVFSD4dgsR1rnm01kohSqb4dar9WHd6h1BwFBgcrT";
             CryptoUtility.SaveUnprotectedStringsToFile(ExchangeName.BitMEX, new string[2] { publickey, privatekey });
 
-//             string publickey2 = "GXKrqpqZXCnhJ82nhy7MwzPcYGIVtKyd9EtHcVGauxlOVSutTFyNwoa5yn6bteVO";
-//             string privatekey2 = "GtwcSOpV51tYAt8LeOGYDd31a7r7zmjerwYDyyBlRYBaUgw2tUFc0MtyaOvKQ6PR";
+            //             string publickey2 = "GXKrqpqZXCnhJ82nhy7MwzPcYGIVtKyd9EtHcVGauxlOVSutTFyNwoa5yn6bteVO";
+            //             string privatekey2 = "GtwcSOpV51tYAt8LeOGYDd31a7r7zmjerwYDyyBlRYBaUgw2tUFc0MtyaOvKQ6PR";
+            //cuckoo@orangegrin.com
             string publickey2 = "JDNwbXiiihzY5qpRi6Z5AmHIa40baJ2EcL5rEKDfRvjhB7JRGSU8aQf4q2N69c5q";
             string privatekey2 = "rGjyCNhYaQkT9dT09OmARVM2gykTL51HhAOMC26mixRHAcdxypGLS4ApoxPwuuZG";
-            
+
+
             CryptoUtility.SaveUnprotectedStringsToFile(ExchangeName.Binance, new string[2] { publickey2, privatekey2 });
 
 
