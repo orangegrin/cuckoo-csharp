@@ -29,7 +29,7 @@ namespace cuckoo_csharp
             //config3.MaxQty = 400;
             //new CrossMarket(config3).Start();
 
-            var config = new Intertemporal.IntertemporalConfig() { ExchangeNameA = ExchangeName.BitMEX, ExchangeNameB = ExchangeName.Binance, SymbolA = "XBTH19", SymbolB = "BTC_USDT", MaxQty = 50, OPDF = 0.008m, CPDF = 0.003m, PerTrans = 10 };
+            var config = new Intertemporal.IntertemporalConfig() { ExchangeNameA = ExchangeName.BitMEX, ExchangeNameB = ExchangeName.Binance, SymbolA = "ETHM19", SymbolB = "ETH_BTC", MaxQty = 1m, OPDF = -0.015m, CPDF = -0.015m, PerTrans = 1m, CurAmount = 0 };
 
             new Intertemporal(config).Start();
             while (true)
