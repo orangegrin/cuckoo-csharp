@@ -29,9 +29,13 @@ namespace cuckoo_csharp
             //config3.MaxQty = 400;
             //new CrossMarket(config3).Start();
 
-            var config = new Intertemporal.IntertemporalConfig() { ExchangeNameA = ExchangeName.BitMEX, ExchangeNameB = ExchangeName.Binance, SymbolA = "XBTH19", SymbolB = "BTC_USDT", MaxQty = 50, OPDF = 0.008m, CPDF = 0.003m, PerTrans = 10 };
+            //var config = new Intertemporal.IntertemporalConfig() { ExchangeNameA = ExchangeName.BitMEX, ExchangeNameB = ExchangeName.Binance, SymbolA = "XBTH19", SymbolB = "BTC_USDT", MaxQty = 50, OPDF = 0.008m, CPDF = 0.003m, PerTrans = 10 };
+            //new Intertemporal(config).Start();
 
-            new Intertemporal(config).Start();
+            var config = new IntertemporalConfig()
+            { ExchangeNameA = ExchangeName.BitMEX, ExchangeNameB = ExchangeName.Binance, SymbolA = "XBTM19",
+                SymbolB = "BTC_USDT", MaxQty = 40, OPDF = 0.009m, CPDF = 0.016m , PerTrans = 15 ,CurAmount = 45 };
+            new IntertemporalPlus(config).Start();
             while (true)
             {
                 Console.ReadLine();
@@ -51,8 +55,11 @@ namespace cuckoo_csharp
             string privatekey = "rxgzE8FCETaWXxXAXe5daqxRJWshqJoD-ERIipxdC_H2hexs";
             CryptoUtility.SaveUnprotectedStringsToFile(ExchangeName.BitMEX, new string[2] { publickey, privatekey });
 
-            string publickey2 = "GXKrqpqZXCnhJ82nhy7MwzPcYGIVtKyd9EtHcVGauxlOVSutTFyNwoa5yn6bteVO";
-            string privatekey2 = "GtwcSOpV51tYAt8LeOGYDd31a7r7zmjerwYDyyBlRYBaUgw2tUFc0MtyaOvKQ6PR";
+//             string publickey2 = "GXKrqpqZXCnhJ82nhy7MwzPcYGIVtKyd9EtHcVGauxlOVSutTFyNwoa5yn6bteVO";
+//             string privatekey2 = "GtwcSOpV51tYAt8LeOGYDd31a7r7zmjerwYDyyBlRYBaUgw2tUFc0MtyaOvKQ6PR";
+            string publickey2 = "JDNwbXiiihzY5qpRi6Z5AmHIa40baJ2EcL5rEKDfRvjhB7JRGSU8aQf4q2N69c5q";
+            string privatekey2 = "rGjyCNhYaQkT9dT09OmARVM2gykTL51HhAOMC26mixRHAcdxypGLS4ApoxPwuuZG";
+            
             CryptoUtility.SaveUnprotectedStringsToFile(ExchangeName.Binance, new string[2] { publickey2, privatekey2 });
 
 
