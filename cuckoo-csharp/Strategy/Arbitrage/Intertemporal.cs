@@ -17,9 +17,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         public Intertemporal(IntertemporalConfig config)
         {
             mConfig = config;
+            curAmount = mConfig.CurAmount;
             mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mConfig.ExchangeNameA);
             mExchangeBAPI = ExchangeAPI.GetExchangeAPI(mConfig.ExchangeNameB);
-
         }
 
         public void Start()
@@ -60,23 +60,26 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (buyPrice == 0 || sellPrice == 0 || exchangeAmount == 0)
                 return;
             Console.WriteLine("================================================");
-            Console.WriteLine(sellPrice / buyPrice - 1);
-            Console.WriteLine("{0} {1} {2}", buyPrice, sellPrice, exchangeAmount);
+            Console.WriteLine("{0}", sellPrice / buyPrice - 1);
+            Console.WriteLine("A Buy {0} B Sell {1} Qty {2}", buyPrice, sellPrice, exchangeAmount);
             if (sellPrice / buyPrice - 1 > mConfig.OPDF && Math.Abs(curAmount) < mConfig.MaxQty)
             {
-                OpenPosition(exchangeAmount);
+                Console.WriteLine("O P {0}", exchangeAmount);
+                await OpenPosition(exchangeAmount);
             }
             mOrderBookB.GetPriceToBuy(mConfig.PerTrans, out exchangeAmount, out buyPrice);
             sellPrice = mOrderBookA.GetPriceToSell(exchangeAmount);
-            Console.WriteLine(1 - sellPrice / buyPrice);
-            Console.WriteLine("{0} {1} {2}", buyPrice, sellPrice, exchangeAmount);
+            Console.WriteLine("{0}", 1 - sellPrice / buyPrice);
+            Console.WriteLine("B Buy {0} A Sell {1} Qty {2}", buyPrice, sellPrice, exchangeAmount);
             if (1 - sellPrice / buyPrice < mConfig.CPDF && Math.Abs(curAmount) < mConfig.MaxQty)
             {
-                ClosePosition(exchangeAmount);
+                Console.WriteLine("C P {0}" + exchangeAmount);
+                await ClosePosition(exchangeAmount);
             }
             await mRunningTask;
+            Console.WriteLine("Current Amount {0}", curAmount);
         }
-        private async void OpenPosition(decimal exchangeAmount)
+        private async Task OpenPosition(decimal exchangeAmount)
         {
 
             try
@@ -88,17 +91,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 requestA.IsBuy = true;
                 requestA.OrderType = OrderType.Market;
                 ExchangeOrderRequest requestB = new ExchangeOrderRequest();
-                requestB.Amount = exchangeAmount;
+                requestB.Amount = mConfig.PerTrans;
                 requestB.MarketSymbol = mConfig.SymbolB;
                 requestB.IsBuy = false;
                 requestB.OrderType = OrderType.Market;
-
                 var orderA = await mExchangeAAPI.PlaceOrderAsync(requestA);
-                if (orderA.Result == ExchangeAPIOrderResult.Filled)
-                {
-                    curAmount += mConfig.PerTrans;
-                    var orderB = await mExchangeBAPI.PlaceOrderAsync(requestB);
-                }
+                var orderB = await mExchangeBAPI.PlaceOrderAsync(requestB);
+                curAmount += mConfig.PerTrans;
             }
             catch (Exception ex)
             {
@@ -106,7 +105,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
         }
 
-        private async void ClosePosition(decimal exchangeAmount)
+        private async Task ClosePosition(decimal exchangeAmount)
         {
             try
             {
@@ -117,16 +116,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 requestA.IsBuy = false;
                 requestA.OrderType = OrderType.Market;
                 ExchangeOrderRequest requestB = new ExchangeOrderRequest();
-                requestB.Amount = exchangeAmount;
+                requestB.Amount = mConfig.PerTrans;
                 requestB.MarketSymbol = mConfig.SymbolB;
                 requestB.IsBuy = true;
                 requestB.OrderType = OrderType.Market;
                 var orderA = await mExchangeAAPI.PlaceOrderAsync(requestA);
-                if (orderA.Result == ExchangeAPIOrderResult.Filled)
-                {
-                    curAmount -= mConfig.PerTrans;
-                    var orderB = await mExchangeBAPI.PlaceOrderAsync(requestB);
-                }
+                var orderB = await mExchangeBAPI.PlaceOrderAsync(requestB);
+                curAmount -= mConfig.PerTrans;
             }
             catch (Exception ex)
             {
@@ -150,6 +146,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// </summary>
             public decimal CPDF;
             public decimal PerTrans;
+            public decimal CurAmount;
             /// <summary>
             /// 最小价格单位
             /// </summary>
