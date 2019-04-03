@@ -32,13 +32,44 @@ namespace cuckoo_csharp
             //var config = new Intertemporal.IntertemporalConfig() { ExchangeNameA = ExchangeName.BitMEX, ExchangeNameB = ExchangeName.Binance, SymbolA = "XBTH19", SymbolB = "BTC_USDT", MaxQty = 50, OPDF = 0.008m, CPDF = 0.003m, PerTrans = 10 };
             //new Intertemporal(config).Start();
 
+            //             var config1 = new IntertemporalConfig()
+            //             { ExchangeNameA = ExchangeName.BitMEX, ExchangeNameB = ExchangeName.Binance, SymbolA = "XBTM19",
+            //                 SymbolB = "BTC_USDT", MaxQty = 40, OPDF = -0.007m, CPDF = -0.027m, PerTrans = 20 ,CurAmount = 0,ProfitRate = 0.004m,
+            //                 UseLimit = true
+            //             };
+            //             new IntertemporalPlus(config1,1).Start();
+
             var config1 = new IntertemporalConfig()
-            { ExchangeNameA = ExchangeName.BitMEX, ExchangeNameB = ExchangeName.Binance, SymbolA = "XBTM19",
-                SymbolB = "BTC_USDT", MaxQty = 40, OPDF = -0.007m, CPDF = -0.027m, PerTrans = 20 ,CurAmount = 0,ProfitRate = 0.004m,
+            {
+                ExchangeNameA = ExchangeName.BitMEX,
+                ExchangeNameB = ExchangeName.Binance,
+                SymbolA = "XBTM19",
+                SymbolB = "BTC_USDT",
+                MaxQty = 30,
+                OPDF = -0.014m,
+                CPDF = 0m,
+                PerTrans = 15,
+                CurAmount = 0,
+                ProfitRate = 0.014m,
+                UseLimit = false
             };
-            new IntertemporalPlus(config1).Start();
+            new IntertemporalPlus(config1, 1).Start();
 
-
+            var config2 = new IntertemporalConfig()
+            {
+                ExchangeNameA = ExchangeName.BitMEX,
+                ExchangeNameB = ExchangeName.Binance,
+                SymbolA = "XBTM19",
+                SymbolB = "BTC_USDT",
+                MaxQty = 28,
+                OPDF = 0m,
+                CPDF = 0.014m,
+                PerTrans = 14,
+                CurAmount = 0,
+                ProfitRate = 0.014m,
+                UseLimit = false
+            };
+            new IntertemporalPlus(config2,2).Start();
 
 
 

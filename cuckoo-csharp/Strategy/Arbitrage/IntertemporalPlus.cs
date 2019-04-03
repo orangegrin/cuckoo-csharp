@@ -58,13 +58,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         private ExchangeOrderResult mOpenOrder = new ExchangeOrderResult();
 
-        public IntertemporalPlus(IntertemporalConfig config)
+        public IntertemporalPlus(IntertemporalConfig config,int id)
         {
             mConfig = config;
+            mId = id;
             mOpenOrder.Amount = mConfig.CurAmount;
             mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mConfig.ExchangeNameA);
             mExchangeBAPI = ExchangeAPI.GetExchangeAPI(mConfig.ExchangeNameB);
             SetRate();
+            
         }
         /// <summary>
         /// 初始化率
@@ -79,8 +81,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             closeRate = chaRate / 2m - mid;
 
 
-            Logger.Debug("openRate" + openRate);
-            Logger.Debug("closeRate" + closeRate);
+            Logger.Debug("mId:" + mId + "openRate" + openRate);
+            Logger.Debug("mId:" + mId + "closeRate" + closeRate);
         }
         public void Start()
         {
@@ -88,7 +90,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeBAPI.LoadAPIKeys(mConfig.ExchangeNameB);
             mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
             //避免没有订阅成功就开始订单
-            Thread.Sleep(5 * 1000);
+            Thread.Sleep(4 * 1000);
             mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 20, mConfig.SymbolA);
             mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 20, mConfig.SymbolB);
         }
@@ -149,15 +151,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     else if (cha2 < closeRate && (-mOpenOrder.Amount) < mConfig.MaxQty) //满足差价并且没达到最大数量
                     {
 
-                        Logger.Debug("================================================");
-                        Logger.Debug("BA价差百分比2：" + cha2.ToString());
-                        Logger.Debug("{0} {1} {2}", buyPriceB, sellPriceA, exchangeAmount);
+                        Logger.Debug("mId:" + mId + "================================================");
+                        Logger.Debug("mId:" + mId + "BA价差百分比2：" + cha2.ToString());
+                        Logger.Debug("mId:" + mId + "{0} {1} {2}", buyPriceB, sellPriceA, exchangeAmount);
                         mRunningTask = BBuyASell(exchangeAmount, sellPriceA);
 
                     }
                     else if (mCurrentLimitOrder != null && closeRate <= cha && cha <= openRate)//如果在波动区间中，那么取消挂单
                     {
-                        Logger.Debug("在波动区间中取消订单：" + cha2.ToString());
+                        Logger.Debug("mId:" + mId + "在波动区间中取消订单：" + cha2.ToString());
                         ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
                         cancleRequestA.ExtraParameters.Add("orderID", mCurrentLimitOrder.OrderId);
                         mRunningTask = mExchangeAAPI.CancelOrderAsync(mCurrentLimitOrder.OrderId, mConfig.SymbolA);
@@ -173,7 +175,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 catch (System.Exception ex)
                 {
-                    Logger.Error(ex);
+                    Logger.Error("mId:" + mId + ex);
                 }
             }
 
@@ -195,7 +197,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             requestA.Amount = mConfig.PerTrans;
             requestA.MarketSymbol = mConfig.SymbolA;
             requestA.IsBuy = true;
-            requestA.OrderType = OrderType.Limit;
+            requestA.OrderType = mOrderType;
             //避免市价成交
             buyPrice -= 0.5m;
             requestA.Price = NormalizationMinUnit(buyPrice);
@@ -210,7 +212,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             bool isAddNew = true;
             try
             {
-
                 if (mCurrentLimitOrder != null)
                 {
                     //方向相同，并且达到修改条件
@@ -240,6 +241,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                 };
                 //mOpenOrder.Amount = mOpenOrder.Amount - lastNum + requestA.Amount;
+                //市价不设置价格
+                if (requestA.OrderType==OrderType.Market)
+                {
+                    requestA.Price = 0;
+                    requestA.ExtraParameters.Remove("execInst");
+                }
+
                 var v = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 mCurrentLimitOrder = v[0];
                 mOrderIds.Add(mCurrentLimitOrder.OrderId);
@@ -255,7 +263,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 //如果是添加新单那么设置为null
                 if(isAddNew)
                     mCurrentLimitOrder = null;
-                Logger.Error(ex);
+                Logger.Error("mId:" + mId + ex);
             }
         }
         /// <summary>
@@ -273,7 +281,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             requestA.Amount = mConfig.PerTrans;
             requestA.MarketSymbol = mConfig.SymbolA;
             requestA.IsBuy = false;
-            requestA.OrderType = OrderType.Limit;
+            requestA.OrderType = mOrderType;
 
             //避免市价成交
             sellPrice += 0.5m;
@@ -316,6 +324,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 };
                 //mOpenOrder.Amount = mOpenOrder.Amount - lastNum + (-requestA.Amount);
                 //mCurrentLimitOrder = await mExchangeAAPI.PlaceOrderAsync(requestA);
+                //市价不设置价格
+                if (requestA.OrderType == OrderType.Market)
+                {
+                    requestA.Price = 0;
+                    requestA.ExtraParameters.Remove("execInst");
+                }
                 var v = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 mCurrentLimitOrder = v[0];
                 mOrderIds.Add(mCurrentLimitOrder.OrderId);
@@ -329,7 +343,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 //如果是添加新单那么设置为null
                 if (isAddNew)
                     mCurrentLimitOrder = null;
-                Logger.Error(ex);
+                Logger.Error("mId:" + mId + ex);
             }
         }
 
@@ -347,7 +361,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 //只有在成交后才修改订单数量
                 mOpenOrder.Amount += mCurrentLimitOrder.IsBuy ? +mCurrentLimitOrder.Amount : -mCurrentLimitOrder.Amount;
-                Logger.Debug("mOpenOrder.Amount:::" + mOpenOrder.Amount);
+                Logger.Debug("mId:" + mId + "mOpenOrder.Amount:::" + mOpenOrder.Amount);
                 openAndCloseOrderA.Add(order);
                 bool completed = false;
                 if (mOpenOrder.Amount == 0)
@@ -379,7 +393,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             
             //重置数量
             //mOpenOrder.Amount += order.IsBuy ? -order.Amount : +order.Amount;
-            Logger.Debug("Canceled  "+order.ToExcleString()+ "mOpenOrder.Amount"+ mOpenOrder.Amount);
+            Logger.Debug("mId:" + mId + "Canceled  " + order.ToExcleString()+ "mOpenOrder.Amount"+ mOpenOrder.Amount);
             if (mCurrentLimitOrder != null && mCurrentLimitOrder.OrderId == order.OrderId)
             {
                 mCurrentLimitOrder = null;
@@ -464,7 +478,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         Logger.Debug(item.ToExcleString());
                     }
                 }
-                Logger.Debug("--------------------------------ReverseOpenMarketOrder Result-------------------------------------");
+                Logger.Debug("mId:" + mId + "--------------------------------ReverseOpenMarketOrder Result-------------------------------------");
                 Logger.Debug((DateTime.Now.Ticks - ticks).ToString());
                 Logger.Debug(res.ToString());
                 Logger.Debug(res.OrderId);
@@ -475,7 +489,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             catch (Exception ex)
             {
                 Logger.Error(req.ToString());
-                Logger.Error(ex);
+                Logger.Error("mId:" + mId + ex);
                 throw ex;
             }
         }
@@ -548,9 +562,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var s = 1 / mConfig.MinPriceUnit;
             return Math.Round(price * s) / s;
         }
+        /// <summary>
+        /// 设置当前的订单类型
+        /// </summary>
+        OrderType mOrderType { get =>mConfig.UseLimit?OrderType.Limit:OrderType.Market; }
 
-
-
+        
     }
 }
 public class IntertemporalConfig
@@ -578,6 +595,11 @@ public class IntertemporalConfig
     /// 最小价格单位
     /// </summary>
     public decimal ProfitRate = 0.02m;
+
+    /// <summary>
+    /// true 限价，false市价
+    /// </summary>
+    public bool UseLimit = true;
 
     public decimal CurAmount { get; internal set; }
 }
