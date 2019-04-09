@@ -46,8 +46,8 @@ namespace cuckoo_csharp
                 SymbolA = "XBTM19",
                 SymbolB = "BTC_USDT",
                 MaxQty = 30,
-                OPDF = -0.014m,
-                CPDF = 0m,
+                OPDF = -0.019m,
+                CPDF = -0.004m,
                 PerTrans = 15,
                 CurAmount = 0,
                 ProfitRate = 0.014m,
@@ -62,34 +62,91 @@ namespace cuckoo_csharp
                 SymbolA = "XBTM19",
                 SymbolB = "BTC_USDT",
                 MaxQty = 28,
-                OPDF = 0m,
-                CPDF = 0.014m,
+                OPDF = 0.004m,
+                CPDF = 0.019m,
                 PerTrans = 14,
                 CurAmount = 0,
                 ProfitRate = 0.014m,
                 UseLimit = false
             };
-            new IntertemporalPlus(config2,2).Start();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            new IntertemporalPlus(config2, 2).Start();
+            //Test();
 
             while (true)
             {
                 Console.ReadLine();
             }
+        }
+
+        private static void Test()
+        {
+            List<ExchangeOrderResult> openedBuyOrderListA = new List<ExchangeOrderResult>() {
+                new ExchangeOrderResult()
+                {
+                    Amount = 15,
+                    Price = 4982.5m,
+                    FillDate = DateTime.Now.AddDays(-1),
+                    IsBuy = true,
+                },
+                new ExchangeOrderResult()
+                {
+                    Amount = 15,
+                    Price = 4982.5m,
+                    FillDate = DateTime.Now.AddDays(-1),
+                    IsBuy = true,
+                }
+            };
+            List<ExchangeOrderResult> openedSellOrderListA = new List<ExchangeOrderResult>() {
+                new ExchangeOrderResult()
+                {
+                    Amount = 15,
+                    Price = 5305m,
+                    FillDate = DateTime.Now,
+                    IsBuy = false,
+
+                },
+                new ExchangeOrderResult()
+                {
+                    Amount = 15,
+                    Price = 5298m,
+                    FillDate = DateTime.Now,
+                    IsBuy = false,
+                }
+            };
+            List<ExchangeOrderResult> closeedSellOrderListB = new List<ExchangeOrderResult>() {
+                new ExchangeOrderResult()
+                {
+                    Amount = 0.003024m,
+                    Price = 4982.5m,
+                    FillDate = DateTime.Now.AddDays(-1),
+                    IsBuy = false,
+                },
+                new ExchangeOrderResult()
+                {
+                    Amount = 0.003022m,
+                    Price = 4982.5m,
+                    FillDate = DateTime.Now.AddDays(-1),
+                    IsBuy = false,
+                }
+            };
+            List<ExchangeOrderResult> closeedBuyOrderListB = new List<ExchangeOrderResult>() {
+                new ExchangeOrderResult()
+                {
+                    Amount = 0.002883m,
+                    Price = 4982.5m,
+                    FillDate = DateTime.Now,
+                    IsBuy = true,
+                },
+                new ExchangeOrderResult()
+                {
+                    Amount = 0.002884m,
+                    Price = 4982.5m,
+                    FillDate = DateTime.Now,
+                    IsBuy = true,
+                }
+            };
+
+            IntertemporalPlus.CountRewardRate(15, openedBuyOrderListA, openedSellOrderListA, closeedBuyOrderListB, closeedSellOrderListB);
         }
 
         static void BuildKeys()
@@ -101,12 +158,12 @@ namespace cuckoo_csharp
             //BITMEX Account 2:
             //name: t295202690@gmail.com
             //pass: tii540105249
-//             string publickey = "2xrwtDdMimp5Oi3F6oSmtsew";
-//             string privatekey = "rxgzE8FCETaWXxXAXe5daqxRJWshqJoD-ERIipxdC_H2hexs";
+            //             string publickey = "2xrwtDdMimp5Oi3F6oSmtsew";
+            //             string privatekey = "rxgzE8FCETaWXxXAXe5daqxRJWshqJoD-ERIipxdC_H2hexs";
 
-            //t295202690@gmail.com
-            string publickey = "V8_9x3w_EAaauj7IwY9rcJPt";
-            string privatekey = "f88SX0cIVFSD4dgsR1rnm01kohSqb4dar9WHd6h1BwFBgcrT";
+            //liuqiba910@gmail.com
+            string publickey = "0jLWqkmsL0jQbCfWlL1nIGxY";
+            string privatekey = "Pq6amCrncnOvSXh_-Oxf_P4hpsb-MgoBUkPUOlzH9W_p3t8C";
             CryptoUtility.SaveUnprotectedStringsToFile(ExchangeName.BitMEX, new string[2] { publickey, privatekey });
 
             //             string publickey2 = "GXKrqpqZXCnhJ82nhy7MwzPcYGIVtKyd9EtHcVGauxlOVSutTFyNwoa5yn6bteVO";
