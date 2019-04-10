@@ -73,27 +73,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         }
         /// <summary>
-        /// 设置运行时数据
-        /// </summary>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        public void SetRuntimeData(string key, object value)
-        {
-            var val = value.ToStringInvariant();
-            RedisDB.Instance.HashSet(mRDKey, key, val);
-        }
-        /// <summary>
-        /// 获取运行时数据
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="key"></param>
-        /// <returns></returns>
-        private T GetRuntimeData<T>(string key)
-        {
-            var val = RedisDB.Instance.HashGet(mRDKey, key);
-            return val.ConvertInvariant<T>();
-        }
-        /// <summary>
         /// 获取交易所某个币种的数量
         /// </summary>
         /// <param name="exchange"></param>
@@ -191,6 +170,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 return;
             a2bDiff = (sellPriceB / buyPriceA - 1);
             b2aDiff = (buyPriceB / sellPriceA - 1);
+            var avgDiff = (a2bDiff + b2aDiff) / 2;
+            AppendAvgDiff(avgDiff);
+
             Logger.Debug("================================================");
             Logger.Debug("BA价差百分比1：" + a2bDiff.ToString());
             Logger.Debug("BA价差百分比2：" + b2aDiff.ToString());
