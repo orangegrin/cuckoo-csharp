@@ -54,6 +54,19 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
         }
 
+        private decimal mCurAmount
+        {
+            get
+            {
+                return mConfig.CurAmount;
+            }
+            set
+            {
+                var config = mConfig;
+                config.CurAmount = value;
+                mConfig = config;
+            }
+        }
         private string mDBKey;
 
         private string mRDKey;
@@ -326,7 +339,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         requestA.ExtraParameters.Add("orderID", mCurrentLimitOrder.OrderId);
                         //检查是否有改动必要
                         //做空涨价则判断
-                        if (requestA.Price != mCurrentLimitOrder.Price)
+                        if (requestA.Price == mCurrentLimitOrder.Price)
                         {
                             return;
                         }
@@ -382,9 +395,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             return true;
         }
-
-
-
+        
         /// <summary>
         /// 订单成交 ，修改当前仓位和删除当前订单
         /// </summary>
@@ -397,7 +408,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             lock (mCurrentLimitOrder)
             {
                 //只有在成交后才修改订单数量
-                mConfig.CurAmount += mCurrentLimitOrder.IsBuy ? +mCurrentLimitOrder.Amount : -mCurrentLimitOrder.Amount;
+                mCurAmount += mCurrentLimitOrder.IsBuy ? +mCurrentLimitOrder.Amount : -mCurrentLimitOrder.Amount;
                 Logger.Debug("mId:" + mId + "CurAmount:::" + mConfig.CurAmount);
                 mOpenAndCloseOrderA.Add(order);
                 bool completed = false;
