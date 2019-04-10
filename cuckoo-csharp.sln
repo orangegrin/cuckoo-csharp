@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cuckoo-csharp", "cuckoo-csh
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ExchangeSharp", "..\ExchangeSharp\ExchangeSharp\ExchangeSharp.csproj", "{7B3A4B45-5721-4E67-A4A0-55136E90DF99}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cuckoo-csharp-tests", "cuckoo-csharp-tests\cuckoo-csharp-tests.csproj", "{B8E75D65-5B33-4CAC-826D-27158598CBC9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{7B3A4B45-5721-4E67-A4A0-55136E90DF99}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7B3A4B45-5721-4E67-A4A0-55136E90DF99}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7B3A4B45-5721-4E67-A4A0-55136E90DF99}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B8E75D65-5B33-4CAC-826D-27158598CBC9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B8E75D65-5B33-4CAC-826D-27158598CBC9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B8E75D65-5B33-4CAC-826D-27158598CBC9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B8E75D65-5B33-4CAC-826D-27158598CBC9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
