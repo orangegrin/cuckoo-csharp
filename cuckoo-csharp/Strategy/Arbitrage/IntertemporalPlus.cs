@@ -695,7 +695,7 @@ public class IntertemporalConfig
     /// 利润范围
     /// 当AutoCalcProfitRange 开启时有效
     /// </summary>
-    public decimal ProfitRange = 0.005m;
+    public decimal ProfitRange = 0.003m;
     /// <summary>
     /// 自动计算利润范围
     /// </summary>
