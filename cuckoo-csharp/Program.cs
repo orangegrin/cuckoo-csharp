@@ -43,24 +43,28 @@ namespace cuckoo_csharp
             {
                 ExchangeNameA = ExchangeName.BitMEX,
                 ExchangeNameB = ExchangeName.Binance,
-                SymbolA = "XBTM19",
-                SymbolB = "BTC_USDT",
-                MaxQty = 30,
-                OPDF = -0.019m,
-                CPDF = -0.004m,
-                PerTrans = 15,
+                SymbolA = "EOSM19",
+                SymbolB = "EOS_BTC",
+                AmountSymbol = "BTC",
+                MaxQty = 2,
+                OPDF = -0.027m,
+                CPDF = -0.015m,
+                PerTrans = 1m,
                 CurAmount = 0,
-                ProfitRate = 0.014m,
-                UseLimit = false
+                ProfitRate = 0.006m,
+                UseLimit = true,
+                MinPriceUnit=0.0000001m,
+                startCoinAmount = 0m,
             };
-            new IntertemporalPlus(config1, 1).Start();
+            
 
             var config2 = new IntertemporalConfig()
             {
                 ExchangeNameA = ExchangeName.BitMEX,
                 ExchangeNameB = ExchangeName.Binance,
-                SymbolA = "XBTM19",
-                SymbolB = "BTC_USDT",
+                SymbolA = "ETHM19",
+                SymbolB = "ETH_BTC",
+                AmountSymbol = "BTC",
                 MaxQty = 28,
                 OPDF = 0.004m,
                 CPDF = 0.019m,
@@ -69,7 +73,8 @@ namespace cuckoo_csharp
                 ProfitRate = 0.014m,
                 UseLimit = false
             };
-            new IntertemporalPlus(config2, 2).Start();
+            new IntertemporalPlus(config1, 1).Start();
+            //new IntertemporalPlus(config2, 2).Start();
             //Test();
 
             while (true)
@@ -80,73 +85,96 @@ namespace cuckoo_csharp
 
         private static void Test()
         {
-            List<ExchangeOrderResult> openedBuyOrderListA = new List<ExchangeOrderResult>() {
-                new ExchangeOrderResult()
-                {
-                    Amount = 15,
-                    Price = 4982.5m,
-                    FillDate = DateTime.Now.AddDays(-1),
-                    IsBuy = true,
-                },
-                new ExchangeOrderResult()
-                {
-                    Amount = 15,
-                    Price = 4982.5m,
-                    FillDate = DateTime.Now.AddDays(-1),
-                    IsBuy = true,
-                }
+            //
+            var mConfig = new IntertemporalConfig()
+            {
+                ExchangeNameA = ExchangeName.BitMEX,
+                ExchangeNameB = ExchangeName.Binance,
+                SymbolA = "XBTM19",
+                SymbolB = "BTC_USDT",
+                AmountSymbol = "USDT",
+                MaxQty = 28,
+                OPDF = 0.004m,
+                CPDF = 0.019m,
+                PerTrans = 14,
+                CurAmount = 0,
+                ProfitRate = 0.014m,
+                UseLimit = false
             };
-            List<ExchangeOrderResult> openedSellOrderListA = new List<ExchangeOrderResult>() {
-                new ExchangeOrderResult()
-                {
-                    Amount = 15,
-                    Price = 5305m,
-                    FillDate = DateTime.Now,
-                    IsBuy = false,
+            IExchangeAPI mExchangeBAPI = ExchangeAPI.GetExchangeAPI(mConfig.ExchangeNameB);
+            IntertemporalPlus inter = new IntertemporalPlus(mConfig, 1);
+            mExchangeBAPI.LoadAPIKeys(ExchangeName.Binance);
+            inter.GetAmountsAvailableToTradeAsync(mExchangeBAPI, mConfig.AmountSymbol);
 
-                },
-                new ExchangeOrderResult()
-                {
-                    Amount = 15,
-                    Price = 5298m,
-                    FillDate = DateTime.Now,
-                    IsBuy = false,
-                }
-            };
-            List<ExchangeOrderResult> closeedSellOrderListB = new List<ExchangeOrderResult>() {
-                new ExchangeOrderResult()
-                {
-                    Amount = 0.003024m,
-                    Price = 4982.5m,
-                    FillDate = DateTime.Now.AddDays(-1),
-                    IsBuy = false,
-                },
-                new ExchangeOrderResult()
-                {
-                    Amount = 0.003022m,
-                    Price = 4982.5m,
-                    FillDate = DateTime.Now.AddDays(-1),
-                    IsBuy = false,
-                }
-            };
-            List<ExchangeOrderResult> closeedBuyOrderListB = new List<ExchangeOrderResult>() {
-                new ExchangeOrderResult()
-                {
-                    Amount = 0.002883m,
-                    Price = 4982.5m,
-                    FillDate = DateTime.Now,
-                    IsBuy = true,
-                },
-                new ExchangeOrderResult()
-                {
-                    Amount = 0.002884m,
-                    Price = 4982.5m,
-                    FillDate = DateTime.Now,
-                    IsBuy = true,
-                }
-            };
 
-            IntertemporalPlus.CountRewardRate(15, openedBuyOrderListA, openedSellOrderListA, closeedBuyOrderListB, closeedSellOrderListB);
+
+//             List<ExchangeOrderResult> openedBuyOrderListA = new List<ExchangeOrderResult>() {
+//                 new ExchangeOrderResult()
+//                 {
+//                     Amount = 15,
+//                     Price = 4982.5m,
+//                     FillDate = DateTime.Now.AddDays(-1),
+//                     IsBuy = true,
+//                 },
+//                 new ExchangeOrderResult()
+//                 {
+//                     Amount = 15,
+//                     Price = 4982.5m,
+//                     FillDate = DateTime.Now.AddDays(-1),
+//                     IsBuy = true,
+//                 }
+//             };
+//             List<ExchangeOrderResult> openedSellOrderListA = new List<ExchangeOrderResult>() {
+//                 new ExchangeOrderResult()
+//                 {
+//                     Amount = 15,
+//                     Price = 5305m,
+//                     FillDate = DateTime.Now,
+//                     IsBuy = false,
+// 
+//                 },
+//                 new ExchangeOrderResult()
+//                 {
+//                     Amount = 15,
+//                     Price = 5298m,
+//                     FillDate = DateTime.Now,
+//                     IsBuy = false,
+//                 }
+//             };
+//             List<ExchangeOrderResult> closeedSellOrderListB = new List<ExchangeOrderResult>() {
+//                 new ExchangeOrderResult()
+//                 {
+//                     Amount = 0.003024m,
+//                     Price = 4982.5m,
+//                     FillDate = DateTime.Now.AddDays(-1),
+//                     IsBuy = false,
+//                 },
+//                 new ExchangeOrderResult()
+//                 {
+//                     Amount = 0.003022m,
+//                     Price = 4982.5m,
+//                     FillDate = DateTime.Now.AddDays(-1),
+//                     IsBuy = false,
+//                 }
+//             };
+//             List<ExchangeOrderResult> closeedBuyOrderListB = new List<ExchangeOrderResult>() {
+//                 new ExchangeOrderResult()
+//                 {
+//                     Amount = 0.002883m,
+//                     Price = 4982.5m,
+//                     FillDate = DateTime.Now,
+//                     IsBuy = true,
+//                 },
+//                 new ExchangeOrderResult()
+//                 {
+//                     Amount = 0.002884m,
+//                     Price = 4982.5m,
+//                     FillDate = DateTime.Now,
+//                     IsBuy = true,
+//                 }
+//             };
+// 
+//             IntertemporalPlus.CountRewardRate(15, openedBuyOrderListA, openedSellOrderListA, closeedBuyOrderListB, closeedSellOrderListB);
         }
 
         static void BuildKeys()
