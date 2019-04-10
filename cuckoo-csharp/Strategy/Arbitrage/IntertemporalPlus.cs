@@ -260,12 +260,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         requestA.ExtraParameters.Add("orderID", mCurrentLimitOrder.OrderId);
                         //检查是否有改动必要
                         //做多涨价则判断
-                        if (requestA.Price >= mCurrentLimitOrder.Price)
+                        if (requestA.Price == mCurrentLimitOrder.Price)
                         {
-                            if (!LimitOrderFilter(requestA, mCurrentLimitOrder))
-                            {
-                                return;
-                            }
+                            return;
                         }
                     }
                     else
@@ -329,12 +326,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         requestA.ExtraParameters.Add("orderID", mCurrentLimitOrder.OrderId);
                         //检查是否有改动必要
                         //做空涨价则判断
-                        if (requestA.Price <= mCurrentLimitOrder.Price)
+                        if (requestA.Price != mCurrentLimitOrder.Price)
                         {
-                            if (!LimitOrderFilter(requestA, mCurrentLimitOrder))
-                            {
-                                return;
-                            }
+                            return;
                         }
                     }
                     else
@@ -631,27 +625,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                 }
             }
-        }
-
-        /// <summary>
-        /// 检查是达到修改条件
-        /// 1数量变化百分之20
-        /// 2价格变化超过利润率百分之20
-        /// </summary>
-        /// <param name="request"></param>
-        /// <param name="result"></param>
-        /// <returns></returns>
-        bool LimitOrderFilter(ExchangeOrderRequest request, ExchangeOrderResult result)
-        {
-            if (result == null)
-                return true;
-            var priceDiff = (result.Price - request.Price);
-            var amountDiff = (result.Amount - request.Amount) / request.Amount;
-            if (Math.Abs(priceDiff) < mConfig.MinPriceUnit && Math.Abs(amountDiff) < 0.2m)
-            {
-                return false;
-            }
-            return true;
         }
 
         /// <summary>
