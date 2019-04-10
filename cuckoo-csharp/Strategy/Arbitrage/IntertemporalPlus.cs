@@ -143,7 +143,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeBAPI.LoadAPIKeys(mConfig.ExchangeNameB);
             mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
             //避免没有订阅成功就开始订单
-            Thread.Sleep(3 * 1000);
+            Thread.Sleep(4 * 1000);
             mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 20, mConfig.SymbolA);
             mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 20, mConfig.SymbolB);
         }
@@ -169,6 +169,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 return;
             if (mRunningTask != null && !mRunningTask.IsCompleted)
                 return;
+            mRunningTask = Task.Delay(1000);
+            //await mRunningTask;
+
 
             decimal exchangeAmount;
             decimal buyPriceA;
@@ -177,9 +180,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             decimal buyPriceB;
             decimal cha =0;
             decimal cha2 =0;
-            lock (mOrderBookA)
+            //lock (mOrderBookA)
             {
-                lock (mOrderBookB)
+                //lock (mOrderBookB)
                 {
 
 
@@ -208,15 +211,25 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
             if (cha > openRate && mOpenOrder.Amount < mConfig.startCoinAmount) //满足差价并且当前A空仓
             {
-                mRunningTask = ABuyBSell(exchangeAmount, buyPriceA);
+                mRunningTask = ABuyBSell(exchangeAmount, sellPriceA);
             }
-            else if (cha2 < closeRate && (-mOpenOrder.Amount) < mConfig.MaxQty && await SufficientBalance()) //满足差价并且没达到最大数量
+            else if (cha2 < closeRate && (-mOpenOrder.Amount) < mConfig.MaxQty  ) //满足差价并且没达到最大数量
             {
+                //保证不并发
+                mRunningTask = Task.Delay(5000);
+                
+                if(await SufficientBalance())
+                {
+                    Logger.Debug("mId:" + mId + "================================================");
+                    //Logger.Debug("mId:" + mId + "BA价差百分比2：" + cha2.ToString());
+                    Logger.Debug("mId:" + mId + "{0} {1} {2}", buyPriceB, sellPriceA, exchangeAmount);
+                    mRunningTask = BBuyASell(exchangeAmount, buyPriceA);
+                }
+                else
+                {
+                    mRunningTask = null;
+                }
 
-                Logger.Debug("mId:" + mId + "================================================");
-                //Logger.Debug("mId:" + mId + "BA价差百分比2：" + cha2.ToString());
-                Logger.Debug("mId:" + mId + "{0} {1} {2}", buyPriceB, sellPriceA, exchangeAmount);
-                mRunningTask = BBuyASell(exchangeAmount, sellPriceA);
 
             }
             else if (mCurrentLimitOrder != null && closeRate <= cha && cha <= openRate)//如果在波动区间中，那么取消挂单
@@ -233,8 +246,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 try
                 {
                     await mRunningTask;
-                    mRunningTask = Task.Delay(1000);
-                    await mRunningTask;
+
                 }
                 catch (System.Exception ex)
                 {
@@ -260,8 +272,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             requestA.IsBuy = true;
             requestA.OrderType = mOrderType;
             //避免市价成交
-            buyPrice -= mConfig.MinPriceUnit;
-            //requestA.Price = NormalizationMinUnit(buyPrice);
+            //buyPrice -= mConfig.MinPriceUnit;
+
+            requestA.Price = NormalizationMinUnit(buyPrice);
             mCurrentBChangeCoinAmount = mConfig.PerTrans;
             //加上手续费btc卖出数量，买不考虑
             //mCurrentBChangeCoinAmount = exchangeAmount*1.0011m;
@@ -347,8 +360,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             requestA.OrderType = mOrderType;
 
             //避免市价成交
-            sellPrice += mConfig.MinPriceUnit;
-            requestA.Price = sellPrice;//NormalizationMinUnit(mOrderBookA.GetPriceToSell(exchangeAmount));
+            //sellPrice += mConfig.MinPriceUnit;
+            requestA.Price = NormalizationMinUnit(sellPrice);
 
             mCurrentBChangeCoinAmount = mConfig.PerTrans;
             //如果当前有限价单，并且方向不相同，那么取消
