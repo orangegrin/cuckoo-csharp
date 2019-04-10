@@ -55,6 +55,8 @@ namespace cuckoo_csharp
                 UseLimit = true,
                 MinPriceUnit=0.0000001m,
                 startCoinAmount = 0m,
+                FeesA = ExchangeFee.BitMEX_EOS,
+                FeesB = ExchangeFee.Binance_EOS,
             };
             
 

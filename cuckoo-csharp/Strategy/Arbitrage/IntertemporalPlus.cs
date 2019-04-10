@@ -763,4 +763,8 @@ public class IntertemporalConfig
     /// 开始交易时候的初始火币数量
     /// </summary>
     public decimal startCoinAmount = 0m;
+
+    public decimal FeesA;
+
+    public decimal FeesB;
 }
