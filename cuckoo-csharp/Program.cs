@@ -41,14 +41,19 @@ namespace cuckoo_csharp
             {
                 ExchangeNameA = ExchangeName.BitMEX,
                 ExchangeNameB = ExchangeName.Binance,
-                SymbolA = "ETHM19",
-                SymbolB = "ETH_BTC",
+                SymbolA = "EOSM19",
+                SymbolB = "EOS_BTC",
                 AmountSymbol = "BTC",
-                A2BDiff = -0.0105m,
-                B2ADiff = -0.0315m,
-                PerTrans = 14,
+                A2BDiff = -0.0185m,
+                B2ADiff = -0.0215m,
+                PerTrans = 1m,
                 CurAmount = 0,
-                UseLimit = false
+                UseLimit = true,
+                AutoCalcProfitRange = true,
+                MinPriceUnit = 0.0000001m,
+                InitialExchangeBAmount = 0m,
+                FeesA = ExchangeFee.BitMEX_EOS,
+                FeesB = ExchangeFee.Binance_EOS,
             };
             new IntertemporalPlus(config1, 1).Start();
             //new IntertemporalPlus(config2, 2).Start();
