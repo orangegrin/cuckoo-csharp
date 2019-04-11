@@ -177,8 +177,17 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             decimal buyAmount = 0;
             lock (mOrderBookA)
             {
-                buyPriceA = mOrderBookA.Asks.ElementAt(0).Value.Price;
-                sellPriceA = mOrderBookA.Bids.ElementAt(0).Value.Price;
+                if(OrderType.Limit == mOrderType)
+                {
+                    buyPriceA = mOrderBookA.Asks.ElementAt(0).Value.Price;
+                    sellPriceA = mOrderBookA.Bids.ElementAt(0).Value.Price;
+                }
+                else
+                {
+                    decimal notUse;
+                    mOrderBookA.GetPriceToBuy(mConfig.PerTrans, out notUse, out buyPriceA);
+                    sellPriceA = mOrderBookA.GetPriceToSell(mConfig.PerTrans);
+                }
             }
             lock (mOrderBookB)
             {
