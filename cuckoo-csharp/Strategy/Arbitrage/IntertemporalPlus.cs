@@ -197,7 +197,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             lock (mOrderBookB)
             {
                 sellPriceB = mOrderBookB.GetPriceToSell(mConfig.PerTrans);
-                mOrderBookB.GetPriceToBuy(mConfig.PerTrans, out buyAmount, out buyPriceB);
+                mOrderBookB.GetPriceToBuy(mConfig.PerTrans * buyPriceA, out buyAmount, out buyPriceB);
             }
             //有可能orderbook bids或者 asks没有改变
             if (buyPriceA == 0 || sellPriceA == 0 || sellPriceB == 0 || buyPriceB == 0 || buyAmount == 0)
@@ -471,7 +471,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             if (order.Amount == order.AmountFilled)
                 return;
-            Logger.Debug("mId:" + mId + "  " + "-------------------- Order Filed ---------------------------");
+            Logger.Debug("mId:" + mId + "  " + "-------------------- Order Filed Partially---------------------------");
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
             ReverseOpenMarketOrder(order);
