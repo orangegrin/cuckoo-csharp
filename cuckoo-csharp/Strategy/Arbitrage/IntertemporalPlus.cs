@@ -214,6 +214,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug("mId:" + mId + "{0} {1}", buyPriceB, sellPriceA);
                     mRunningTask = B2AExchange(buyPriceA);
                 }
+                else if(mCurrentLimitOrder != null)//保证金不够的时候取消挂单
+                {
+                    Logger.Debug("mId:" + mId + "保证金不够的时候取消挂单：" + b2aDiff.ToString());
+                    ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
+                    cancleRequestA.ExtraParameters.Add("orderID", mCurrentLimitOrder.OrderId);
+                    mRunningTask = mExchangeAAPI.CancelOrderAsync(mCurrentLimitOrder.OrderId, mConfig.SymbolA);
+                }
             }
             else if (mCurrentLimitOrder != null && mConfig.B2ADiff <= a2bDiff && a2bDiff <= mConfig.A2BDiff)//如果在波动区间中，那么取消挂单
             {
@@ -386,7 +393,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             decimal buyPrice;
             decimal exchangeAmount;
             mOrderBookB.GetPriceToBuy(mConfig.PerTrans, out exchangeAmount, out buyPrice);
-            var spend = mConfig.PerTrans * buyPrice * 1.5m;
+            //避免挂新单之前，上一笔B的市价没有成交完
+            var spend = mConfig.PerTrans * buyPrice * 3m;
             if (bAmount < spend)
             {
                 Logger.Debug("Insufficient exchange balance {0} ,need spend {1}", bAmount, spend);
