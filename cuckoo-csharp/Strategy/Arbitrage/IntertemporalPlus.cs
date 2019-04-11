@@ -205,18 +205,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //有可能orderbook bids或者 asks没有改变
             if (buyPriceA != 0 && sellPriceA != 0 && sellPriceB != 0 && buyPriceB != 0 && buyAmount != 0)
             {
-
                 a2bDiff = (sellPriceB / buyPriceA - 1);
                 b2aDiff = (buyPriceB / sellPriceA - 1);
                 var avgDiff = (a2bDiff + b2aDiff) / 2;
                 AppendAvgDiff(avgDiff);
-
                 Logger.Debug("================================================");
                 Logger.Debug("BA价差百分比1：" + a2bDiff.ToString());
                 Logger.Debug("BA价差百分比2：" + b2aDiff.ToString());
                 Logger.Debug("{0} {1} {2} CurAmount:{3}", buyPriceA, sellPriceB, buyAmount, mConfig.CurAmount);
                 Logger.Debug("{0} {1} {2} CurAmount:{3}", buyPriceB, sellPriceA, buyAmount, mConfig.CurAmount);
-                Logger.Debug("{0} {1}", mConfig.A2BDiff, mConfig.B2ADiff);
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff > mConfig.A2BDiff && mConfig.CurAmount < mConfig.InitialExchangeBAmount) //满足差价并且当前A空仓
@@ -225,14 +222,20 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 else if (b2aDiff < mConfig.B2ADiff && -mCurAmount < mConfig.MaxAmount) //满足差价并且没达到最大数量
                 {
-                    //保证不并发
-                    if (await SufficientBalance())
+                    Logger.Debug("mId:" + mId + "================================================");
+                    Logger.Debug("mId:" + mId + "{0} {1}", buyPriceB, sellPriceA);
+                    //如果只是修改订单
+                    if (mCurrentLimitOrder != null && !mCurrentLimitOrder.IsBuy)
                     {
-                        Logger.Debug("mId:" + mId + "================================================");
-                        Logger.Debug("mId:" + mId + "{0} {1}", buyPriceB, sellPriceA);
                         mRunningTask = B2AExchange(buyPriceA);
                     }
-                    else if (mCurrentLimitOrder != null)//保证金不够的时候取消挂单
+                    //表示是新创建订单
+                    else if (await SufficientBalance())
+                    {
+                        mRunningTask = B2AExchange(buyPriceA);
+                    }
+                    //保证金不够的时候取消挂单
+                    else if (mCurrentLimitOrder != null)
                     {
                         Logger.Debug("mId:" + mId + "保证金不够的时候取消挂单：" + b2aDiff.ToString());
                         ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
