@@ -174,10 +174,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             decimal a2bDiff = 0;
             decimal b2aDiff = 0;
             decimal buyAmount = 0;
-            buyPriceA = mOrderBookA.Asks.ElementAt(0).Value.Price;
-            sellPriceB = mOrderBookB.GetPriceToSell(mConfig.PerTrans);
-            mOrderBookB.GetPriceToBuy(mConfig.PerTrans, out buyAmount, out buyPriceB);
-            sellPriceA = mOrderBookA.Bids.ElementAt(0).Value.Price;
+            lock (mOrderBookA)
+            {
+                buyPriceA = mOrderBookA.Asks.ElementAt(0).Value.Price;
+                sellPriceA = mOrderBookA.Bids.ElementAt(0).Value.Price;
+            }
+            lock (mOrderBookB)
+            {
+                sellPriceB = mOrderBookB.GetPriceToSell(mConfig.PerTrans);
+                mOrderBookB.GetPriceToBuy(mConfig.PerTrans, out buyAmount, out buyPriceB);
+            }
             //有可能orderbook bids或者 asks没有改变
             if (buyPriceA == 0 || sellPriceA == 0 || sellPriceB == 0 || buyPriceB == 0 || buyAmount == 0)
                 return;
@@ -395,7 +401,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             return true;
         }
-        
+
         /// <summary>
         /// 订单成交 ，修改当前仓位和删除当前订单
         /// </summary>
