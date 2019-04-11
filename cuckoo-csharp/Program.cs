@@ -14,8 +14,6 @@ namespace cuckoo_csharp
 
         static void Main(string[] args)
         {
-
-            BuildKeys();
             var config1 = new IntertemporalConfig()
             {
                 ExchangeNameA = ExchangeName.BitMEX,
