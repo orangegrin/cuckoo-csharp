@@ -23,11 +23,11 @@ namespace cuckoo_csharp
                 SymbolA = "EOSM19",
                 SymbolB = "EOS_BTC",
                 AmountSymbol = "BTC",
-                A2BDiff = -0.0185m,
-                B2ADiff = -0.0215m,
+                A2BDiff = -0.016m,
+                B2ADiff = -0.026m,
                 PerTrans = 1m,
                 CurAmount = 0,
-                UseLimit = true,
+                UseLimit = false,
                 AutoCalcProfitRange = true,
                 MinPriceUnit = 0.0000001m,
                 InitialExchangeBAmount = 0m,
@@ -49,7 +49,7 @@ namespace cuckoo_csharp
                 CurAmount = 0,
                 UseLimit = false
             };
-            new IntertemporalPlus(config1, 1).Start();
+            new IntertemporalPlus(config1, 5).Start();
             //new IntertemporalPlus(config2, 2).Start();
             while (true)
             {
