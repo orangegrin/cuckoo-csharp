@@ -175,6 +175,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 return;
             if (mOrderBookPending)
                 return;
+            if (mOrderBookA.Asks.Count == 0 || mOrderBookA.Bids.Count == 0 || mOrderBookB.Bids.Count == 0 && mOrderBookB.Asks.Count == 0)
+                return;
             mOrderBookPending = true;
             decimal buyPriceA;
             decimal sellPriceA;
