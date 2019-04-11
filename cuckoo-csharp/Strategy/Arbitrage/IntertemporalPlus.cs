@@ -166,7 +166,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 return;
             if (mRunningTask != null && !mRunningTask.IsCompleted)
                 return;
-            mRunningTask = Task.Delay(1000);
+            mRunningTask = Task.Delay(mConfig.IntervalMillisecond);
             decimal buyPriceA;
             decimal sellPriceA;
             decimal sellPriceB;
@@ -205,17 +205,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             else if (b2aDiff < mConfig.B2ADiff) //满足差价并且没达到最大数量
             {
                 //保证不并发
-                mRunningTask = Task.Delay(5000);
-                if (await SufficientBalance())
+                var suffBalance = SufficientBalance();
+                mRunningTask = suffBalance;
+                if (await suffBalance)
                 {
                     Logger.Debug("mId:" + mId + "================================================");
-                    //Logger.Debug("mId:" + mId + "BA价差百分比2：" + cha2.ToString());
                     Logger.Debug("mId:" + mId + "{0} {1}", buyPriceB, sellPriceA);
                     mRunningTask = B2AExchange(buyPriceA);
-                }
-                else
-                {
-                    mRunningTask = null;
                 }
             }
             else if (mCurrentLimitOrder != null && mConfig.B2ADiff <= a2bDiff && a2bDiff <= mConfig.A2BDiff)//如果在波动区间中，那么取消挂单
@@ -556,9 +552,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Debug((DateTime.Now.Ticks - ticks).ToString());
                 Logger.Debug(res.ToString());
                 Logger.Debug(res.OrderId);
-                mRunningTask = Task.Delay(5 * 1000);
-                await mRunningTask;
-
             }
             catch (Exception ex)
             {
