@@ -265,6 +265,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                 }
             }
+            await Task.Delay(mConfig.IntervalMillisecond);
             mOrderBookPending = false;
 
         }
@@ -744,7 +745,7 @@ public class IntertemporalConfig
     /// <summary>
     /// 间隔时间
     /// </summary>
-    public int IntervalMillisecond = 5000;
+    public int IntervalMillisecond = 500;
     /// <summary>
     /// 利润范围
     /// 当AutoCalcProfitRange 开启时有效
