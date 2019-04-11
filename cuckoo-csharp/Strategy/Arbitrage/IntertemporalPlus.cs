@@ -565,28 +565,30 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <returns></returns>
         public decimal GetParTrans(ExchangeOrderResult order)
         {
-            if (order.AmountFilled == 0 && order.Result == ExchangeAPIOrderResult.Filled)
-                order.AmountFilled = order.Amount;
             decimal filledAmount = 0;
-            decimal transAmount = 0;
             mFilledPartiallyDic.TryGetValue(order.OrderId, out filledAmount);
-            if (filledAmount != 0)
-            {
-                transAmount = order.AmountFilled - filledAmount;
-            }
-            else
-            {
-                transAmount = order.AmountFilled;
-            }
-            if (order.Amount != order.AmountFilled)
+            if (order.Result == ExchangeAPIOrderResult.FilledPartially && filledAmount == 0)
             {
                 mFilledPartiallyDic[order.OrderId] = order.AmountFilled;
+                return order.AmountFilled;
             }
-            else if (mFilledPartiallyDic.ContainsKey(order.OrderId))
+            if (order.Result == ExchangeAPIOrderResult.FilledPartially && filledAmount != 0)
+            {
+                mFilledPartiallyDic[order.OrderId] = order.AmountFilled;
+                return order.AmountFilled - filledAmount;
+            }
+
+            if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount == 0)
+            {
+                return order.Amount;
+            }
+
+            if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount != 0)
             {
                 mFilledPartiallyDic.Remove(order.OrderId);
+                return order.Amount - filledAmount;
             }
-            return transAmount;
+            return 0;
         }
         /// <summary>
         /// 反向市价开仓
