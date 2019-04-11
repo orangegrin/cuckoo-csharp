@@ -180,9 +180,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             decimal buyPriceB;
             decimal cha =0;
             decimal cha2 =0;
-            //lock (mOrderBookA)
+            lock (mOrderBookA)
             {
-                //lock (mOrderBookB)
+                lock (mOrderBookB)
                 {
 
 
@@ -204,7 +204,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug("BA价差百分比1：" + cha.ToString());
                     Logger.Debug("BA价差百分比2：" + cha2.ToString());
                     Logger.Debug("{0} {1} {2} mOpenOrder.Amount:{3}", buyPriceA, sellPriceB, exchangeAmount, mOpenOrder.Amount);
-
+                    //mRunningTask = null;
                 }
             }
             //满足差价并且
