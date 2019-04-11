@@ -214,7 +214,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug("mId:" + mId + "{0} {1}", buyPriceB, sellPriceA);
                     mRunningTask = B2AExchange(buyPriceA);
                 }
-                else if(mCurrentLimitOrder != null)//保证金不够的时候取消挂单
+                else if (mCurrentLimitOrder != null)//保证金不够的时候取消挂单
                 {
                     Logger.Debug("mId:" + mId + "保证金不够的时候取消挂单：" + b2aDiff.ToString());
                     ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
@@ -518,11 +518,33 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
         }
 
+        private Dictionary<string, decimal> mFilledPartiallyDic = new Dictionary<string, decimal>();
+
+        private decimal GetParTrans(ExchangeOrderResult order)
+        {
+            decimal filledAmount = 0;
+            decimal transAmount = 0;
+            mFilledPartiallyDic.TryGetValue(order.OrderId, out filledAmount);
+            if (filledAmount != 0)
+            {
+                transAmount = order.AmountFilled - filledAmount;
+            }
+            else
+            {
+                transAmount = order.AmountFilled;
+            }
+            if (order.Amount != order.AmountFilled)
+            {
+                mFilledPartiallyDic[order.OrderId] = order.AmountFilled;
+            }
+            return transAmount;
+        }
         /// <summary>
         /// 反向市价开仓
         /// </summary>
         async void ReverseOpenMarketOrder(ExchangeOrderResult order, bool completeOnce = false, List<ExchangeOrderResult> openedBuyOrderListA = null, List<ExchangeOrderResult> openedSellOrderListA = null)
         {
+
             var req = new ExchangeOrderRequest();
             req.Amount = mConfig.PerTrans;
             req.IsBuy = !order.IsBuy;
