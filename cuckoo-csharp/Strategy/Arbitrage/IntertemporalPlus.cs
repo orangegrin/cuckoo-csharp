@@ -86,6 +86,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeBAPI = ExchangeAPI.GetExchangeAPI(mConfig.ExchangeNameB);
 
         }
+
+        public IntertemporalPlus()
+        {
+        }
+
         /// <summary>
         /// 获取交易所某个币种的数量
         /// </summary>
@@ -149,7 +154,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private void OnOrderbookAHandler(ExchangeOrderBook order)
         {
             mOrderBookA = order;
-            //OnOrderBookHandler();
+            OnOrderBookHandler();
         }
 
         private void OnOrderbookBHandler(ExchangeOrderBook order)
@@ -177,7 +182,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             decimal buyAmount = 0;
             lock (mOrderBookA)
             {
-                if(OrderType.Limit == mOrderType)
+                if (OrderType.Limit == mOrderType)
                 {
                     buyPriceA = mOrderBookA.Asks.ElementAt(0).Value.Price;
                     sellPriceA = mOrderBookA.Bids.ElementAt(0).Value.Price;
@@ -192,7 +197,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             lock (mOrderBookB)
             {
                 sellPriceB = mOrderBookB.GetPriceToSell(mConfig.PerTrans);
-                mOrderBookB.GetPriceToBuy(mConfig.PerTrans, out buyAmount, out buyPriceB);
+                mOrderBookB.GetPriceToBuy(mConfig.PerTrans * buyPriceA, out buyAmount, out buyPriceB);
             }
             //有可能orderbook bids或者 asks没有改变
             if (buyPriceA == 0 || sellPriceA == 0 || sellPriceB == 0 || buyPriceB == 0 || buyAmount == 0)
@@ -212,7 +217,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 mRunningTask = A2BExchange(sellPriceA);
             }
-            else if (b2aDiff < mConfig.B2ADiff) //满足差价并且没达到最大数量
+            else if (b2aDiff < mConfig.B2ADiff && -mCurAmount < mConfig.MaxAmount) //满足差价并且没达到最大数量
             {
                 //保证不并发
                 var suffBalance = SufficientBalance();
@@ -223,7 +228,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug("mId:" + mId + "{0} {1}", buyPriceB, sellPriceA);
                     mRunningTask = B2AExchange(buyPriceA);
                 }
-                else if(mCurrentLimitOrder != null)//保证金不够的时候取消挂单
+                else if (mCurrentLimitOrder != null)//保证金不够的时候取消挂单
                 {
                     Logger.Debug("mId:" + mId + "保证金不够的时候取消挂单：" + b2aDiff.ToString());
                     ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
@@ -427,40 +432,53 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug(order.ToExcleString());
             lock (mCurrentLimitOrder)
             {
-                //只有在成交后才修改订单数量
-                mCurAmount += mCurrentLimitOrder.IsBuy ? +mCurrentLimitOrder.Amount : -mCurrentLimitOrder.Amount;
-                Logger.Debug("mId:" + mId + "CurAmount:::" + mConfig.CurAmount);
-                mOpenAndCloseOrderA.Add(order);
-                bool completed = false;
-                List<ExchangeOrderResult> openedBuyOrderList = new List<ExchangeOrderResult>();
-                List<ExchangeOrderResult> openedSellOrderList = new List<ExchangeOrderResult>();
-                if (mConfig.CurAmount == 0)
-                {
-                    completed = true;
-                    Logger.Debug("mId:" + mId + "  completed once trade");
-                    foreach (var item in mOpenAndCloseOrderA)
-                    {
-                        Logger.Debug(item.ToExcleString());
-                        if (item.IsBuy)
-                        {
-                            openedBuyOrderList.Add(item);
-                        }
-                        else
-                        {
-                            openedSellOrderList.Add(item);
-                        }
-                    }
-                    mOpenAndCloseOrderA.Clear();
-                }
+                //mOpenAndCloseOrderA.Add(order);
+                //bool completed = false;
+                //List<ExchangeOrderResult> openedBuyOrderList = new List<ExchangeOrderResult>();
+                //List<ExchangeOrderResult> openedSellOrderList = new List<ExchangeOrderResult>();
+                //if (mConfig.CurAmount == 0)
+                //{
+                //    completed = true;
+                //    Logger.Debug("mId:" + mId + "  completed once trade");
+                //    foreach (var item in mOpenAndCloseOrderA)
+                //    {
+                //        Logger.Debug(item.ToExcleString());
+                //        if (item.IsBuy)
+                //        {
+                //            openedBuyOrderList.Add(item);
+                //        }
+                //        else
+                //        {
+                //            openedSellOrderList.Add(item);
+                //        }
+                //    }
+                //    mOpenAndCloseOrderA.Clear();
+                //}
                 // 如果 当前挂单和订单相同那么删除
                 if (mCurrentLimitOrder != null && mCurrentLimitOrder.OrderId == order.OrderId)
                 {
                     //重置数量
                     mCurrentLimitOrder = null;
                 }
-                ReverseOpenMarketOrder(order, completed, openedBuyOrderList, openedSellOrderList);
+                ReverseOpenMarketOrder(order);//, completed, openedBuyOrderList, openedSellOrderList);
             }
         }
+        /// <summary>
+        /// 订单部分成交
+        /// </summary>
+        /// <param name="order"></param>
+        void OnFilledPartially(ExchangeOrderResult order)
+        {
+            if (order.Amount == order.AmountFilled)
+                return;
+            Logger.Debug("mId:" + mId + "  " + "-------------------- Order Filed Partially---------------------------");
+            Logger.Debug(order.ToString());
+            Logger.Debug(order.ToExcleString());
+            ReverseOpenMarketOrder(order);
+        }
+
+
+
         /// <summary>
         /// 订单取消，删除当前订单
         /// </summary>
@@ -497,7 +515,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     OnOrderFilled(order);
                     break;
                 case ExchangeAPIOrderResult.FilledPartially:
-                    // TODO 战且不处理部分成交的问题
+                    OnFilledPartially(order);
                     Logger.Debug("mId:" + mId + "  " + "-------------------- Order Other ---------------------------");
                     Logger.Debug(order.ToExcleString());
                     break;
@@ -527,13 +545,47 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
         }
 
+        public Dictionary<string, decimal> mFilledPartiallyDic = new Dictionary<string, decimal>();
+
+        /// <summary>
+        /// 计算反向开仓时应当开仓的数量（如果部分成交）
+        /// </summary>
+        /// <param name="order"></param>
+        /// <returns></returns>
+        public decimal GetParTrans(ExchangeOrderResult order)
+        {
+            decimal filledAmount = 0;
+            decimal transAmount = 0;
+            mFilledPartiallyDic.TryGetValue(order.OrderId, out filledAmount);
+            if (filledAmount != 0)
+            {
+                transAmount = order.AmountFilled - filledAmount;
+            }
+            else
+            {
+                transAmount = order.AmountFilled;
+            }
+            if (order.Amount != order.AmountFilled)
+            {
+                mFilledPartiallyDic[order.OrderId] = order.AmountFilled;
+            }
+            else if (mFilledPartiallyDic.ContainsKey(order.OrderId))
+            {
+                mFilledPartiallyDic.Remove(order.OrderId);
+            }
+            return transAmount;
+        }
         /// <summary>
         /// 反向市价开仓
         /// </summary>
-        async void ReverseOpenMarketOrder(ExchangeOrderResult order, bool completeOnce = false, List<ExchangeOrderResult> openedBuyOrderListA = null, List<ExchangeOrderResult> openedSellOrderListA = null)
+        async void ReverseOpenMarketOrder(ExchangeOrderResult order)//, bool completeOnce = false, List<ExchangeOrderResult> openedBuyOrderListA = null, List<ExchangeOrderResult> openedSellOrderListA = null)
         {
+            var transAmount = GetParTrans(order);
+            //只有在成交后才修改订单数量
+            mCurAmount += order.IsBuy ? +transAmount : -transAmount;
+            Logger.Debug("mId:" + mId + "CurAmount:::" + mConfig.CurAmount);
             var req = new ExchangeOrderRequest();
-            req.Amount = mConfig.PerTrans;
+            req.Amount = transAmount;
             req.IsBuy = !order.IsBuy;
             req.IsMargin = true;
             req.OrderType = OrderType.Market;
@@ -546,26 +598,26 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 var res = await mExchangeBAPI.PlaceOrderAsync(req);
                 mOpenAndCloseOrderB.Add(res);
-                if (completeOnce)
-                {
-                    List<ExchangeOrderResult> closeedBuyOrderListB = new List<ExchangeOrderResult>();
-                    List<ExchangeOrderResult> closeedSellOrderListB = new List<ExchangeOrderResult>();
-                    Logger.Debug("mId:" + mId + "B  completed once trade");
-                    foreach (var item in mOpenAndCloseOrderB)
-                    {
-                        Logger.Debug(item.ToExcleString());
-                        if (item.IsBuy)
-                        {
-                            closeedBuyOrderListB.Add(item);
-                        }
-                        else
-                        {
-                            closeedSellOrderListB.Add(item);
-                        }
-                    }
-                    //计算本次获利币数量
-                    CountRewardRate(mConfig.PerTrans, openedBuyOrderListA, openedSellOrderListA, closeedBuyOrderListB, closeedSellOrderListB);
-                }
+                //if (completeOnce)
+                //{
+                //    List<ExchangeOrderResult> closeedBuyOrderListB = new List<ExchangeOrderResult>();
+                //    List<ExchangeOrderResult> closeedSellOrderListB = new List<ExchangeOrderResult>();
+                //    Logger.Debug("mId:" + mId + "B  completed once trade");
+                //    foreach (var item in mOpenAndCloseOrderB)
+                //    {
+                //        Logger.Debug(item.ToExcleString());
+                //        if (item.IsBuy)
+                //        {
+                //            closeedBuyOrderListB.Add(item);
+                //        }
+                //        else
+                //        {
+                //            closeedSellOrderListB.Add(item);
+                //        }
+                //    }
+                //    //计算本次获利币数量
+                //    CountRewardRate(mConfig.PerTrans, openedBuyOrderListA, openedSellOrderListA, closeedBuyOrderListB, closeedSellOrderListB);
+                //}
                 Logger.Debug("mId:" + mId + "--------------------------------ReverseOpenMarketOrder Result-------------------------------------");
                 Logger.Debug((DateTime.Now.Ticks - ticks).ToString());
                 Logger.Debug(res.ToString());
@@ -626,33 +678,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         bool IsMyOrder(string orderId)
         {
             return mOrderIds.Contains(orderId);
-        }
-
-        /// <summary>
-        /// 检查当前价格是否会形成市价单
-        /// </summary>
-        /// <param name="request"></param>
-        void OrderFilter(ExchangeOrderRequest request)
-        {
-            lock (mOrderBookA)
-            {
-                if (request.IsBuy)
-                {
-                    var bidFirst = mOrderBookA.Bids.First().Value;
-                    if (request.Price > bidFirst.Price)
-                    {
-                        request.Price = bidFirst.Price;
-                    }
-                }
-                else
-                {
-                    var askFirst = mOrderBookA.Asks.First().Value;
-                    if (request.Price < askFirst.Price)
-                    {
-                        request.Price = askFirst.Price;
-                    }
-                }
-            }
         }
 
         /// <summary>
@@ -727,4 +752,6 @@ public class IntertemporalConfig
     public decimal FeesA;
 
     public decimal FeesB;
+
+    public decimal MaxAmount;
 }
