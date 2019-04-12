@@ -218,7 +218,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Debug("{0} {1} {2} CurAmount:{3}", buyPriceB, sellPriceA, buyAmount, mConfig.CurAmount);
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
-                if (a2bDiff > mConfig.A2BDiff && mConfig.CurAmount < mConfig.InitialExchangeBAmount) //满足差价并且当前A空仓
+                if (a2bDiff > mConfig.A2BDiff && mConfig.CurAmount + mConfig.PerTrans <= mConfig.InitialExchangeBAmount) //满足差价并且当前A空仓
                 {
                     mRunningTask = A2BExchange(sellPriceA);
                 }
