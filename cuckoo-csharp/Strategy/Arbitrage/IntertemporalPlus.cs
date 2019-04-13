@@ -131,13 +131,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         private void CalcProfitRange(IntertemporalConfig config, int maxCount)
         {
-            var avg = mDiffList.Average();
-            var range = config.ProfitRange / 2;
-            config.A2BDiff = avg + range;
-            config.B2ADiff = avg - range;
-            if (mDiffList.Count >= maxCount / 2)
-                mConfig = config;
-            Console.WriteLine("A2BDF {0} B2ADF {1}", config.A2BDiff, config.B2ADiff);
+            lock (mDiffList)
+            {
+                var avg = mDiffList.Average();
+                var range = config.ProfitRange / 2;
+                config.A2BDiff = avg + range;
+                config.B2ADiff = avg - range;
+                if (mDiffList.Count >= maxCount / 2)
+                    mConfig = config;
+                Console.WriteLine("A2BDF {0} B2ADF {1}", config.A2BDiff, config.B2ADiff);
+            }
         }
 
         public void Start()
