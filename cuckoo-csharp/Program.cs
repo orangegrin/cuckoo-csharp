@@ -30,7 +30,7 @@ namespace cuckoo_csharp
 
         private static void OnParsedHandler(Options op)
         {
-            IntertemporalConfig config = null;
+            IntertemporalLimit.Config config = null;
             if (File.Exists(op.ConfigPath))
             {
                 string text;
@@ -40,16 +40,16 @@ namespace cuckoo_csharp
                 }
                 if (!string.IsNullOrEmpty(text))
                 {
-                    config = JsonConvert.DeserializeObject<IntertemporalConfig>(text);
+                    config = JsonConvert.DeserializeObject<IntertemporalLimit.Config>(text);
                 }
                 else
                 {
-                    Console.WriteLine("can not load file :" + op.ConfigPath);
+                    Console.WriteLine("data is empty :" + op.ConfigPath);
                 }
             }
             if (config != null)
             {
-                IntertemporalPlus it = new IntertemporalPlus(config, op.ID);
+                IntertemporalLimit it = new IntertemporalLimit(config, op.ID);
                 it.Start();
                 while (true)
                 {
