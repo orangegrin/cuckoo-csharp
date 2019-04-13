@@ -637,8 +637,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         public void Start()
         {
-            ExchangeOrderBook r = null;
-            //Console.WriteLine(r.Asks);
             Console.WriteLine("mId:"+mId+"  "+"Start {0},{1},{2},{3}", 1m, 2m, 3m, 4m);
             mExchangeAAPI.LoadAPIKeys(ExchangeName.BitMEX);
             mExchangeBAPI.LoadAPIKeys(ExchangeName.HBDM);

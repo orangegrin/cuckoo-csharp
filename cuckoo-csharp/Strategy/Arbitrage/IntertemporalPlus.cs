@@ -100,11 +100,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         public async Task<decimal> GetAmountsAvailableToTradeAsync(IExchangeAPI exchange, string symbol)
         {
             var amounts = await exchange.GetAmountsAvailableToTradeAsync();
-            var key = string.Format("AMOUNT:{0}", exchange.Name);
             decimal value = 0;
             foreach (var amount in amounts)
             {
-                RedisDB.Instance.HashSetAsync(key, amount.Key, amount.Value.ToString());
                 if (amount.Key == symbol)
                     value = amount.Value;
             }
@@ -114,7 +112,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 计算范围
         /// </summary>
         /// <param name="avgDiff"></param>
-        private async void AppendAvgDiff(decimal avgDiff)
+        private void AppendAvgDiff(decimal avgDiff)
         {
             var config = mConfig;
             mDiffList.Add(avgDiff);
