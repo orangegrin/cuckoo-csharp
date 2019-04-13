@@ -32,17 +32,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         private List<string> mOrderIds = new List<string>();
         /// <summary>
-        /// 完成了一次开仓，到完全平仓的订单记录A交易所
-        /// </summary>
-        private List<ExchangeOrderResult> mOpenAndCloseOrderA = new List<ExchangeOrderResult>();
-        /// <summary>
-        /// 完成了一次开仓，到完全平仓的订单记录B交易所
-        /// </summary>
-        private List<ExchangeOrderResult> mOpenAndCloseOrderB = new List<ExchangeOrderResult>();
-        /// <summary>
         /// 部分填充
         /// </summary>
-        public Dictionary<string, decimal> mFilledPartiallyDic = new Dictionary<string, decimal>();
+        private Dictionary<string, decimal> mFilledPartiallyDic = new Dictionary<string, decimal>();
         private Options mData { get; set; }
         /// <summary>
         /// 当前开仓数量
@@ -561,7 +553,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             try
             {
                 var res = await mExchangeBAPI.PlaceOrderAsync(req);
-                mOpenAndCloseOrderB.Add(res);
                 Logger.Debug("mId:" + mId + "--------------------------------ReverseOpenMarketOrder Result-------------------------------------");
                 Logger.Debug((DateTime.Now.Ticks - ticks).ToString());
                 Logger.Debug(res.ToString());
