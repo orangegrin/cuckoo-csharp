@@ -5,72 +5,57 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using cuckoo_csharp.Strategy.Arbitrage;
+using CommandLine;
+using System.Text;
 
 namespace cuckoo_csharp
 {
     class Program
     {
 
+        public class Options
+        {
+            [Option('c', "configuration", Required = true, HelpText = "Set configuration file path.")]
+            public string ConfigPath { get; set; }
+            [Option('i', "identify", Required = true, HelpText = "Set identify")]
+            public int ID { get; set; }
+        }
         static void Main(string[] args)
         {
-            var config1 = new IntertemporalConfig()
-            {
-                ExchangeNameA = ExchangeName.BitMEX,
-                ExchangeNameB = ExchangeName.Binance,
-                SymbolA = "ETHM19",
-                SymbolB = "ETH_BTC",
-                AmountSymbol = "BTC",
-                A2BDiff = -0.033m,
-                B2ADiff = -0.040m,
-                PerTrans = 10m,
-                CurAmount = 0,
-                UseLimit = true,
-                AutoCalcProfitRange = true,
-                MinPriceUnit = 0.00001m,
-                InitialExchangeBAmount = 0m,
-                MaxAmount = 1m,
-                FeesA = ExchangeFee.BitMEX_ETHM19,
-                FeesB = ExchangeFee.Binance_ETH,
-            };
+            Parser.Default.ParseArguments<Options>(args).WithParsed<Options>(OnParsedHandler);
 
-
-            var config2 = new IntertemporalConfig()
-            {
-                ExchangeNameA = ExchangeName.BitMEX,
-                ExchangeNameB = ExchangeName.Binance,
-                SymbolA = "EOSM19",
-                SymbolB = "EOS_BTC",
-                AmountSymbol = "BTC",
-                A2BDiff = -0.0185m,
-                B2ADiff = -0.0215m,
-                PerTrans = 1m,
-                CurAmount = 0,
-                UseLimit = true,
-                AutoCalcProfitRange = true,
-                MinPriceUnit = 0.0000001m,
-                InitialExchangeBAmount = 0m,
-                FeesA = ExchangeFee.BitMEX_EOS,
-                FeesB = ExchangeFee.Binance_EOS,
-            };
-            new IntertemporalPlus(config1, 1).Start();
-            //new IntertemporalPlus(config2, 2).Start();
-            while (true)
-            {
-                Console.ReadLine();
-            }
         }
 
-        static void BuildKeys()
+        private static void OnParsedHandler(Options op)
         {
-            //liuqiba910@gmail.com
-            string publickey = "0jLWqkmsL0jQbCfWlL1nIGxY";
-            string privatekey = "Pq6amCrncnOvSXh_-Oxf_P4hpsb-MgoBUkPUOlzH9W_p3t8C";
-            CryptoUtility.SaveUnprotectedStringsToFile(ExchangeName.BitMEX, new string[2] { publickey, privatekey });
-            //cuckoo@orangegrin.com
-            string publickey2 = "JDNwbXiiihzY5qpRi6Z5AmHIa40baJ2EcL5rEKDfRvjhB7JRGSU8aQf4q2N69c5q";
-            string privatekey2 = "rGjyCNhYaQkT9dT09OmARVM2gykTL51HhAOMC26mixRHAcdxypGLS4ApoxPwuuZG";
-            CryptoUtility.SaveUnprotectedStringsToFile(ExchangeName.Binance, new string[2] { publickey2, privatekey2 });
+            IntertemporalConfig config = null;
+            if (File.Exists(op.ConfigPath))
+            {
+                string text;
+                using (var streamReader = new StreamReader(op.ConfigPath, Encoding.UTF8))
+                {
+                    text = streamReader.ReadToEnd();
+                }
+                if (!string.IsNullOrEmpty(text))
+                {
+                    config = JsonConvert.DeserializeObject<IntertemporalConfig>(text);
+                }
+                else
+                {
+                    Console.WriteLine("can not load file :" + op.ConfigPath);
+                }
+            }
+            if (config != null)
+            {
+                IntertemporalPlus it = new IntertemporalPlus(config, op.ID);
+                it.Start();
+                while (true)
+                {
+                    Console.ReadLine();
+                }
+            }
         }
     }
 }

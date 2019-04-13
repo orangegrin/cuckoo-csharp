@@ -72,7 +72,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         private string mRDKey;
 
-        public IntertemporalPlus(IntertemporalConfig config, int id)
+        public IntertemporalPlus(IntertemporalConfig config, int id = -1)
         {
             mId = id;
             mDBKey = string.Format("INTERTEMPORAL:CONFIG:{0}:{1}:{2}:{3}:{4}", config.ExchangeNameA, config.ExchangeNameB, config.SymbolA, config.SymbolB, id);
@@ -145,8 +145,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         public void Start()
         {
-            mExchangeAAPI.LoadAPIKeys(mConfig.ExchangeNameA);
-            mExchangeBAPI.LoadAPIKeys(mConfig.ExchangeNameB);
+            mExchangeAAPI.LoadAPIKeys(mConfig.EncryptedFileA);
+            mExchangeBAPI.LoadAPIKeys(mConfig.EncryptedFileB);
             mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
             //避免没有订阅成功就开始订单
             Thread.Sleep(4 * 1000);
@@ -762,16 +762,32 @@ public class IntertemporalConfig
     /// 自动计算利润范围
     /// </summary>
     public bool AutoCalcProfitRange = false;
-
+    /// <summary>
+    /// 本位币
+    /// </summary>
     public string AmountSymbol = "BTC";
     /// <summary>
     /// 开始交易时候的初始火币数量
     /// </summary>
     public decimal InitialExchangeBAmount = 0m;
-
+    /// <summary>
+    /// A交易所手续费
+    /// </summary>
     public decimal FeesA;
-
+    /// <summary>
+    /// B交易所手续费
+    /// </summary>
     public decimal FeesB;
-
+    /// <summary>
+    /// 最大数量
+    /// </summary>
     public decimal MaxAmount;
+    /// <summary>
+    /// A交易所加密串路径
+    /// </summary>
+    public string EncryptedFileA;
+    /// <summary>
+    /// B交易所加密串路径
+    /// </summary>
+    public string EncryptedFileB;
 }
