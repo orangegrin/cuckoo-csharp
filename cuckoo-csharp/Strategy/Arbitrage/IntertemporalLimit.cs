@@ -39,7 +39,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 完成了一次开仓，到完全平仓的订单记录B交易所
         /// </summary>
         private List<ExchangeOrderResult> mOpenAndCloseOrderB = new List<ExchangeOrderResult>();
-        private Config mData { get; set; }
+        private Options mData { get; set; }
         private decimal mCurAmount
         {
             get
@@ -57,7 +57,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private bool mOrderBookPending = false;
         private List<decimal> mDiffList = new List<decimal>();
 
-        public IntertemporalLimit(Config config, int id = -1)
+        public IntertemporalLimit(Options config, int id = -1)
         {
             mId = id;
             mDBKey = string.Format("INTERTEMPORAL:CONFIG:{0}:{1}:{2}:{3}:{4}", config.ExchangeNameA, config.ExchangeNameB, config.SymbolA, config.SymbolB, id);
@@ -105,7 +105,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
         }
 
-        private void CalcProfitRange(Config config, int maxCount)
+        private void CalcProfitRange(Options config, int maxCount)
         {
             lock (mDiffList)
             {
@@ -643,7 +643,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             return Math.Round(price * s) / s;
         }
 
-        public class Config
+        public class Options
         {
             public string ExchangeNameA;
             public string ExchangeNameB;
@@ -712,9 +712,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 RedisDB.Instance.StringSet(DBKey, this);
             }
-            public Config LoadFromDB(string DBKey)
+            public Options LoadFromDB(string DBKey)
             {
-                return RedisDB.Instance.StringGet<Config>(DBKey);
+                return RedisDB.Instance.StringGet<Options>(DBKey);
             }
         }
 

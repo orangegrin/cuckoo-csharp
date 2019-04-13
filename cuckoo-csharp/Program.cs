@@ -30,7 +30,7 @@ namespace cuckoo_csharp
 
         private static void OnParsedHandler(Options op)
         {
-            IntertemporalLimit.Config config = null;
+            IntertemporalLimit.Options config = null;
             if (File.Exists(op.ConfigPath))
             {
                 string text;
@@ -40,7 +40,7 @@ namespace cuckoo_csharp
                 }
                 if (!string.IsNullOrEmpty(text))
                 {
-                    config = JsonConvert.DeserializeObject<IntertemporalLimit.Config>(text);
+                    config = JsonConvert.DeserializeObject<IntertemporalLimit.Options>(text);
                 }
                 else
                 {
