@@ -53,12 +53,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         private string mDBKey;
         private Task mRunningTask;
-        private bool mOrderBookPending = false;
+        private bool mExchangePending = false;
         private List<decimal> mDiffList = new List<decimal>();
         public IntertemporalLimit(Options config, int id = -1)
         {
             mId = id;
             mDBKey = string.Format("INTERTEMPORAL:CONFIG:{0}:{1}:{2}:{3}:{4}", config.ExchangeNameA, config.ExchangeNameB, config.SymbolA, config.SymbolB, id);
+            mData = Options.LoadFromDB<Options>(mDBKey);
             if (mData == null)
             {
                 mData = config;
@@ -141,15 +142,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 return;
             if (mRunningTask != null)
                 return;
-            if (mOrderBookPending)
+            if (mExchangePending)
                 return;
             if (mOrderBookA.Asks.Count == 0 || mOrderBookA.Bids.Count == 0 || mOrderBookB.Bids.Count == 0 || mOrderBookB.Asks.Count == 0)
                 return;
-            mOrderBookPending = true;
-            mData.LoadFromDB(mDBKey);
+            mExchangePending = true;
+            mData = Options.LoadFromDB<Options>(mDBKey);
             await Execute();
             await Task.Delay(mData.IntervalMillisecond);
-            mOrderBookPending = false;
+            mExchangePending = false;
 
         }
         private async Task Execute()
@@ -171,7 +172,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 sellPriceB = mOrderBookB.GetPriceToSell(mData.PerTrans);
                 mOrderBookB.GetPriceToBuy(mData.PerTrans * buyPriceA, out buyAmount, out buyPriceB);
             }
-
             //有可能orderbook bids或者 asks没有改变
             if (buyPriceA != 0 && sellPriceA != 0 && sellPriceB != 0 && buyPriceB != 0 && buyAmount != 0)
             {
@@ -179,16 +179,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 b2aDiff = (buyPriceB / sellPriceA - 1);
                 var avgDiff = (a2bDiff + b2aDiff) / 2;
                 AppendAvgDiff(avgDiff);
+                PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, buyAmount);
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff > mData.A2BDiff && mData.CurAmount + mData.PerTrans <= mData.InitialExchangeBAmount) //满足差价并且当前A空仓
                 {
-                    PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, buyAmount);
+
                     mRunningTask = A2BExchange(sellPriceA);
                 }
                 else if (b2aDiff < mData.B2ADiff && -mCurAmount < mData.MaxAmount) //满足差价并且没达到最大数量
                 {
-                    PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, buyAmount);
                     //如果只是修改订单
                     if (mCurOrderA != null && !mCurOrderA.IsBuy)
                     {
@@ -210,7 +210,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 else if (mCurOrderA != null && mData.B2ADiff <= a2bDiff && a2bDiff <= mData.A2BDiff)//如果在波动区间中，那么取消挂单
                 {
-                    PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, buyAmount);
                     Logger.Debug("mId:" + mId + "在波动区间中取消订单：" + b2aDiff.ToString());
                     ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
                     cancleRequestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
@@ -471,8 +470,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     break;
                 case ExchangeAPIOrderResult.FilledPartially:
                     OnFilledPartially(order);
-                    Logger.Debug("mId:" + mId + "  " + "-------------------- Order Other ---------------------------");
-                    Logger.Debug(order.ToExcleString());
                     break;
                 case ExchangeAPIOrderResult.Pending:
                     Logger.Debug("mId:" + mId + "  " + "-------------------- Order Other ---------------------------");
@@ -658,9 +655,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 RedisDB.Instance.StringSet(DBKey, this);
             }
-            public Options LoadFromDB(string DBKey)
+            public static T LoadFromDB<T>(string DBKey)
             {
-                return RedisDB.Instance.StringGet<Options>(DBKey);
+                return RedisDB.Instance.StringGet<T>(DBKey);
             }
         }
 
