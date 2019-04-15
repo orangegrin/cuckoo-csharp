@@ -237,7 +237,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug("BA价差百分比1：" + a2bDiff.ToString());
             Logger.Debug("BA价差百分比2：" + b2aDiff.ToString());
             Logger.Debug("Bid A {0} Bid B {1}", buyPriceA, sellPriceB);
-            Logger.Debug("Ask A {0} Ask A {1}", buyPriceB, sellPriceA);
+            Logger.Debug("Ask B {0} Ask A {1}", buyPriceB, sellPriceA);
             Logger.Debug("mCurAmount {0} buyAmount {1} ", mCurAmount, buyAmount);
         }
 
