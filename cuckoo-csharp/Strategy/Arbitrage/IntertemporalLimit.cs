@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using ExchangeSharp;
 using System.Threading;
 using cuckoo_csharp.Tools;
+using Newtonsoft.Json;
 
 namespace cuckoo_csharp.Strategy.Arbitrage
 {
@@ -535,17 +536,18 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             var transAmount = GetParTrans(order);
             //只有在成交后才修改订单数量
-            mCurAmount += order.IsBuy ? +transAmount : -transAmount;
-            Logger.Debug("mId:" + mId + "CurAmount:::" + mData.CurAmount);
+            mCurAmount += order.IsBuy ? transAmount : -transAmount;
+            Logger.Debug("mId:" + mId + "CurAmount:" + mData.CurAmount);
+            Logger.Debug("mId:{0} {1}", mId, mCurAmount);
             var req = new ExchangeOrderRequest();
             req.Amount = transAmount;
             req.IsBuy = !order.IsBuy;
-            req.IsMargin = true;
             req.OrderType = OrderType.Market;
             req.MarketSymbol = mData.SymbolB;
             Logger.Debug("mId:" + mId + "  " + "----------------------------ReverseOpenMarketOrder---------------------------");
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
+            Logger.Error(JsonConvert.SerializeObject(req));
             var ticks = DateTime.Now.Ticks;
             try
             {
@@ -557,7 +559,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             catch (Exception ex)
             {
-                Logger.Error(req.ToString());
+                Logger.Error("mId:{0} {1}", mId, JsonConvert.SerializeObject(req));
                 Logger.Error("mId:" + mId + ex);
                 throw ex;
             }
