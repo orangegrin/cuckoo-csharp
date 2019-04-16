@@ -288,10 +288,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                     else
                     {//如果方向相反那么直接取消
-                        ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
-                        cancleRequestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
-                        //在onOrderCancle的时候处理
-                        await mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
+                        await CancelCurOrderA();
+                    }
+                    //如果已出现部分成交并且需要修改价格，则取消部分成交并重新创建新的订单
+                    if (mFilledPartiallyDic.Keys.Contains(mCurOrderA.OrderId))
+                    {
+                        await CancelCurOrderA();
+                        if (requestA.ExtraParameters.Keys.Contains("orderID"))
+                            requestA.ExtraParameters.Remove("orderID");
                     }
                 };
                 //市价不设置价格
@@ -315,6 +319,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Error("mId:" + mId + ex);
             }
         }
+
+        private async Task CancelCurOrderA()
+        {
+            ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
+            cancleRequestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
+            //在onOrderCancle的时候处理
+            await mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
+        }
+
         /// <summary>
         /// 当curAmount大于0的时候就是开仓
         /// B买A卖
@@ -353,11 +366,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         }
                     }
                     else
-                    {   //如果方向相反那么直接取消
-                        ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
-                        cancleRequestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
-                        //在onOrderCancle的时候处理
-                        await mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
+                    {
+                        CancelCurOrderA();
+                    }
+                    //如果已出现部分成交并且需要修改价格，则取消部分成交并重新创建新的订单
+                    if (mFilledPartiallyDic.Keys.Contains(mCurOrderA.OrderId))
+                    {
+                        await CancelCurOrderA();
+                        if (requestA.ExtraParameters.Keys.Contains("orderID"))
+                            requestA.ExtraParameters.Remove("orderID");
                     }
                 };
                 //市价不设置价格
