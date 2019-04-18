@@ -298,12 +298,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             requestA.ExtraParameters.Remove("orderID");
                     }
                 };
-                //市价不设置价格
-                if (requestA.OrderType == OrderType.Market)
-                {
-                    requestA.Price = 0;
-                    requestA.ExtraParameters.Remove("execInst");
-                }
                 var v = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 mCurOrderA = v[0];
                 mOrderIds.Add(mCurOrderA.OrderId);
@@ -318,6 +312,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
             }
+            await Task.Delay(mData.IntervalMillisecond * 10);
         }
 
         private async Task CancelCurOrderA()
@@ -377,12 +372,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             requestA.ExtraParameters.Remove("orderID");
                     }
                 };
-                //市价不设置价格
-                if (requestA.OrderType == OrderType.Market)
-                {
-                    requestA.Price = 0;
-                    requestA.ExtraParameters.Remove("execInst");
-                }
                 var orderResults = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 mCurOrderA = orderResults[0];
                 mOrderIds.Add(mCurOrderA.OrderId);
@@ -397,6 +386,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
             }
+            await Task.Delay(mData.IntervalMillisecond * 10);
         }
         /// <summary>
         /// 检查是否有足够的币
@@ -409,7 +399,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             decimal exchangeAmount;
             mOrderBookB.GetPriceToBuy(mData.PerTrans, out exchangeAmount, out buyPrice);
             //避免挂新单之前，上一笔B的市价没有成交完
-            var spend = mData.PerTrans * buyPrice * 3m;
+            var spend = mData.PerTrans * buyPrice * 1.3m;
             if (bAmount < spend)
             {
                 Logger.Debug("Insufficient exchange balance {0} ,need spend {1}", bAmount, spend);
@@ -521,8 +511,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <returns></returns>
         private decimal GetParTrans(ExchangeOrderResult order)
         {
+            Logger.Debug("mId:" + mId + "  " + "-------------------- GetParTrans ---------------------------");
             decimal filledAmount = 0;
             mFilledPartiallyDic.TryGetValue(order.OrderId, out filledAmount);
+            Logger.Debug("mId:" + mId + " filledAmount: " + filledAmount.ToStringInvariant());
             if (order.Result == ExchangeAPIOrderResult.FilledPartially && filledAmount == 0)
             {
                 mFilledPartiallyDic[order.OrderId] = order.AmountFilled;
@@ -564,7 +556,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug("mId:" + mId + "  " + "----------------------------ReverseOpenMarketOrder---------------------------");
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
-            Logger.Error(JsonConvert.SerializeObject(req));
+            Logger.Debug(JsonConvert.SerializeObject(req));
             var ticks = DateTime.Now.Ticks;
             try
             {
