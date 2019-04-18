@@ -72,14 +72,28 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         public void Start()
         {
+            AppDomain.CurrentDomain.ProcessExit += new EventHandler(OnProcessExit);
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
             mExchangeBAPI.LoadAPIKeys(mData.EncryptedFileB);
             mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
             //避免没有订阅成功就开始订单
-            Thread.Sleep(4 * 1000);
+            Thread.Sleep(3 * 1000);
             mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 20, mData.SymbolA);
             mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 20, mData.SymbolB);
         }
+
+        private void OnProcessExit(object sender, EventArgs e)
+        {
+            Logger.Debug("------------------------ OnProcessExit ---------------------------");
+            mExchangePending = true;
+            if (mCurOrderA != null)
+            {
+                CancelCurOrderA();
+                Thread.Sleep(5 * 1000);
+            }
+
+        }
+
         /// <summary>
         /// 获取交易所某个币种的数量
         /// </summary>
