@@ -181,6 +181,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 var avgDiff = (a2bDiff + b2aDiff) / 2;
                 AppendAvgDiff(avgDiff);
                 PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, buyAmount);
+
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff > mData.A2BDiff && mData.CurAmount + mData.PerTrans <= mData.InitialExchangeBAmount) //满足差价并且当前A空仓
@@ -306,7 +307,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             catch (Exception ex)
             {
-                Logger.Debug("mId:" + mId + "数据回滚 ABuyBSell：  CurAmount" + mData.CurAmount);
                 //如果是添加新单那么设置为null
                 if (isAddNew)
                     mCurOrderA = null;
@@ -380,7 +380,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             catch (Exception ex)
             {
-                Logger.Debug("mId:" + mId + "数据回滚  BBuyASell CurAmount:" + mData.CurAmount);
                 //如果是添加新单那么设置为null
                 if (newOrder)
                     mCurOrderA = null;
@@ -470,7 +469,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             switch (order.Result)
             {
                 case ExchangeAPIOrderResult.Unknown:
-                    Logger.Debug("mId:" + mId + "  " + "-------------------- Order Other ---------------------------");
+                    Logger.Debug("mId:" + mId + "  " + "-------------------- Order Unknown ---------------------------");
                     Logger.Debug(order.ToExcleString());
                     break;
                 case ExchangeAPIOrderResult.Filled:
@@ -480,26 +479,26 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     OnFilledPartially(order);
                     break;
                 case ExchangeAPIOrderResult.Pending:
-                    Logger.Debug("mId:" + mId + "  " + "-------------------- Order Other ---------------------------");
+                    Logger.Debug("mId:" + mId + "  " + "-------------------- Order Pending ---------------------------");
                     Logger.Debug(order.ToExcleString());
                     break;
                 case ExchangeAPIOrderResult.Error:
-                    Logger.Debug("mId:" + mId + "  " + "-------------------- Order Other ---------------------------");
+                    Logger.Debug("mId:" + mId + "  " + "-------------------- Order Error ---------------------------");
                     Logger.Debug(order.ToExcleString());
                     break;
                 case ExchangeAPIOrderResult.Canceled:
                     OnOrderCanceled(order);
                     break;
                 case ExchangeAPIOrderResult.FilledPartiallyAndCancelled:
-                    Logger.Debug("mId:" + mId + "  " + "-------------------- Order Other ---------------------------");
+                    Logger.Debug("mId:" + mId + "  " + "-------------------- Order FilledPartiallyAndCancelled ---------------------------");
                     Logger.Debug(order.ToExcleString());
                     break;
                 case ExchangeAPIOrderResult.PendingCancel:
-                    Logger.Debug("mId:" + mId + "  " + "-------------------- Order Other ---------------------------");
+                    Logger.Debug("mId:" + mId + "  " + "-------------------- Order PendingCancel ---------------------------");
                     Logger.Debug(order.ToExcleString());
                     break;
                 default:
-                    Logger.Debug("mId:" + mId + "  " + "-------------------- Order Other ---------------------------");
+                    Logger.Debug("mId:" + mId + "  " + "-------------------- Order Default ---------------------------");
                     Logger.Debug(order.ToExcleString());
                     break;
             }
@@ -556,7 +555,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug("mId:" + mId + "  " + "----------------------------ReverseOpenMarketOrder---------------------------");
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
-            Logger.Debug(JsonConvert.SerializeObject(req));
+            Logger.Debug(req.ToStringInvariant());
             var ticks = DateTime.Now.Ticks;
             try
             {
@@ -568,7 +567,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             catch (Exception ex)
             {
-                Logger.Error("mId:{0} {1}", mId, JsonConvert.SerializeObject(req));
+                Logger.Error("mId:{0} {1}", mId, req.ToStringInvariant());
                 Logger.Error("mId:" + mId + ex);
                 throw ex;
             }
