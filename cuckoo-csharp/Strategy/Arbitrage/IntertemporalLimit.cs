@@ -153,20 +153,26 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         async void OnOrderBookHandler()
         {
-            if (mOrderBookA == null || mOrderBookB == null)
-                return;
-            if (mRunningTask != null)
-                return;
-            if (mExchangePending)
-                return;
-            if (mOrderBookA.Asks.Count == 0 || mOrderBookA.Bids.Count == 0 || mOrderBookB.Bids.Count == 0 || mOrderBookB.Asks.Count == 0)
-                return;
-            mExchangePending = true;
-            mData = Options.LoadFromDB<Options>(mDBKey);
-            await Execute();
-            await Task.Delay(mData.IntervalMillisecond);
-            mExchangePending = false;
+            if (Precondition())
+            {
+                mExchangePending = true;
+                mData = Options.LoadFromDB<Options>(mDBKey);
+                await Execute();
+                await Task.Delay(mData.IntervalMillisecond);
+                mExchangePending = false;
+            }
 
+        }
+        private bool Precondition() {
+            if (mOrderBookA == null || mOrderBookB == null)
+                return false;
+            if (mRunningTask != null)
+                return false;
+            if (mExchangePending)
+                return false;
+            if (mOrderBookA.Asks.Count == 0 || mOrderBookA.Bids.Count == 0 || mOrderBookB.Bids.Count == 0 || mOrderBookB.Asks.Count == 0)
+                return false;
+            return true;
         }
         private async Task Execute()
         {
@@ -179,8 +185,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             decimal buyAmount = 0;
             lock (mOrderBookA)
             {
-                buyPriceA = mOrderBookA.Asks.ElementAt(0).Value.Price;
-                sellPriceA = mOrderBookA.Bids.ElementAt(0).Value.Price;
+                if (Precondition())
+                    return;
+                buyPriceA = mOrderBookA.Asks.FirstOrDefault().Value.Price;
+                sellPriceA = mOrderBookA.Bids.FirstOrDefault().Value.Price;
             }
             lock (mOrderBookB)
             {
