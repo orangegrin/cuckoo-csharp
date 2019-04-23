@@ -443,13 +443,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug(order.ToExcleString());
             lock (mCurOrderA)
             {
+
+                ReverseOpenMarketOrder(order);//, completed, openedBuyOrderList, openedSellOrderList);
                 // 如果 当前挂单和订单相同那么删除
                 if (mCurOrderA != null && mCurOrderA.OrderId == order.OrderId)
                 {
                     //重置数量
                     mCurOrderA = null;
                 }
-                ReverseOpenMarketOrder(order);//, completed, openedBuyOrderList, openedSellOrderList);
             }
         }
         /// <summary>
