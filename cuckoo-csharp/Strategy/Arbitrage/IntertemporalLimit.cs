@@ -8,6 +8,7 @@ using ExchangeSharp;
 using System.Threading;
 using cuckoo_csharp.Tools;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace cuckoo_csharp.Strategy.Arbitrage
 {
@@ -68,20 +69,48 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mData.ExchangeNameA);
             mExchangeBAPI = ExchangeAPI.GetExchangeAPI(mData.ExchangeNameB);
-
         }
         public void Start()
         {
             AppDomain.CurrentDomain.ProcessExit += new EventHandler(OnProcessExit);
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
             mExchangeBAPI.LoadAPIKeys(mData.EncryptedFileB);
+            //读取平均值
+            UpdateAvgDiffAsync();
+
             mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
             //避免没有订阅成功就开始订单
             Thread.Sleep(3 * 1000);
             mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 20, mData.SymbolA);
             mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 20, mData.SymbolB);
         }
-
+        /// <summary>
+        /// 刷新差价
+        /// </summary>
+        public async Task UpdateAvgDiffAsync()
+        {
+            string url = $"{"http://150.109.52.225:8888/diff?symbol="}{mData.Symbol}{"&exchangeB=binance&exchangeA=bitmex"}";
+            while (true)
+            {
+                try
+                {
+                    JObject jsonResult = await Utils.GetHttpReponseAsync(url);
+                    if(jsonResult["status"].ConvertInvariant<int>() == 1)
+                    {
+                        decimal avgDiff = jsonResult["data"]["value"].ConvertInvariant<decimal>();
+                        avgDiff = Math.Round(avgDiff, 3);
+                        mData.AvgDiff = avgDiff;
+                        CountDiff();
+                        Logger.Debug(" UpdateAvgDiffAsync avgDiff:" + avgDiff);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Debug(" UpdateAvgDiffAsync avgDiff:" + ex.ToString());
+                }
+                await Task.Delay(3600 * 1000);
+            }
+        }
         private void OnProcessExit(object sender, EventArgs e)
         {
             Logger.Debug("------------------------ OnProcessExit ---------------------------");
@@ -436,35 +465,38 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 订单成交 ，修改当前仓位和删除当前订单
         /// </summary>
         /// <param name="order"></param>
-        private void OnOrderFilled(ExchangeOrderResult order)
+        private async Task OnOrderFilledAsync(ExchangeOrderResult order)
         {
             Logger.Debug("mId:" + mId + "  " + "-------------------- Order Filed ---------------------------");
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
+            ExchangeOrderResult bOrder = await ReverseOpenMarketOrder(order);//, completed, openedBuyOrderList, openedSellOrderList);
             lock (mCurOrderA)
             {
-
-                ReverseOpenMarketOrder(order);//, completed, openedBuyOrderList, openedSellOrderList);
                 // 如果 当前挂单和订单相同那么删除
                 if (mCurOrderA != null && mCurOrderA.OrderId == order.OrderId)
                 {
                     //重置数量
                     mCurOrderA = null;
                 }
+                GetSlippage(order, bOrder);
+                CountDiff();
             }
         }
         /// <summary>
         /// 订单部分成交
         /// </summary>
         /// <param name="order"></param>
-        private void OnFilledPartially(ExchangeOrderResult order)
+        private async Task OnFilledPartiallyAsync(ExchangeOrderResult order)
         {
             if (order.Amount == order.AmountFilled)
                 return;
             Logger.Debug("mId:" + mId + "  " + "-------------------- Order Filed Partially---------------------------");
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
-            ReverseOpenMarketOrder(order);
+            ExchangeOrderResult bOrder = await ReverseOpenMarketOrder(order);//, completed, openedBuyOrderList, openedSellOrderList);
+            GetSlippage(order, bOrder);
+            CountDiff();
         }
         /// <summary>
         /// 订单取消，删除当前订单
@@ -496,10 +528,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug(order.ToExcleString());
                     break;
                 case ExchangeAPIOrderResult.Filled:
-                    OnOrderFilled(order);
+                    OnOrderFilledAsync(order);
                     break;
                 case ExchangeAPIOrderResult.FilledPartially:
-                    OnFilledPartially(order);
+                    OnFilledPartiallyAsync(order);
                     break;
                 case ExchangeAPIOrderResult.Pending:
                     Logger.Debug("mId:" + mId + "  " + "-------------------- Order Pending ---------------------------");
@@ -563,7 +595,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <summary>
         /// 反向市价开仓
         /// </summary>
-        private async void ReverseOpenMarketOrder(ExchangeOrderResult order)//, bool completeOnce = false, List<ExchangeOrderResult> openedBuyOrderListA = null, List<ExchangeOrderResult> openedSellOrderListA = null)
+        private async Task<ExchangeOrderResult> ReverseOpenMarketOrder(ExchangeOrderResult order)//, bool completeOnce = false, List<ExchangeOrderResult> openedBuyOrderListA = null, List<ExchangeOrderResult> openedSellOrderListA = null)
         {
             var transAmount = GetParTrans(order);
             //只有在成交后才修改订单数量
@@ -587,6 +619,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Debug((DateTime.Now.Ticks - ticks).ToString());
                 Logger.Debug(res.ToString());
                 Logger.Debug(res.OrderId);
+                return res;
             }
             catch (Exception ex)
             {
@@ -618,6 +651,81 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var s = 1 / mData.MinPriceUnit;
             return Math.Round(price * s) / s;
         }
+        /// <summary>
+        /// 开仓额外赚取
+        /// </summary>
+        /// <returns></returns>
+        decimal GetSlippage(ExchangeOrderResult orederA, ExchangeOrderResult orederB)
+        {
+            lock (mData)
+            {
+                decimal allAUse = mData.openPriceA;
+                decimal allBUse = mData.openPriceB;
+                if (orederA.Amount != orederB.Amount)
+                {
+                    Logger.Debug("A,B交易所买卖数量不匹配！！！！");
+                    return mData.Slippage;
+                }
+                if ((orederA.IsBuy && mData.CurAmount > 0) || (orederA.IsBuy==false && mData.CurAmount<0))//方向相同才计算额外赚取率
+                {
+                    allAUse += orederA.AveragePrice * orederA.Amount;
+                    allBUse += orederB.AveragePrice * orederB.Amount;
+                }
+                Logger.Debug("orederA.AveragePrice:"+ orederA.AveragePrice+ " orederA.Amount:" + orederA.Amount);
+                Logger.Debug("orederB.AveragePrice:" + orederB.AveragePrice + " orederB.Amount:" + orederB.Amount);
+                if (mData.CurAmount > 0)
+                {
+                    mData.Slippage = allBUse / allAUse - 1 - mData.A2BDiff;
+                    mData.SaveToDB(mDBKey);
+                }
+                else if (mData.CurAmount < 0)
+                {
+                    mData.Slippage = allBUse / allAUse - 1 - mData.B2ADiff;
+                    mData.SaveToDB(mDBKey);
+                }
+                else if(mData.CurAmount == 0)//当前数量归0表示，重新计算
+                {
+                    mData.Slippage = 0;
+                    mData.SaveToDB(mDBKey);
+                    allAUse = 0;
+                    allBUse = 0;
+                }
+
+                mData.openPriceA = allAUse;
+                mData.openPriceB = allBUse;
+                mData.SaveToDB(mDBKey);
+            }
+            Logger.Debug("开仓额外赚取："+ mData.Slippage);
+            return mData.Slippage;
+        }
+        /// <summary>
+        /// 计算上下费率
+        /// 1没有开仓，上下都是最大值
+        /// 2A买入开仓
+        /// 3A卖出开仓
+        /// </summary>
+        private void CountDiff()
+        {
+            lock(mData)
+            {
+                if (mData.CurAmount == 0)
+                {
+                    mData.A2BDiff = mData.AvgDiff + mData.ProfitRange;
+                    mData.B2ADiff = mData.AvgDiff - mData.ProfitRange;
+                }
+                else if (mData.CurAmount > 0)
+                {
+                    mData.A2BDiff = mData.AvgDiff + mData.ProfitRange;
+                    mData.B2ADiff = mData.AvgDiff - mData.ProfitRange + mData.Slippage;
+                }
+                else if (mData.CurAmount < 0)
+                {
+                    mData.A2BDiff = mData.AvgDiff + mData.ProfitRange + mData.Slippage;
+                    mData.B2ADiff = mData.AvgDiff - mData.ProfitRange;
+                }
+                mData.SaveToDB(mDBKey);
+            }
+        }
 
         public class Options
         {
@@ -625,6 +733,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             public string ExchangeNameB;
             public string SymbolA;
             public string SymbolB;
+            public string Symbol;
             /// <summary>
             /// 开仓差
             /// </summary>
@@ -633,6 +742,22 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// 平仓差
             /// </summary>
             public decimal B2ADiff;
+            /// <summary>
+            /// 开仓平仓中间差
+            /// </summary>
+            public decimal AvgDiff;
+            /// <summary>
+            /// 当前开仓的滑点和多赚的百分比
+            /// </summary>
+            public decimal Slippage = 0m;
+            /// <summary>
+            /// 当前开仓总价A
+            /// </summary>
+            public decimal openPriceA = 0m;
+            /// <summary>
+            /// 当前开仓总价B
+            /// </summary>
+            public decimal openPriceB = 0m;
             public decimal PerTrans;
             /// <summary>
             /// 最小价格单位
