@@ -598,6 +598,22 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private async Task<ExchangeOrderResult> ReverseOpenMarketOrder(ExchangeOrderResult order)//, bool completeOnce = false, List<ExchangeOrderResult> openedBuyOrderListA = null, List<ExchangeOrderResult> openedSellOrderListA = null)
         {
             var transAmount = GetParTrans(order);
+            if (order.AveragePrice * transAmount < mData.MinOrderPrice)//如果小于最小成交价格，1补全到最小成交价格的数量x，A交易所买x，B交易所卖x+transAmount
+            {
+                for (int i=1; ;i++)//防止bitmex overload一直提交到成功
+                {
+                    try
+                    {
+                        decimal returnAmount = await SetMinOrder(order, transAmount);
+                        transAmount = returnAmount;
+                        break;
+                    }
+                    catch (System.Exception ex)
+                    {
+                        await Task.Delay(1000);
+                    }
+                }
+            }
             //只有在成交后才修改订单数量
             mCurAmount += order.IsBuy ? transAmount : -transAmount;
             Logger.Debug("mId:" + mId + "CurAmount:" + mData.CurAmount);
@@ -625,9 +641,43 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 Logger.Error("mId:{0} {1}", mId, req.ToStringInvariant());
                 Logger.Error("mId:" + mId + ex);
+                if(ex.ToString().Contains("Filter failure: MIN_NOTIONAL"))
+                {
+                    
+                }
                 throw ex;
             }
         }
+        /// <summary>
+        /// 返回-1表示有异常
+        /// </summary>
+        /// <param name="order"></param>
+        /// <param name="transAmount"></param>
+        /// <returns></returns>
+        private async Task<decimal> SetMinOrder(ExchangeOrderResult order, decimal transAmount)
+        {
+            decimal addAmount = Math.Ceiling(mData.MinOrderPrice / order.AveragePrice) - transAmount;
+            //市价买
+            ExchangeOrderRequest requestA = new ExchangeOrderRequest();
+            requestA.Amount = addAmount;
+            requestA.MarketSymbol = mData.SymbolA;
+            requestA.IsBuy = order.IsBuy;
+            requestA.OrderType = OrderType.Market;
+            try
+            {
+                var orderResults = await mExchangeAAPI.PlaceOrdersAsync(requestA);
+                ExchangeOrderResult resultA = orderResults[0];
+                transAmount = addAmount + transAmount;
+            }
+            catch (System.Exception ex)
+            {
+                transAmount = -1;
+                Logger.Debug("SetMinOrder:"+ex.ToString());
+                throw ex;
+            }
+            return transAmount;
+        }
+
         /// <summary>
         /// 判断是否是我的ID
         /// </summary>
@@ -763,6 +813,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// 最小价格单位
             /// </summary>
             public decimal MinPriceUnit = 0.5m;
+            /// <summary>
+            /// 最小订单总价格
+            /// </summary>
+            public decimal MinOrderPrice = 0.0011m;
             /// <summary>
             /// 当前仓位数量
             /// </summary>
