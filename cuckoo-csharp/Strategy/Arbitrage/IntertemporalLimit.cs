@@ -261,7 +261,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         mRunningTask = mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
                     }
                 }
-                else if (mCurOrderA != null && mData.B2ADiff <= a2bDiff && a2bDiff <= mData.A2BDiff)//如果在波动区间中，那么取消挂单
+                else if (mCurOrderA != null )//1如果在波动区间中，那么取消挂单 2新策略后有可能 mData.A2BDiff<= mData.B2ADiff，永远没有中间区间，
                 {
                     Logger.Debug("mId:" + mId + "在波动区间中取消订单：" + b2aDiff.ToString());
                     ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
