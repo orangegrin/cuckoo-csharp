@@ -314,12 +314,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
             requestA.Price = NormalizationMinUnit(buyPrice);
             //加上手续费btc卖出数量，买不考虑
-            //mCurrentBChangeCoinAmount = exchangeAmount*1.0011m;
             //如果当前有限价单，并且方向不相同，那么取消
             //如果方向相同那么改价，
-
-            //             decimal oldCount = CurAmount;
-            //             decimal lastNum = 0;
             bool isAddNew = true;
             try
             {
@@ -402,7 +398,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     if (mCurOrderA.IsBuy == requestA.IsBuy)
                     {
                         newOrder = false;
-                        //lastNum = -mCurrentLimitOrder.Amount;
                         requestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
                         //检查是否有改动必要
                         //做空涨价则判断
@@ -595,7 +590,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <summary>
         /// 反向市价开仓
         /// </summary>
-        private async Task<ExchangeOrderResult> ReverseOpenMarketOrder(ExchangeOrderResult order)//, bool completeOnce = false, List<ExchangeOrderResult> openedBuyOrderListA = null, List<ExchangeOrderResult> openedSellOrderListA = null)
+        private async Task<ExchangeOrderResult> ReverseOpenMarketOrder(ExchangeOrderResult order)
         {
             var transAmount = GetParTrans(order);
             if (order.AveragePrice * transAmount < mData.MinOrderPrice)//如果小于最小成交价格，1补全到最小成交价格的数量x，A交易所买x，B交易所卖x+transAmount
@@ -604,8 +599,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 {
                     try
                     {
-                        decimal returnAmount = await SetMinOrder(order, transAmount);
-                        transAmount = returnAmount;
+                        transAmount = await SetMinOrder(order, transAmount);
                         break;
                     }
                     catch (System.Exception ex)
@@ -641,15 +635,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 Logger.Error("mId:{0} {1}", mId, req.ToStringInvariant());
                 Logger.Error("mId:" + mId + ex);
-                if(ex.ToString().Contains("Filter failure: MIN_NOTIONAL"))
-                {
-                    
-                }
                 throw ex;
             }
         }
         /// <summary>
-        /// 返回-1表示有异常
+        /// 如果overload抛出异常
         /// </summary>
         /// <param name="order"></param>
         /// <param name="transAmount"></param>
@@ -671,7 +661,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             catch (System.Exception ex)
             {
-                transAmount = -1;
                 Logger.Debug("SetMinOrder:"+ex.ToString());
                 throw ex;
             }
@@ -723,22 +712,23 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 Logger.Debug("orederA.AveragePrice:"+ orederA.AveragePrice+ " orederA.Amount:" + orederA.Amount);
                 Logger.Debug("orederB.AveragePrice:" + orederB.AveragePrice + " orederB.Amount:" + orederB.Amount);
-                if (mData.CurAmount > 0)
+                if (mData.CurAmount >= mData.PerTrans)
                 {
                     mData.Slippage = allBUse / allAUse - 1 - mData.A2BDiff;
                     mData.SaveToDB(mDBKey);
                 }
-                else if (mData.CurAmount < 0)
+                else if (mData.CurAmount <= (-mData.PerTrans))
                 {
                     mData.Slippage = allBUse / allAUse - 1 - mData.B2ADiff;
                     mData.SaveToDB(mDBKey);
                 }
-                else if(mData.CurAmount == 0)//当前数量归0表示，重新计算
+                else//当前数量归0(-mData.PerTrans<mData.CurAmount<mData.PerTrans)开仓翻转了，重新计算
                 {
                     mData.Slippage = 0;
                     mData.SaveToDB(mDBKey);
                     allAUse = 0;
                     allBUse = 0;
+                    Logger.Debug("归0");
                 }
 
                 mData.openPriceA = allAUse;
