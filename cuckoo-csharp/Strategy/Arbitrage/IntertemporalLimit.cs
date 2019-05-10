@@ -774,7 +774,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <param name="result"></param>
         private void RecondTradeData(ExchangeOrderResult result)
         {
-            Utils.AppendCSV(new List<List<string>>() { new List<string>() { result.FillDate.Ticks.ToString(), result.IsBuy ? "buy" : "sell" } }, "./TradeData.csv", false);
+            Utils.AppendCSV(new List<List<string>>() { new List<string>() { (Utils.GetGMTimeTicks(result.FillDate)).ToString(), result.IsBuy ? "buy" : "sell" } }, "./TradeData.csv", false);
         }
 
         public class Options

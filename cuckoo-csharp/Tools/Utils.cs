@@ -128,5 +128,14 @@ namespace cuckoo_csharp.Tools
             }
 
         }
+        /// <summary>
+        /// 获取格林威治时间
+        /// </summary>
+        /// <param name="dt"></param>
+        /// <returns></returns>
+        public static long GetGMTimeTicks(DateTime dt)
+        {
+            return (dt.ToUniversalTime().Ticks - 621355968000000000) / 10000000;
+        }
     }
 }
