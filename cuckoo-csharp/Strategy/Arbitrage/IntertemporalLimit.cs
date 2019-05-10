@@ -279,6 +279,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     catch (System.Exception ex)
                     {
                         Logger.Error("mId:" + mId + ex);
+                        mRunningTask = null;
                     }
                 }
             }
@@ -736,6 +737,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mData.SaveToDB(mDBKey);
             }
             Logger.Debug("开仓额外赚取："+ mData.Slippage);
+            RecondTradeData(orederA);
             return mData.Slippage;
         }
         /// <summary>
@@ -765,6 +767,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 mData.SaveToDB(mDBKey);
             }
+        }
+        /// <summary>
+        /// 交易记录
+        /// </summary>
+        /// <param name="result"></param>
+        private void RecondTradeData(ExchangeOrderResult result)
+        {
+            Utils.AppendCSV(new List<List<string>>() { new List<string>() { result.FillDate.Ticks.ToString(), result.IsBuy ? "buy" : "sell" } }, "./TradeData.csv", false);
         }
 
         public class Options
