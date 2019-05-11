@@ -163,7 +163,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
 
         }
-        private bool Precondition() {
+        private bool Precondition()
+        {
             if (mOrderBookA == null || mOrderBookB == null)
                 return false;
             if (mRunningTask != null)
@@ -230,6 +231,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
                         cancleRequestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
                         mRunningTask = mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
+                        await Task.Delay(5000);
                     }
                 }
                 else if (mCurOrderA != null && mData.B2ADiff <= a2bDiff && a2bDiff <= mData.A2BDiff)//如果在波动区间中，那么取消挂单
@@ -238,6 +240,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
                     cancleRequestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
                     mRunningTask = mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
+                    await Task.Delay(5000);
                 }
 
                 if (mRunningTask != null)
@@ -334,7 +337,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
             }
-            await Task.Delay(mData.IntervalMillisecond * 10);
         }
 
         private async Task CancelCurOrderA()
@@ -407,7 +409,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
             }
-            await Task.Delay(mData.IntervalMillisecond * 10);
         }
         /// <summary>
         /// 检查是否有足够的币
@@ -424,6 +425,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (bAmount < spend)
             {
                 Logger.Debug("Insufficient exchange balance {0} ,need spend {1}", bAmount, spend);
+                await Task.Delay(5000);
                 return false;
             }
             else
@@ -565,6 +567,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private async void ReverseOpenMarketOrder(ExchangeOrderResult order)//, bool completeOnce = false, List<ExchangeOrderResult> openedBuyOrderListA = null, List<ExchangeOrderResult> openedSellOrderListA = null)
         {
             var transAmount = GetParTrans(order);
+            var minTransAmount = Math.Ceiling(0.001m / order.Price);
+            transAmount = transAmount > minTransAmount ? transAmount : minTransAmount;
             //只有在成交后才修改订单数量
             mCurAmount += order.IsBuy ? transAmount : -transAmount;
             Logger.Debug("mId:" + mId + "CurAmount:" + mData.CurAmount);
