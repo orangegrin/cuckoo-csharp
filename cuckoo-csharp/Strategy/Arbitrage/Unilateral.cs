@@ -11,7 +11,7 @@ using Newtonsoft.Json;
 
 namespace cuckoo_csharp.Strategy.Arbitrage
 {
-    public class IntertemporalLimit
+    public class Unilateral
     {
         private IExchangeAPI mExchangeAAPI;
         private IExchangeAPI mExchangeBAPI;
@@ -56,7 +56,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private Task mRunningTask;
         private bool mExchangePending = false;
         private List<decimal> mDiffList = new List<decimal>();
-        public IntertemporalLimit(Options config, int id = -1)
+        public Unilateral(Options config, int id = -1)
         {
             mId = id;
             mDBKey = string.Format("INTERTEMPORAL:CONFIG:{0}:{1}:{2}:{3}:{4}", config.ExchangeNameA, config.ExchangeNameB, config.SymbolA, config.SymbolB, id);
@@ -214,25 +214,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 else if (b2aDiff < mData.B2ADiff && -mCurAmount < mData.MaxAmount) //满足差价并且没达到最大数量
                 {
-                    //如果只是修改订单
-                    if (mCurOrderA != null && !mCurOrderA.IsBuy)
-                    {
-                        mRunningTask = B2AExchange(buyPriceA);
-                    }
-                    //表示是新创建订单
-                    else if (await SufficientBalance())
-                    {
-                        mRunningTask = B2AExchange(buyPriceA);
-                    }
-                    //保证金不够的时候取消挂单
-                    else if (mCurOrderA != null)
-                    {
-                        Logger.Debug("mId:" + mId + "保证金不够的时候取消挂单：" + b2aDiff.ToString());
-                        ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
-                        cancleRequestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
-                        mRunningTask = mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
-                        await Task.Delay(5000);
-                    }
+                    mRunningTask = B2AExchange(buyPriceA);
                 }
                 else if (mCurOrderA != null && mData.B2ADiff <= a2bDiff && a2bDiff <= mData.A2BDiff)//如果在波动区间中，那么取消挂单
                 {
@@ -284,16 +266,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             requestA.IsBuy = true;
             requestA.OrderType = OrderType.Limit;
             //避免市价成交
-            //buyPrice -= mConfig.MinPriceUnit;
-
             requestA.Price = NormalizationMinUnit(buyPrice);
             //加上手续费btc卖出数量，买不考虑
             //mCurrentBChangeCoinAmount = exchangeAmount*1.0011m;
             //如果当前有限价单，并且方向不相同，那么取消
             //如果方向相同那么改价，
-
-            //             decimal oldCount = CurAmount;
-            //             decimal lastNum = 0;
             bool isAddNew = true;
             try
             {
@@ -409,30 +386,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
             }
-        }
-        /// <summary>
-        /// 检查是否有足够的币
-        /// </summary>
-        /// <returns></returns>
-        private async Task<bool> SufficientBalance()
-        {
-            var bAmount = await GetAmountsAvailableToTradeAsync(mExchangeBAPI, mData.AmountSymbol);
-            decimal buyPrice;
-            decimal exchangeAmount;
-            mOrderBookB.GetPriceToBuy(mData.PerTrans, out exchangeAmount, out buyPrice);
-            //避免挂新单之前，上一笔B的市价没有成交完
-            var spend = mData.PerTrans * buyPrice * 1.3m;
-            if (bAmount < spend)
-            {
-                Logger.Debug("Insufficient exchange balance {0} ,need spend {1}", bAmount, spend);
-                await Task.Delay(5000);
-                return false;
-            }
-            else
-            {
-                Logger.Debug("current balance {0} ,need spend {1}", bAmount, spend);
-            }
-            return true;
         }
         /// <summary>
         /// 订单成交 ，修改当前仓位和删除当前订单
@@ -582,21 +535,21 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
             Logger.Debug(req.ToStringInvariant());
-            var ticks = DateTime.Now.Ticks;
-            try
-            {
-                var res = await mExchangeBAPI.PlaceOrderAsync(req);
-                Logger.Debug("mId:" + mId + "--------------------------------ReverseOpenMarketOrder Result-------------------------------------");
-                Logger.Debug((DateTime.Now.Ticks - ticks).ToString());
-                Logger.Debug(res.ToString());
-                Logger.Debug(res.OrderId);
-            }
-            catch (Exception ex)
-            {
-                Logger.Error("mId:{0} {1}", mId, req.ToStringInvariant());
-                Logger.Error("mId:" + mId + ex);
-                throw ex;
-            }
+            //var ticks = DateTime.Now.Ticks;
+            //try
+            //{
+            //    var res = await mExchangeBAPI.PlaceOrderAsync(req);
+            //    Logger.Debug("mId:" + mId + "--------------------------------ReverseOpenMarketOrder Result-------------------------------------");
+            //    Logger.Debug((DateTime.Now.Ticks - ticks).ToString());
+            //    Logger.Debug(res.ToString());
+            //    Logger.Debug(res.OrderId);
+            //}
+            //catch (Exception ex)
+            //{
+            //    Logger.Error("mId:{0} {1}", mId, req.ToStringInvariant());
+            //    Logger.Error("mId:" + mId + ex);
+            //    throw ex;
+            //}
         }
         /// <summary>
         /// 判断是否是我的ID

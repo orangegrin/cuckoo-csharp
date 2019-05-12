@@ -24,13 +24,29 @@ namespace cuckoo_csharp
         }
         static void Main(string[] args)
         {
-            Parser.Default.ParseArguments<Options>(args).WithParsed<Options>(OnParsedHandler);
-
+            if (args.Length > 0)
+            {
+                Parser.Default.ParseArguments<Options>(args).WithParsed<Options>(OnParsedHandler);
+            }
+            else
+            {
+                BuildingKey();
+            }
+        }
+        private static void BuildingKey()
+        {
+            Console.WriteLine("Please enter the file name.");
+            string fileName = Console.ReadLine();
+            Console.WriteLine("Please enter the private key.");
+            string privateKey = Console.ReadLine();
+            Console.WriteLine("Please enter the public key.");
+            string publicKey = Console.ReadLine();
+            CryptoUtility.SaveUnprotectedStringsToFile(fileName, new string[2] { publicKey, privateKey });
         }
 
         private static void OnParsedHandler(Options op)
         {
-            IntertemporalLimit.Options config = null;
+            Unilateral.Options config = null;
             if (File.Exists(op.ConfigPath))
             {
                 string text;
@@ -40,7 +56,7 @@ namespace cuckoo_csharp
                 }
                 if (!string.IsNullOrEmpty(text))
                 {
-                    config = JsonConvert.DeserializeObject<IntertemporalLimit.Options>(text);
+                    config = JsonConvert.DeserializeObject<Unilateral.Options>(text);
                 }
                 else
                 {
@@ -49,7 +65,7 @@ namespace cuckoo_csharp
             }
             if (config != null)
             {
-                IntertemporalLimit it = new IntertemporalLimit(config, op.ID);
+                Unilateral it = new Unilateral(config, op.ID);
                 it.Start();
                 while (true)
                 {
