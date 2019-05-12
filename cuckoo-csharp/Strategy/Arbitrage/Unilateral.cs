@@ -8,6 +8,7 @@ using ExchangeSharp;
 using System.Threading;
 using cuckoo_csharp.Tools;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace cuckoo_csharp.Strategy.Arbitrage
 {
@@ -55,7 +56,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private string mDBKey;
         private Task mRunningTask;
         private bool mExchangePending = false;
-        private List<decimal> mDiffList = new List<decimal>();
         public Unilateral(Options config, int id = -1)
         {
             mId = id;
@@ -68,7 +68,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mData.ExchangeNameA);
             mExchangeBAPI = ExchangeAPI.GetExchangeAPI(mData.ExchangeNameB);
-
+            UpdateAvgDiffAsync();
         }
         public void Start()
         {
@@ -112,33 +112,34 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             return value;
         }
         /// <summary>
-        /// 计算范围
+        /// 刷新差价
         /// </summary>
-        /// <param name="avgDiff"></param>
-        private void AppendAvgDiff(decimal avgDiff)
+        public async Task UpdateAvgDiffAsync()
         {
-            mDiffList.Add(avgDiff);
-            //获取一天的数据
-            int maxCount = 86400000 / mData.IntervalMillisecond;
-            if (mDiffList.Count > maxCount)
-                mDiffList.RemoveRange(0, maxCount / 5);
-            //优化性能，每一千次计算一次
-            if (mData.AutoCalcProfitRange && mDiffList.Count % 1000 == 0)
+            string url = $"{"http://150.109.52.225:8888/diff?symbol="}{mData.Symbol}{"&exchangeB="}{mData.ExchangeNameB.ToLowerInvariant()}{"&exchangeA="}{mData.ExchangeNameA.ToLowerInvariant()}";
+            while (true)
             {
-                CalcProfitRange(mData, maxCount);
-            }
-        }
-        private void CalcProfitRange(Options config, int maxCount)
-        {
-            lock (mDiffList)
-            {
-                var avg = mDiffList.Average();
-                var range = config.ProfitRange / 2;
-                config.A2BDiff = avg + range;
-                config.B2ADiff = avg - range;
-                if (mDiffList.Count >= maxCount / 2)
-                    config.SaveToDB(mDBKey);
-                Console.WriteLine("A2BDF {0} B2ADF {1}", config.A2BDiff, config.B2ADiff);
+                if (mData.AutoCalcProfitRange)
+                {
+                    try
+                    {
+                        JObject jsonResult = await Utils.GetHttpReponseAsync(url);
+                        if (jsonResult["status"].ConvertInvariant<int>() == 1)
+                        {
+                            decimal avgDiff = jsonResult["data"]["value"].ConvertInvariant<decimal>();
+                            avgDiff = Math.Round(avgDiff, 3);
+                            mData.A2BDiff = avgDiff + mData.ProfitRange;
+                            mData.B2ADiff = avgDiff - mData.ProfitRange;
+                            mData.SaveToDB(mDBKey);
+                            Logger.Debug(" UpdateAvgDiffAsync avgDiff:" + avgDiff);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Debug(" UpdateAvgDiffAsync avgDiff:" + ex.ToString());
+                    }
+                }
+                await Task.Delay(600 * 1000);
             }
         }
         private void OnOrderbookAHandler(ExchangeOrderBook order)
@@ -202,7 +203,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 a2bDiff = (sellPriceB / buyPriceA - 1);
                 b2aDiff = (buyPriceB / sellPriceA - 1);
                 var avgDiff = (a2bDiff + b2aDiff) / 2;
-                AppendAvgDiff(avgDiff);
                 PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, buyAmount);
 
                 //满足差价并且
@@ -581,6 +581,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             public string ExchangeNameB;
             public string SymbolA;
             public string SymbolB;
+            public string Symbol = "ETH";
             /// <summary>
             /// 开仓差
             /// </summary>
