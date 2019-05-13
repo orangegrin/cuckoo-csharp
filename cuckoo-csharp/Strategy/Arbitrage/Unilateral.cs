@@ -127,7 +127,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         if (jsonResult["status"].ConvertInvariant<int>() == 1)
                         {
                             decimal avgDiff = jsonResult["data"]["value"].ConvertInvariant<decimal>();
-                            avgDiff = Math.Round(avgDiff, 3);
+                            avgDiff = Math.Round(avgDiff, 4);
                             mData.A2BDiff = avgDiff + mData.ProfitRange;
                             mData.B2ADiff = avgDiff - mData.ProfitRange;
                             mData.SaveToDB(mDBKey);
