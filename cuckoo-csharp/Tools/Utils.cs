@@ -17,6 +17,16 @@ namespace cuckoo_csharp.Tools
             return (System.DateTime.UtcNow.ToUniversalTime().Ticks - 621355968000000000) / 10000;
         }
 
+        public static void BuildingKey()
+        {
+            Console.WriteLine("Please enter the file name.");
+            string fileName = Console.ReadLine();
+            Console.WriteLine("Please enter the private key.");
+            string privateKey = Console.ReadLine();
+            Console.WriteLine("Please enter the public key.");
+            string publicKey = Console.ReadLine();
+            CryptoUtility.SaveUnprotectedStringsToFile(fileName, new string[2] { publicKey, privateKey });
+        }
         /// <summary>
         /// 获取http返回json
         /// </summary>

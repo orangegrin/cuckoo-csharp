@@ -9,6 +9,7 @@ using Newtonsoft.Json;
 using cuckoo_csharp.Strategy.Arbitrage;
 using CommandLine;
 using System.Text;
+using cuckoo_csharp.Tools;
 
 namespace cuckoo_csharp
 {
@@ -24,8 +25,14 @@ namespace cuckoo_csharp
         }
         static void Main(string[] args)
         {
-            Parser.Default.ParseArguments<Options>(args).WithParsed<Options>(OnParsedHandler);
-
+            if (args.Length > 0)
+            {
+                Parser.Default.ParseArguments<Options>(args).WithParsed<Options>(OnParsedHandler);
+            }
+            else
+            {
+                Utils.BuildingKey();
+            }
         }
 
         private static void OnParsedHandler(Options op)
