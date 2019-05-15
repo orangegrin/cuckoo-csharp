@@ -81,7 +81,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 20, mData.SymbolA);
             mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 20, mData.SymbolB);
         }
-
         private void OnProcessExit(object sender, EventArgs e)
         {
             Logger.Debug("------------------------ OnProcessExit ---------------------------");
@@ -93,7 +92,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
 
         }
-
         /// <summary>
         /// 获取交易所某个币种的数量
         /// </summary>
@@ -266,7 +264,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug("Ask B {0} Ask A {1}", buyPriceB, sellPriceA);
             Logger.Debug("mCurAmount {0} buyAmount {1} ", mCurAmount, buyAmount);
         }
-
         /// <summary>
         /// 当curAmount 小于 0的时候就是平仓
         /// A买B卖
@@ -337,7 +334,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Error("mId:" + mId + ex);
             }
         }
-
         private async Task CancelCurOrderA()
         {
             ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
@@ -345,7 +341,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //在onOrderCancle的时候处理
             await mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
         }
-
         /// <summary>
         /// 当curAmount大于0的时候就是开仓
         /// B买A卖
@@ -620,7 +615,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var s = 1 / mData.MinPriceUnit;
             return Math.Round(price * s) / s;
         }
-
         public class Options
         {
             public string ExchangeNameA;
