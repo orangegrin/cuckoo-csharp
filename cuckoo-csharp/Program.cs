@@ -10,6 +10,7 @@ using cuckoo_csharp.Strategy.Arbitrage;
 using CommandLine;
 using System.Text;
 using cuckoo_csharp.Tools;
+using System.Threading;
 
 namespace cuckoo_csharp
 {
@@ -60,7 +61,7 @@ namespace cuckoo_csharp
                 it.Start();
                 while (true)
                 {
-                    Console.ReadLine();
+                    Thread.Sleep(1 * 1000);
                 }
             }
         }
