@@ -8,8 +8,6 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using ExchangeSharp;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace cuckoo_csharp.Tools
 {

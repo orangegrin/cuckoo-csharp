@@ -77,7 +77,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeBAPI.LoadAPIKeys(mData.EncryptedFileB);
             //读取平均值
             UpdateAvgDiffAsync();
-
             mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
             //避免没有订阅成功就开始订单
             Thread.Sleep(3 * 1000);
@@ -100,6 +99,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         decimal avgDiff = jsonResult["data"]["value"].ConvertInvariant<decimal>();
                         avgDiff = Math.Round(avgDiff, 3);
                         mData.AvgDiff = avgDiff;
+                        mData.SaveToDB(mDBKey);
+                        CountDiff();
                         Logger.Debug(" UpdateAvgDiffAsync avgDiff:" + avgDiff);
                     }
                 }
@@ -169,6 +170,21 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Console.WriteLine("A2BDF {0} B2ADF {1}", config.A2BDiff, config.B2ADiff);
             }
         }
+        /// <summary>
+        /// 计算上下费率
+        /// 1没有开仓，上下都是最大值
+        /// 2A买入开仓
+        /// 3A卖出开仓
+        /// </summary>
+        private void CountDiff()
+        {
+            lock (mData)
+            {
+                mData.A2BDiff = mData.AvgDiff + mData.ProfitRange;
+                mData.B2ADiff = mData.AvgDiff - mData.ProfitRange;
+                mData.SaveToDB(mDBKey);
+            }
+        }
         private void OnOrderbookAHandler(ExchangeOrderBook order)
         {
             mOrderBookA = order;
@@ -191,7 +207,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
 
         }
-        private bool Precondition() {
+        private bool Precondition()
+        {
             if (mOrderBookA == null || mOrderBookB == null)
                 return false;
             if (mRunningTask != null)
@@ -258,6 +275,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
                         cancleRequestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
                         mRunningTask = mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
+                        await Task.Delay(5000);
                     }
                 }
                 else if (mCurOrderA != null && mData.B2ADiff <= a2bDiff && a2bDiff <= mData.A2BDiff)//如果在波动区间中，那么取消挂单
@@ -266,6 +284,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
                     cancleRequestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
                     mRunningTask = mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
+                    await Task.Delay(5000);
                 }
 
                 if (mRunningTask != null)
@@ -358,7 +377,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
             }
-            await Task.Delay(mData.IntervalMillisecond * 10);
         }
 
         private async Task CancelCurOrderA()
@@ -430,7 +448,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
             }
-            await Task.Delay(mData.IntervalMillisecond * 10);
         }
         /// <summary>
         /// 检查是否有足够的币
@@ -447,6 +464,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (bAmount < spend)
             {
                 Logger.Debug("Insufficient exchange balance {0} ,need spend {1}", bAmount, spend);
+                await Task.Delay(5000);
                 return false;
             }
             else
