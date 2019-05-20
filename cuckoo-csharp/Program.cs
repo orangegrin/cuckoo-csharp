@@ -69,7 +69,7 @@ namespace cuckoo_csharp
                 it.Start();
                 while (true)
                 {
-                    Console.ReadLine();
+                    Thread.Sleep(1 * 1000);
                 }
             }
         }
