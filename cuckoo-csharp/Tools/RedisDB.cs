@@ -17,12 +17,23 @@ namespace cuckoo_csharp.Tools
             {
                 if (connection == null || !connection.IsConnected)
                 {
-                    connection = ConnectionMultiplexer.Connect("localhost");
-                    instance = connection.GetDatabase();
+                    //connection = ConnectionMultiplexer.Connect("localhost");
+                    //instance = connection.GetDatabase();
+                    throw new Exception("请先使用 Init初始化连接");
                 }
                 return instance;
             }
         }
+        public static void Init(string configStr)
+        {
+            if (connection == null || !connection.IsConnected)
+            {
+                connection = ConnectionMultiplexer.Connect(configStr);
+                instance = connection.GetDatabase();
+            }
+        }
+
+
         public static T StringGet<T>(this IDatabase database, RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             string res = database.StringGet(key, flags);

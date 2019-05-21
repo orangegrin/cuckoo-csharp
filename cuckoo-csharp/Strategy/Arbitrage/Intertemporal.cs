@@ -60,6 +60,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             mId = id;
             mDBKey = string.Format("INTERTEMPORAL:CONFIG:{0}:{1}:{2}:{3}:{4}", config.ExchangeNameA, config.ExchangeNameB, config.SymbolA, config.SymbolB, id);
+            RedisDB.Init(config.RedisConfig);
             mData = Options.LoadFromDB<Options>(mDBKey);
             if (mData == null)
             {
@@ -680,6 +681,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// B交易所加密串路径
             /// </summary>
             public string EncryptedFileB;
+            /// <summary>
+            /// redis连接数据
+            /// </summary>
+            public string RedisConfig = "127.0.0.1";
 
             public void SaveToDB(string DBKey)
             {
