@@ -370,7 +370,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     if (mCurOrderA.IsBuy == requestA.IsBuy)
                     {
                         newOrder = false;
-                        //lastNum = -mCurrentLimitOrder.Amount;
                         requestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
                         //检查是否有改动必要
                         //做空涨价则判断
@@ -414,7 +413,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var bAmount = await GetAmountsAvailableToTradeAsync(mExchangeBAPI, mData.AmountSymbol);
             decimal buyPrice;
             decimal exchangeAmount;
-            mOrderBookB.GetPriceToBuy(mData.PerTrans, out exchangeAmount, out buyPrice);
+            lock(mOrderBookB)
+            {
+                mOrderBookB.GetPriceToBuy(mData.PerTrans, out exchangeAmount, out buyPrice);           
+            }
             //避免挂新单之前，上一笔B的市价没有成交完
             var spend = mData.PerTrans * buyPrice * 1.3m;
             if (bAmount < spend)
@@ -562,8 +564,21 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private async void ReverseOpenMarketOrder(ExchangeOrderResult order)//, bool completeOnce = false, List<ExchangeOrderResult> openedBuyOrderListA = null, List<ExchangeOrderResult> openedSellOrderListA = null)
         {
             var transAmount = GetParTrans(order);
-            var minTransAmount = Math.Ceiling(0.001m / order.Price);
-            transAmount = transAmount > minTransAmount ? transAmount : minTransAmount;
+            if (order.AveragePrice * transAmount < mData.MinOrderPrice)//如果小于最小成交价格，1补全到最小成交价格的数量x，A交易所买x，B交易所卖x+transAmount
+            {
+                for (int i=1; ;i++)//防止bitmex overload一直提交到成功
+                {
+                    try
+                    {
+                        transAmount = await SetMinOrder(order, transAmount);
+                        break;
+                    }
+                    catch (System.Exception ex)
+                    {
+                        await Task.Delay(1000);
+                    }
+                }
+            }
             //只有在成交后才修改订单数量
             mCurAmount += order.IsBuy ? transAmount : -transAmount;
             Logger.Debug("mId:" + mId + "CurAmount:" + mData.CurAmount);
@@ -593,6 +608,35 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 throw ex;
             }
         }
+        /// <summary>
+        /// 如果overload抛出异常
+        /// </summary>
+        /// <param name="order"></param>
+        /// <param name="transAmount"></param>
+        /// <returns></returns>
+        private async Task<decimal> SetMinOrder(ExchangeOrderResult order, decimal transAmount)
+        {
+            decimal addAmount = Math.Ceiling(mData.MinOrderPrice / order.AveragePrice) - transAmount;
+            //市价买
+            ExchangeOrderRequest requestA = new ExchangeOrderRequest();
+            requestA.Amount = addAmount;
+            requestA.MarketSymbol = mData.SymbolA;
+            requestA.IsBuy = order.IsBuy;
+            requestA.OrderType = OrderType.Market;
+            try
+            {
+                var orderResults = await mExchangeAAPI.PlaceOrdersAsync(requestA);
+                ExchangeOrderResult resultA = orderResults[0];
+                transAmount = addAmount + transAmount;
+            }
+            catch (System.Exception ex)
+            {
+                Logger.Debug("SetMinOrder:"+ex.ToString());
+                throw ex;
+            }
+            return transAmount;
+        }
+
         /// <summary>
         /// 判断是否是我的ID
         /// </summary>
@@ -636,6 +680,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// 最小价格单位
             /// </summary>
             public decimal MinPriceUnit = 0.5m;
+            /// <summary>
+            /// 最小订单总价格
+            /// </summary>
+            public decimal MinOrderPrice = 0.0011m;
             /// <summary>
             /// 当前仓位数量
             /// </summary>
