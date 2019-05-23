@@ -18,7 +18,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CommandLineParser" Version="2.4.3" />
     <PackageReference Include="Cryptowatcher.TA-LIb-Core" Version="1.0.0" />
+    <PackageReference Include="StackExchange.Redis" Version="2.0.600" />
   </ItemGroup>
 
   <ItemGroup>
