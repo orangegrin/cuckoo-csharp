@@ -11,6 +11,10 @@ using Newtonsoft.Json.Linq;
 
 namespace cuckoo_csharp.Strategy.Arbitrage
 {
+    /// <summary>
+    /// 期对期
+    /// 要求 A价<B价，并且A限价开仓
+    /// </summary>
     public class Perpetual2Futures
     {
         private IExchangeAPI mExchangeAAPI;
@@ -55,6 +59,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private string mDBKey;
         private Task mRunningTask;
         private bool mExchangePending = false;
+        private bool mOnConnect = false;
         public Perpetual2Futures(Options config, int id = -1)
         {
             mId = id;
@@ -74,7 +79,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             AppDomain.CurrentDomain.ProcessExit += new EventHandler(OnProcessExit);
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
-            mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            IWebSocket ws = mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            ws.Connected += async (socket) => { mOnConnect = true;  };
+            ws.Disconnected += async (socket) => 
+            {
+                mOnConnect = false;
+                if (mCurOrderA != null)
+                {
+                    CancelCurOrderA();
+                }
+            };
             //避免没有订阅成功就开始订单
             Thread.Sleep(3 * 1000);
             mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookHandler, 20, mData.SymbolA, mData.SymbolB);
@@ -140,6 +154,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         private bool Precondition()
         {
+            if (mOnConnect == false)
+                return false;
             if (mOrderBookA == null || mOrderBookB == null)
                 return false;
             if (mRunningTask != null)
@@ -177,8 +193,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 a2bDiff = (sellPriceB / buyPriceA - 1);
                 b2aDiff = (buyPriceB / sellPriceA - 1);
                 var avgDiff = (a2bDiff + b2aDiff) / 2;
-                PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, mData.A2BDiff, mData.B2ADiff, buyAmount);
-
+                PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, -a2bDiff, -b2aDiff, -mData.A2BDiff, -mData.B2ADiff, buyAmount);
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff > mData.A2BDiff && mData.CurAmount + mData.PerTrans <= mData.InitialExchangeBAmount) //满足差价并且当前A空仓
@@ -247,7 +262,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         if (jsonResult["status"].ConvertInvariant<int>() == 1)
                         {
                             decimal avgDiff = jsonResult["data"]["value"].ConvertInvariant<decimal>();
-                            avgDiff = Math.Round(avgDiff, 4);
+                            avgDiff = -Math.Round(avgDiff, 4);//强行转换
                             mData.A2BDiff = avgDiff + mData.ProfitRange;
                             mData.B2ADiff = avgDiff - mData.ProfitRange;
                             mData.SaveToDB(mDBKey);
@@ -338,7 +353,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             catch (Exception ex)
             {
                 //如果是添加新单那么设置为null
-                if (isAddNew)
+                if (isAddNew || ex.ToString().Contains("Invalid orderID"))
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
             }
@@ -409,7 +424,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             catch (Exception ex)
             {
                 //如果是添加新单那么设置为null
-                if (newOrder)
+                if (newOrder || ex.ToString().Contains("Invalid orderID"))
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
             }
@@ -452,13 +467,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug(order.ToExcleString());
             lock (mCurOrderA)
             {
+                mExchangePending = true;
+                ReverseOpenMarketOrder(order);//, completed, openedBuyOrderList, openedSellOrderList);
+                mExchangePending = false;
                 // 如果 当前挂单和订单相同那么删除
                 if (mCurOrderA != null && mCurOrderA.OrderId == order.OrderId)
                 {
                     //重置数量
                     mCurOrderA = null;
                 }
-                ReverseOpenMarketOrder(order);//, completed, openedBuyOrderList, openedSellOrderList);
             }
         }
         /// <summary>
@@ -586,7 +603,17 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                     catch (System.Exception ex)
                     {
-                        await Task.Delay(1000);
+                        if (ex.ToString().Contains("overloaded"))
+                        {
+                            await Task.Delay(1000);
+                        }
+                        else
+                        {
+                            Logger.Error("最小成交价抛错" + ex.ToString());
+                            throw ex;
+                            break; 
+                        }
+                        
                     }
                 }
             }
@@ -604,20 +631,34 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug(order.ToExcleString());
             Logger.Debug(req.ToStringInvariant());
             var ticks = DateTime.Now.Ticks;
-            try
+
+            
+            for (int i = 1; ; i++)//当B交易所也是bitmex， 防止bitmex overload一直提交到成功
             {
-                var res = await mExchangeBAPI.PlaceOrderAsync(req);
-                Logger.Debug("mId:" + mId + "--------------------------------ReverseOpenMarketOrder Result-------------------------------------");
-                Logger.Debug((DateTime.Now.Ticks - ticks).ToString());
-                Logger.Debug(res.ToString());
-                Logger.Debug(res.OrderId);
+                try
+                {
+                    var res = await mExchangeBAPI.PlaceOrderAsync(req);
+                    Logger.Debug("mId:" + mId + "--------------------------------ReverseOpenMarketOrder Result-------------------------------------");
+                    Logger.Debug(res.ToString());
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden"))
+                    {
+                        Logger.Error("mId:{0} {1}", mId, req.ToStringInvariant());
+                        Logger.Error("mId:" + mId + ex);
+                        await Task.Delay(2000);
+                    }
+                    else
+                    {
+                        Logger.Error("ReverseOpenMarketOrder抛错" + ex.ToString());
+                        throw ex;
+                        break;
+                    }
+                }
             }
-            catch (Exception ex)
-            {
-                Logger.Error("mId:{0} {1}", mId, req.ToStringInvariant());
-                Logger.Error("mId:" + mId + ex);
-                throw ex;
-            }
+            await Task.Delay(mData.IntervalMillisecond);
         }
         /// <summary>
         /// 如果overload抛出异常
