@@ -15,7 +15,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
     /// 期对期
     /// 要求 A价<B价，并且A限价开仓
     /// </summary>
-    public class Perpetual2Futures
+    public class P2F_unilateral
     {
         private IExchangeAPI mExchangeAAPI;
         private IExchangeAPI mExchangeBAPI;
@@ -60,7 +60,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private Task mRunningTask;
         private bool mExchangePending = false;
         private bool mOnConnect = false;
-        public Perpetual2Futures(Options config, int id = -1)
+        public P2F_unilateral(Options config, int id = -1)
         {
             mId = id;
             mDBKey = string.Format("INTERTEMPORAL:CONFIG:{0}:{1}:{2}:{3}:{4}", config.ExchangeNameA, config.ExchangeNameB, config.SymbolA, config.SymbolB, id);
@@ -179,8 +179,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 if (Precondition())
                     return;
-                buyPriceA = mOrderBookA.Asks.FirstOrDefault().Value.Price;
-                sellPriceA = mOrderBookA.Bids.FirstOrDefault().Value.Price;
+                buyPriceA = mOrderBookA.Bids.FirstOrDefault().Value.Price;
+                sellPriceA = mOrderBookA.Asks.FirstOrDefault().Value.Price;
             }
             lock (mOrderBookB)
             {
@@ -592,31 +592,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private async void ReverseOpenMarketOrder(ExchangeOrderResult order)//, bool completeOnce = false, List<ExchangeOrderResult> openedBuyOrderListA = null, List<ExchangeOrderResult> openedSellOrderListA = null)
         {
             var transAmount = GetParTrans(order);
-            if (order.AveragePrice * transAmount < mData.MinOrderPrice)//如果小于最小成交价格，1补全到最小成交价格的数量x，A交易所买x，B交易所卖x+transAmount
-            {
-                for (int i = 1; ; i++)//防止bitmex overload一直提交到成功
-                {
-                    try
-                    {
-                        transAmount = await SetMinOrder(order, transAmount);
-                        break;
-                    }
-                    catch (System.Exception ex)
-                    {
-                        if (ex.ToString().Contains("overloaded"))
-                        {
-                            await Task.Delay(1000);
-                        }
-                        else
-                        {
-                            Logger.Error("最小成交价抛错" + ex.ToString());
-                            throw ex;
-                            break; 
-                        }
-                        
-                    }
-                }
-            }
             //只有在成交后才修改订单数量
             mCurAmount += order.IsBuy ? transAmount : -transAmount;
             Logger.Debug("mId:" + mId + "CurAmount:" + mData.CurAmount);
@@ -632,32 +607,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug(req.ToStringInvariant());
             var ticks = DateTime.Now.Ticks;
 
-            
-            for (int i = 1; ; i++)//当B交易所也是bitmex， 防止bitmex overload一直提交到成功
-            {
-                try
-                {
-                    var res = await mExchangeBAPI.PlaceOrderAsync(req);
-                    Logger.Debug("mId:" + mId + "--------------------------------ReverseOpenMarketOrder Result-------------------------------------");
-                    Logger.Debug(res.ToString());
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden"))
-                    {
-                        Logger.Error("mId:{0} {1}", mId, req.ToStringInvariant());
-                        Logger.Error("mId:" + mId + ex);
-                        await Task.Delay(2000);
-                    }
-                    else
-                    {
-                        Logger.Error("ReverseOpenMarketOrder抛错" + ex.ToString());
-                        throw ex;
-                        break;
-                    }
-                }
-            }
+            Logger.Debug("mId:" + mId + "--------------------------------ReverseOpenMarketOrder Result-------------------------------------");
             await Task.Delay(mData.IntervalMillisecond);
         }
         /// <summary>
