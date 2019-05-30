@@ -242,6 +242,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     catch (System.Exception ex)
                     {
                         Logger.Error("mId:" + mId + ex);
+                        
                     }
                 }
             }
@@ -274,7 +275,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         Logger.Debug(" UpdateAvgDiffAsync avgDiff:" + ex.ToString());
                     }
                 }
-                await Task.Delay(600 * 1000);
+                await Task.Delay(100 * 1000);
             }
         }
         private void PrintInfo(decimal buyPriceA, decimal sellPriceA, decimal sellPriceB, decimal buyPriceB, decimal a2bDiff, decimal b2aDiff, decimal A2BDiff, decimal B2ADiff, decimal buyAmount)
@@ -356,6 +357,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (isAddNew || ex.ToString().Contains("Invalid orderID"))
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
+                if (ex.ToString().Contains("overloaded"))
+                {
+                    await Task.Delay(5000);
+                }
             }
         }
         private async Task CancelCurOrderA()
@@ -427,6 +432,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (newOrder || ex.ToString().Contains("Invalid orderID"))
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
+                if (ex.ToString().Contains("overloaded"))
+                {
+                    await Task.Delay(5000);
+                }
             }
         }
         /// <summary>
