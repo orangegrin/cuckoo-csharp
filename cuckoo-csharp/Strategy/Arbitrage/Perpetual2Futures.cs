@@ -199,19 +199,19 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (a2bDiff > mData.A2BDiff && mData.CurAmount + mData.PerTrans <= mData.InitialExchangeBAmount) //满足差价并且当前A空仓
                 {
 
-                    mRunningTask = A2BExchange(sellPriceA);
+                    mRunningTask = A2BExchange(buyPriceA);
                 }
                 else if (b2aDiff < mData.B2ADiff && -mCurAmount < mData.MaxAmount) //满足差价并且没达到最大数量
                 {
                     //如果只是修改订单
                     if (mCurOrderA != null && !mCurOrderA.IsBuy)
                     {
-                        mRunningTask = B2AExchange(buyPriceA);
+                        mRunningTask = B2AExchange(sellPriceA);
                     }
                     //表示是新创建订单
                     else //if (await SufficientBalance())
                     {
-                        mRunningTask = B2AExchange(buyPriceA);
+                        mRunningTask = B2AExchange(sellPriceA);
                     }
                     //保证金不够的时候取消挂单
 //                     else if (mCurOrderA != null)
@@ -275,7 +275,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         Logger.Debug(" UpdateAvgDiffAsync avgDiff:" + ex.ToString());
                     }
                 }
-                await Task.Delay(100 * 1000);
+                await Task.Delay(600 * 1000);
             }
         }
         private void PrintInfo(decimal buyPriceA, decimal sellPriceA, decimal sellPriceB, decimal buyPriceB, decimal a2bDiff, decimal b2aDiff, decimal A2BDiff, decimal B2ADiff, decimal buyAmount)
