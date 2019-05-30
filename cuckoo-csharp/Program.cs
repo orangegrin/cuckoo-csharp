@@ -47,7 +47,7 @@ namespace cuckoo_csharp
 
         private static void OnParsedHandler(Options op)
         {
-            Unilateral.Options config = null;
+            Mirrorer.Options config = null;
             if (File.Exists(op.ConfigPath))
             {
                 string text;
@@ -57,7 +57,7 @@ namespace cuckoo_csharp
                 }
                 if (!string.IsNullOrEmpty(text))
                 {
-                    config = JsonConvert.DeserializeObject<Unilateral.Options>(text);
+                    config = JsonConvert.DeserializeObject<Mirrorer.Options>(text);
                 }
                 else
                 {
@@ -66,7 +66,7 @@ namespace cuckoo_csharp
             }
             if (config != null)
             {
-                Unilateral it = new Unilateral(config, op.ID);
+                Mirrorer it = new Mirrorer(config, op.ID);
                 it.Start();
                 while (true)
                 {
