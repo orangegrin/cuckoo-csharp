@@ -179,8 +179,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 if (Precondition())
                     return;
-                buyPriceA = mOrderBookA.Asks.FirstOrDefault().Value.Price;
-                sellPriceA = mOrderBookA.Bids.FirstOrDefault().Value.Price;
+                buyPriceA = mOrderBookA.Bids.FirstOrDefault().Value.Price;
+                sellPriceA = mOrderBookA.Asks.FirstOrDefault().Value.Price;
             }
             lock (mOrderBookB)
             {
