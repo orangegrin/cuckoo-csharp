@@ -333,6 +333,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (isAddNew)
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
+                if (ex.ToString().Contains("overloaded"))
+                {
+                    await Task.Delay(5000);
+                }
             }
         }
         private async Task CancelCurOrderA()
@@ -402,6 +406,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (newOrder)
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
+                if (ex.ToString().Contains("overloaded"))
+                {
+                    await Task.Delay(5000);
+                }
             }
         }
         /// <summary>
