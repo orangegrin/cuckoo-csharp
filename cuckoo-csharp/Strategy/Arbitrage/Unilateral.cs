@@ -313,6 +313,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (isAddNew)
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
+                if (ex.ToString().Contains("overloaded"))
+                {
+                    await Task.Delay(5000);
+                }
             }
         }
 
@@ -385,6 +389,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (newOrder)
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
+                if (ex.ToString().Contains("overloaded"))
+                {
+                    await Task.Delay(5000);
+                }
             }
         }
         /// <summary>
