@@ -25,8 +25,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mData = config;
                 config.SaveToDB(mDBKey);
             }
-            mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mData.ExchangeNameA);
-            mExchangeBAPI = ExchangeAPI.GetExchangeAPI(mData.ExchangeNameB);
+            mExchangeAAPI = new ExchangeBitMEXAPI();
+            mExchangeBAPI = new ExchangeBitMEXAPI();
+            if (mExchangeAAPI == mExchangeBAPI) {
+                throw new Exception("Single exchanges are not supported.");
+            }
         }
 
         internal void Start()
@@ -41,6 +44,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         private void OnOrderAHandler(ExchangeOrderResult order)
         {
+            mData = Options.LoadFromDB<Options>(mDBKey);
+            Logger.Debug("Current Multiple: " + mData.Multiple);
             if (order.MarketSymbol != mData.SymbolA)
                 return;
             switch (order.Result)
@@ -67,6 +72,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     break;
                 case ExchangeAPIOrderResult.Canceled:
                     Logger.Debug("mId:" + mId + "  " + "-------------------- Order Canceled ---------------------------");
+                    Logger.Debug(order.ToExcleString());
                     break;
                 case ExchangeAPIOrderResult.FilledPartiallyAndCancelled:
                     Logger.Debug("mId:" + mId + "  " + "-------------------- Order FilledPartiallyAndCancelled ---------------------------");
@@ -136,7 +142,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             start:
             try
             {
-                var v = await mExchangeAAPI.PlaceOrdersAsync(requestA);
+                var v = await mExchangeBAPI.PlaceOrdersAsync(requestA);
             }
             catch (Exception ex)
             {
