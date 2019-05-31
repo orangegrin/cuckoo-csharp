@@ -324,6 +324,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 var v = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 mCurOrderA = v[0];
                 mOrderIds.Add(mCurOrderA.OrderId);
+                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
+                    mCurOrderA = null;
                 Logger.Debug("mId:" + mId + "requestA：  " + requestA.ToString());
                 Logger.Debug("mId:" + mId + "Add mCurrentLimitOrder：  " + mCurOrderA.ToExcleString() + "CurAmount:" + mData.CurAmount);
             }
@@ -334,9 +336,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
                 if (ex.ToString().Contains("overloaded"))
-                {
                     await Task.Delay(5000);
-                }
+                if (ex.ToString().Contains("RateLimitError"))
+                    await Task.Delay(30000);
             }
         }
         private async Task CancelCurOrderA()
@@ -397,6 +399,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 var orderResults = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 mCurOrderA = orderResults[0];
                 mOrderIds.Add(mCurOrderA.OrderId);
+                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
+                    mCurOrderA = null;
                 Logger.Debug("mId:" + mId + "requestA：  " + requestA.ToString());
                 Logger.Debug("mId:" + mId + "Add mCurrentLimitOrder：  " + mCurOrderA.ToExcleString());
             }
@@ -407,9 +411,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
                 if (ex.ToString().Contains("overloaded"))
-                {
                     await Task.Delay(5000);
-                }
+                if (ex.ToString().Contains("RateLimitError"))
+                    await Task.Delay(30000);
             }
         }
         /// <summary>
