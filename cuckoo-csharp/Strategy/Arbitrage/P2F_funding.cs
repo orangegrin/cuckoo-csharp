@@ -378,10 +378,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 var v = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 mCurOrderA = v[0];
                 mOrderIds.Add(mCurOrderA.OrderId);
-                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
-                    mCurOrderA = null;
                 Logger.Debug("mId:" + mId + "requestA：  " + requestA.ToString());
                 Logger.Debug("mId:" + mId + "Add mCurrentLimitOrder：  " + mCurOrderA.ToExcleString() + "CurAmount:" + mData.CurAmount);
+                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
+                    mCurOrderA = null;
             }
             catch (Exception ex)
             {
@@ -453,10 +453,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 var orderResults = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 mCurOrderA = orderResults[0];
                 mOrderIds.Add(mCurOrderA.OrderId);
-                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
-                    mCurOrderA = null;
                 Logger.Debug("mId:" + mId + "requestA：  " + requestA.ToString());
                 Logger.Debug("mId:" + mId + "Add mCurrentLimitOrder：  " + mCurOrderA.ToExcleString());
+                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
+                    mCurOrderA = null;
             }
             catch (Exception ex)
             {
