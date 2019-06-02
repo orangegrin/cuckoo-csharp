@@ -199,19 +199,19 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (a2bDiff > mData.A2BDiff && mData.CurAmount + mData.PerTrans <= mData.InitialExchangeBAmount) //满足差价并且当前A空仓
                 {
 
-                    mRunningTask = A2BExchange(sellPriceA);
+                    mRunningTask = A2BExchange(buyPriceA);
                 }
                 else if (b2aDiff < mData.B2ADiff && -mCurAmount < mData.MaxAmount) //满足差价并且没达到最大数量
                 {
                     //如果只是修改订单
                     if (mCurOrderA != null && !mCurOrderA.IsBuy)
                     {
-                        mRunningTask = B2AExchange(buyPriceA);
+                        mRunningTask = B2AExchange(sellPriceA);
                     }
                     //表示是新创建订单
                     else //if (await SufficientBalance())
                     {
-                        mRunningTask = B2AExchange(buyPriceA);
+                        mRunningTask = B2AExchange(sellPriceA);
                     }
                     //保证金不够的时候取消挂单
 //                     else if (mCurOrderA != null)
@@ -262,7 +262,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         if (jsonResult["status"].ConvertInvariant<int>() == 1)
                         {
                             decimal avgDiff = jsonResult["data"]["value"].ConvertInvariant<decimal>();
-                            avgDiff = -Math.Round(avgDiff, 4);//强行转换
+                            avgDiff = Math.Round(avgDiff, 4);//强行转换
                             mData.A2BDiff = avgDiff + mData.ProfitRange;
                             mData.B2ADiff = avgDiff - mData.ProfitRange;
                             mData.SaveToDB(mDBKey);
@@ -345,10 +345,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 var v = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 mCurOrderA = v[0];
                 mOrderIds.Add(mCurOrderA.OrderId);
-                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
-                    mCurOrderA = null;
                 Logger.Debug("mId:" + mId + "requestA：  " + requestA.ToString());
                 Logger.Debug("mId:" + mId + "Add mCurrentLimitOrder：  " + mCurOrderA.ToExcleString() + "CurAmount:" + mData.CurAmount);
+                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
+                    mCurOrderA = null;
             }
             catch (Exception ex)
             {
@@ -356,6 +356,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (isAddNew || ex.ToString().Contains("Invalid orderID"))
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
+                if (ex.ToString().Contains("overloaded"))
+                {
+                    await Task.Delay(5000);
+                }
             }
         }
         private async Task CancelCurOrderA()
@@ -416,10 +420,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 var orderResults = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 mCurOrderA = orderResults[0];
                 mOrderIds.Add(mCurOrderA.OrderId);
-                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
-                    mCurOrderA = null;
                 Logger.Debug("mId:" + mId + "requestA：  " + requestA.ToString());
                 Logger.Debug("mId:" + mId + "Add mCurrentLimitOrder：  " + mCurOrderA.ToExcleString());
+                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
+                    mCurOrderA = null;
             }
             catch (Exception ex)
             {
@@ -427,6 +431,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (newOrder || ex.ToString().Contains("Invalid orderID"))
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
+                if (ex.ToString().Contains("overloaded"))
+                {
+                    await Task.Delay(5000);
+                }
             }
         }
         /// <summary>
