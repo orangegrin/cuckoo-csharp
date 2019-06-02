@@ -15,7 +15,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
     /// 期对期
     /// 要求 A价<B价，并且A限价开仓
     /// </summary>
-    public class P2F_unilateral
+    public class P2F_funding
     {
         private IExchangeAPI mExchangeAAPI;
         private IExchangeAPI mExchangeBAPI;
@@ -60,7 +60,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private Task mRunningTask;
         private bool mExchangePending = false;
         private bool mOnConnect = false;
-        public P2F_unilateral(Options config, int id = -1)
+        public P2F_funding(Options config, int id = -1)
         {
             mId = id;
             mDBKey = string.Format("INTERTEMPORAL:CONFIG:{0}:{1}:{2}:{3}:{4}", config.ExchangeNameA, config.ExchangeNameB, config.SymbolA, config.SymbolB, id);
@@ -74,6 +74,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mData.ExchangeNameA);
             mExchangeBAPI = mExchangeAAPI;
             UpdateAvgDiffAsync();
+            UpdateFundingRate();
         }
         public void Start()
         {
@@ -193,25 +194,27 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 a2bDiff = (sellPriceB / buyPriceA - 1);
                 b2aDiff = (buyPriceB / sellPriceA - 1);
                 var avgDiff = (a2bDiff + b2aDiff) / 2;
-                PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, -a2bDiff, -b2aDiff, -mData.A2BDiff, -mData.B2ADiff, buyAmount);
+                PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, -a2bDiff, -b2aDiff, -mData.A2BDiff, -mData.B2ADiff, buyAmount, mData.FundingRate);
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff > mData.A2BDiff && mData.CurAmount + mData.PerTrans <= mData.InitialExchangeBAmount) //满足差价并且当前A空仓
                 {
-
-                    mRunningTask = A2BExchange(sellPriceA);
+                    if(mData.FundingRate<0)//负数多仓
+                        mRunningTask = A2BExchange(buyPriceA);
                 }
                 else if (b2aDiff < mData.B2ADiff && -mCurAmount < mData.MaxAmount) //满足差价并且没达到最大数量
                 {
                     //如果只是修改订单
                     if (mCurOrderA != null && !mCurOrderA.IsBuy)
                     {
-                        mRunningTask = B2AExchange(buyPriceA);
+                        if (mData.FundingRate > 0)//佣金正空仓
+                            mRunningTask = B2AExchange(sellPriceA);
                     }
                     //表示是新创建订单
                     else //if (await SufficientBalance())
                     {
-                        mRunningTask = B2AExchange(buyPriceA);
+                        if (mData.FundingRate > 0)//佣金正空仓
+                            mRunningTask = B2AExchange(sellPriceA);
                     }
                     //保证金不够的时候取消挂单
 //                     else if (mCurOrderA != null)
@@ -242,6 +245,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     catch (System.Exception ex)
                     {
                         Logger.Error("mId:" + mId + ex);
+                        
                     }
                 }
             }
@@ -277,14 +281,43 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 await Task.Delay(600 * 1000);
             }
         }
-        private void PrintInfo(decimal buyPriceA, decimal sellPriceA, decimal sellPriceB, decimal buyPriceB, decimal a2bDiff, decimal b2aDiff, decimal A2BDiff, decimal B2ADiff, decimal buyAmount)
+        /// <summary>
+        /// 刷新 过夜费
+        /// </summary>
+        public async Task UpdateFundingRate()
+        {
+            string url = $"{"http://150.109.52.225:8888/fundingRate?symbol="}{"XBT"}";
+            while (true)
+            {
+                if (mData.AutoCalcProfitRange)
+                {
+                    try
+                    {
+                        JObject jsonResult = await Utils.GetHttpReponseAsync(url);
+                        if (jsonResult["status"].ConvertInvariant<int>() == 1)
+                        {
+                            decimal fundingRate = jsonResult["data"]["value"].ConvertInvariant<decimal>();
+                            mData.FundingRate = fundingRate;
+                            mData.SaveToDB(mDBKey);
+                            Logger.Debug(" UpdateFundingRate fundingRate:" + fundingRate);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Debug(" UpdateFundingRate fundingRate:" + ex.ToString());
+                    }
+                }
+                await Task.Delay(600 * 1000);
+            }
+        }
+        private void PrintInfo(decimal buyPriceA, decimal sellPriceA, decimal sellPriceB, decimal buyPriceB, decimal a2bDiff, decimal b2aDiff, decimal A2BDiff, decimal B2ADiff, decimal buyAmount,decimal fundingRate)
         {
             Logger.Debug("================================================");
             Logger.Debug("BA价差当前百分比1：" + a2bDiff.ToString()+ "BA价差百分比1：" + A2BDiff.ToString());
             Logger.Debug("BA价差当前百分比2：" + b2aDiff.ToString()+ "BA价差百分比2：" + B2ADiff.ToString());
             Logger.Debug("Bid A {0} Bid B {1}", buyPriceA, sellPriceB);
             Logger.Debug("Ask B {0} Ask A {1}", buyPriceB, sellPriceA);
-            Logger.Debug("mCurAmount {0} buyAmount {1} ", mCurAmount, buyAmount);
+            Logger.Debug("mCurAmount {0} buyAmount {1} fundingRate {2}", mCurAmount, buyAmount, fundingRate);
         }
         /// <summary>
         /// 当curAmount 小于 0的时候就是平仓
@@ -356,6 +389,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (isAddNew || ex.ToString().Contains("Invalid orderID"))
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
+                if (ex.ToString().Contains("overloaded"))
+                    await Task.Delay(5000);
+                if (ex.ToString().Contains("RateLimitError"))
+                    await Task.Delay(30000);
             }
         }
         private async Task CancelCurOrderA()
@@ -427,6 +464,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (newOrder || ex.ToString().Contains("Invalid orderID"))
                     mCurOrderA = null;
                 Logger.Error("mId:" + mId + ex);
+                if (ex.ToString().Contains("overloaded"))
+                    await Task.Delay(5000);
+                if (ex.ToString().Contains("RateLimitError"))
+                    await Task.Delay(30000);
             }
         }
         /// <summary>
@@ -592,6 +633,31 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private async void ReverseOpenMarketOrder(ExchangeOrderResult order)//, bool completeOnce = false, List<ExchangeOrderResult> openedBuyOrderListA = null, List<ExchangeOrderResult> openedSellOrderListA = null)
         {
             var transAmount = GetParTrans(order);
+            if (order.AveragePrice * transAmount < mData.MinOrderPrice)//如果小于最小成交价格，1补全到最小成交价格的数量x，A交易所买x，B交易所卖x+transAmount
+            {
+                for (int i = 1; ; i++)//防止bitmex overload一直提交到成功
+                {
+                    try
+                    {
+                        transAmount = await SetMinOrder(order, transAmount);
+                        break;
+                    }
+                    catch (System.Exception ex)
+                    {
+                        if (ex.ToString().Contains("overloaded"))
+                        {
+                            await Task.Delay(1000);
+                        }
+                        else
+                        {
+                            Logger.Error("最小成交价抛错" + ex.ToString());
+                            throw ex;
+                            break; 
+                        }
+                        
+                    }
+                }
+            }
             //只有在成交后才修改订单数量
             mCurAmount += order.IsBuy ? transAmount : -transAmount;
             Logger.Debug("mId:" + mId + "CurAmount:" + mData.CurAmount);
@@ -607,7 +673,32 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug(req.ToStringInvariant());
             var ticks = DateTime.Now.Ticks;
 
-            Logger.Debug("mId:" + mId + "--------------------------------ReverseOpenMarketOrder Result-------------------------------------");
+            
+            for (int i = 1; ; i++)//当B交易所也是bitmex， 防止bitmex overload一直提交到成功
+            {
+                try
+                {
+                    var res = await mExchangeBAPI.PlaceOrderAsync(req);
+                    Logger.Debug("mId:" + mId + "--------------------------------ReverseOpenMarketOrder Result-------------------------------------");
+                    Logger.Debug(res.ToString());
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden"))
+                    {
+                        Logger.Error("mId:{0} {1}", mId, req.ToStringInvariant());
+                        Logger.Error("mId:" + mId + ex);
+                        await Task.Delay(2000);
+                    }
+                    else
+                    {
+                        Logger.Error("ReverseOpenMarketOrder抛错" + ex.ToString());
+                        throw ex;
+                        break;
+                    }
+                }
+            }
             await Task.Delay(mData.IntervalMillisecond);
         }
         /// <summary>
@@ -677,6 +768,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// 平仓差
             /// </summary>
             public decimal B2ADiff;
+            /// <summary>
+            /// 8小时开仓fee率
+            /// </summary>
+            public decimal FundingRate;
             public decimal PerTrans;
             /// <summary>
             /// 最小价格单位

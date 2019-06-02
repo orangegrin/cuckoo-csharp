@@ -38,7 +38,7 @@ namespace cuckoo_csharp
 
         private static void OnParsedHandler(Options op)
         {
-            P2F_unilateral.Options config = null;
+            P2F_funding.Options config = null;
             if (File.Exists(op.ConfigPath))
             {
                 string text;
@@ -48,7 +48,7 @@ namespace cuckoo_csharp
                 }
                 if (!string.IsNullOrEmpty(text))
                 {
-                    config = JsonConvert.DeserializeObject<P2F_unilateral.Options>(text);
+                    config = JsonConvert.DeserializeObject<P2F_funding.Options>(text);
                 }
                 else
                 {
@@ -57,11 +57,11 @@ namespace cuckoo_csharp
             }
             if (config != null)
             {
-                P2F_unilateral it = new P2F_unilateral(config, op.ID);
+                P2F_funding it = new P2F_funding(config, op.ID);
                 it.Start();
                 while (true)
                 {
-                    Console.ReadLine();
+                    Thread.Sleep(1 * 1000);
                 }
             }
         }
