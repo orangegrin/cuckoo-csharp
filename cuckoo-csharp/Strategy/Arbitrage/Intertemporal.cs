@@ -56,6 +56,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private string mDBKey;
         private Task mRunningTask;
         private bool mExchangePending = false;
+        private bool mOrderwsConnect = false;
+        private bool mOrderBookAwsConnect = false;
+        private bool mOrderBookBwsConnect = false;
         public Intertemporal(Options config, int id = -1)
         {
             mId = id;
@@ -76,11 +79,44 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             AppDomain.CurrentDomain.ProcessExit += new EventHandler(OnProcessExit);
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
             mExchangeBAPI.LoadAPIKeys(mData.EncryptedFileB);
-            mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            IWebSocket orderws = mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            orderws.Connected += async (socket) => { mOrderwsConnect = true; Logger.Debug("GetOrderDetailsWebSocket 连接"); };
+            orderws.Disconnected += async (socket) =>
+            {
+                mOrderwsConnect = false;
+                WSDisConnectAsync("GetOrderDetailsWebSocket ");
+            };
+
             //避免没有订阅成功就开始订单
             Thread.Sleep(3 * 1000);
-            mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 20, mData.SymbolA);
-            mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 20, mData.SymbolB);
+            IWebSocket orderBookAws = mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 20, mData.SymbolA);
+            orderBookAws.Connected += async (socket) => { mOrderBookAwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket A 连接"); };
+            orderBookAws.Disconnected += async (socket) =>
+            {
+                mOrderBookAwsConnect = false;
+                WSDisConnectAsync("GetFullOrderBookWebSocket A ");
+            };
+            IWebSocket orderBookBws = mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 20, mData.SymbolB);
+            orderBookBws.Connected += async (socket) => { mOrderBookBwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket B 连接"); };
+            orderBookBws.Disconnected += async (socket) =>
+            {
+                mOrderBookBwsConnect = false;
+                WSDisConnectAsync("GetFullOrderBookWebSocket B ");
+            };
+        }
+        private bool OnConnect()
+        {
+            return mOrderwsConnect & mOrderBookAwsConnect & mOrderBookBwsConnect;
+        }
+        private async Task WSDisConnectAsync(string tag)
+        {
+            if (mCurOrderA != null)
+            {
+                CancelCurOrderA();
+            }
+            await Task.Delay(10 * 60 * 1000);
+            if (OnConnect() == false)
+                throw new Exception(tag + " 连接断开");
         }
         private void OnProcessExit(object sender, EventArgs e)
         {
@@ -134,6 +170,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         private bool Precondition()
         {
+            if (!OnConnect())
+                return false;
             if (mOrderBookA == null || mOrderBookB == null)
                 return false;
             if (mRunningTask != null)
