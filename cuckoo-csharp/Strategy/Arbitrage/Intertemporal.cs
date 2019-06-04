@@ -16,6 +16,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
     {
         private IExchangeAPI mExchangeAAPI;
         private IExchangeAPI mExchangeBAPI;
+        private IWebSocket mOrderws;
+        private IWebSocket mOrderBookAws;
+        private IWebSocket mOrderBookBws;
+
+        private int mOrderBookAwsCounter=0;
+        private int mOrderBookBwsCounter=0;
         private int mId;
         /// <summary>
         /// A交易所的的订单薄
@@ -79,34 +85,72 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             AppDomain.CurrentDomain.ProcessExit += new EventHandler(OnProcessExit);
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
             mExchangeBAPI.LoadAPIKeys(mData.EncryptedFileB);
-            IWebSocket orderws = mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
-            orderws.Connected += async (socket) => { mOrderwsConnect = true; Logger.Debug("GetOrderDetailsWebSocket 连接"); };
-            orderws.Disconnected += async (socket) =>
+            SubWebSocket();
+            WebSocketProtect();
+        }
+        
+        private void SubWebSocket()
+        {
+            mOrderws = mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            mOrderws.Connected += async (socket) => { mOrderwsConnect = true; Logger.Debug("GetOrderDetailsWebSocket 连接"); };
+            mOrderws.Disconnected += async (socket) =>
             {
                 mOrderwsConnect = false;
-                WSDisConnectAsync("GetOrderDetailsWebSocket ");
+                WSDisConnectAsync("GetOrderDetailsWebSocket 连接断开");
             };
-
             //避免没有订阅成功就开始订单
             Thread.Sleep(3 * 1000);
-            IWebSocket orderBookAws = mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 20, mData.SymbolA);
-            orderBookAws.Connected += async (socket) => { mOrderBookAwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket A 连接"); };
-            orderBookAws.Disconnected += async (socket) =>
+            mOrderBookAws = mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 20, mData.SymbolA);
+            mOrderBookAws.Connected += async (socket) => { mOrderBookAwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket A 连接"); };
+            mOrderBookAws.Disconnected += async (socket) =>
             {
                 mOrderBookAwsConnect = false;
-                WSDisConnectAsync("GetFullOrderBookWebSocket A ");
+                WSDisConnectAsync("GetFullOrderBookWebSocket A 连接断开");
             };
-            IWebSocket orderBookBws = mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 20, mData.SymbolB);
-            orderBookBws.Connected += async (socket) => { mOrderBookBwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket B 连接"); };
-            orderBookBws.Disconnected += async (socket) =>
+            mOrderBookBws = mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 20, mData.SymbolB);
+            mOrderBookBws.Connected += async (socket) => { mOrderBookBwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket B 连接"); };
+            mOrderBookBws.Disconnected += async (socket) =>
             {
                 mOrderBookBwsConnect = false;
-                WSDisConnectAsync("GetFullOrderBookWebSocket B ");
+                WSDisConnectAsync("GetFullOrderBookWebSocket B 连接断开");
             };
+
+        }
+        /// <summary>
+        /// WS 守护线程
+        /// </summary>
+        private async void WebSocketProtect()
+        {
+            while (true)
+            {
+                int delayTime = 60*10;//保证次数至少要5s一次，否则重启
+                mOrderBookAwsCounter = 0;
+                mOrderBookBwsCounter = 0;
+                await Task.Delay( 1000 * delayTime);
+                if(mOrderBookAwsCounter< delayTime/5 || mOrderBookBwsCounter< delayTime/5)
+                {
+                    Logger.Error(new Exception("ws 没有收到推送消息"));
+                    if (mCurOrderA != null)
+                    {
+                        CancelCurOrderA();
+                    }
+                    mOrderwsConnect = false;
+                    mOrderBookAwsConnect = false;
+                    mOrderBookBwsConnect = false;
+                    await Task.Delay(5 * 1000);
+                    Logger.Debug("销毁ws");
+                    mOrderws.Dispose();
+                    mOrderBookAws.Dispose();
+                    mOrderBookBws.Dispose();
+                    Logger.Debug("开始重新连接ws");
+                    SubWebSocket();
+                    await Task.Delay(5 * 1000);
+                }
+            }
         }
         private bool OnConnect()
         {
-            return mOrderwsConnect & mOrderBookAwsConnect & mOrderBookBwsConnect;
+            return mOrderwsConnect & mOrderBookAwsConnect & mOrderBookBwsConnect ;
         }
         private async Task WSDisConnectAsync(string tag)
         {
@@ -115,9 +159,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 CancelCurOrderA();
             }
             await Task.Delay(10 * 60 * 1000);
-            if (OnConnect() == false)
-                throw new Exception(tag + " 连接断开");
+            if(OnConnect()==false)
+                throw new Exception(tag+" 连接断开");
         }
+
         private void OnProcessExit(object sender, EventArgs e)
         {
             Logger.Debug("------------------------ OnProcessExit ---------------------------");
@@ -148,11 +193,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         private void OnOrderbookAHandler(ExchangeOrderBook order)
         {
+            mOrderBookAwsCounter++;
             mOrderBookA = order;
             OnOrderBookHandler();
         }
         private void OnOrderbookBHandler(ExchangeOrderBook order)
         {
+            mOrderBookBwsCounter++;
             mOrderBookB = order;
             OnOrderBookHandler();
         }
@@ -209,14 +256,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 a2bDiff = (sellPriceB / buyPriceA - 1);
                 b2aDiff = (buyPriceB / sellPriceA - 1);
                 var avgDiff = (a2bDiff + b2aDiff) / 2;
-                PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, buyAmount);
-
+                PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff,mData.A2BDiff,mData.B2ADiff, buyAmount);
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff > mData.A2BDiff && mData.CurAmount + mData.PerTrans <= mData.InitialExchangeBAmount) //满足差价并且当前A空仓
                 {
-
-                    mRunningTask = A2BExchange(sellPriceA);
+                        mRunningTask = A2BExchange(sellPriceA);
                 }
                 else if (b2aDiff < mData.B2ADiff && -mCurAmount < mData.MaxAmount) //满足差价并且没达到最大数量
                 {
@@ -228,7 +273,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     //表示是新创建订单
                     else if (await SufficientBalance())
                     {
-                        mRunningTask = B2AExchange(buyPriceA);
+                            mRunningTask = B2AExchange(buyPriceA);
                     }
                     //保证金不够的时候取消挂单
                     else if (mCurOrderA != null)
@@ -294,11 +339,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 await Task.Delay(600 * 1000);
             }
         }
-        private void PrintInfo(decimal buyPriceA, decimal sellPriceA, decimal sellPriceB, decimal buyPriceB, decimal a2bDiff, decimal b2aDiff, decimal buyAmount)
+        private void PrintInfo(decimal buyPriceA, decimal sellPriceA, decimal sellPriceB, decimal buyPriceB, decimal a2bDiff, decimal b2aDiff, decimal A2BDiff, decimal B2ADiff, decimal buyAmount)
         {
             Logger.Debug("================================================");
-            Logger.Debug("BA价差百分比1：" + a2bDiff.ToString());
-            Logger.Debug("BA价差百分比2：" + b2aDiff.ToString());
+            Logger.Debug("BA价差当前百分比1:"+ a2bDiff.ToString()+ "BA价差百分比1:"+ A2BDiff.ToString());
+            Logger.Debug("BA价差当前百分比2:"+ b2aDiff.ToString()+ "BA价差百分比2:"+ B2ADiff.ToString());
             Logger.Debug("Bid A {0} Bid B {1}", buyPriceA, sellPriceB);
             Logger.Debug("Ask B {0} Ask A {1}", buyPriceB, sellPriceA);
             Logger.Debug("mCurAmount {0} buyAmount {1} ", mCurAmount, buyAmount);
@@ -362,10 +407,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 var v = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 mCurOrderA = v[0];
                 mOrderIds.Add(mCurOrderA.OrderId);
-                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
-                    mCurOrderA = null;
                 Logger.Debug("mId:" + mId + "requestA：  " + requestA.ToString());
                 Logger.Debug("mId:" + mId + "Add mCurrentLimitOrder：  " + mCurOrderA.ToExcleString() + "CurAmount:" + mData.CurAmount);
+                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
+                    mCurOrderA = null;
             }
             catch (Exception ex)
             {
@@ -437,10 +482,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 var orderResults = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 mCurOrderA = orderResults[0];
                 mOrderIds.Add(mCurOrderA.OrderId);
-                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
-                    mCurOrderA = null;
                 Logger.Debug("mId:" + mId + "requestA：  " + requestA.ToString());
                 Logger.Debug("mId:" + mId + "Add mCurrentLimitOrder：  " + mCurOrderA.ToExcleString());
+                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
+                    mCurOrderA = null;
             }
             catch (Exception ex)
             {
@@ -625,7 +670,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                     catch (System.Exception ex)
                     {
-                        await Task.Delay(1000);
+                        await Task.Delay(2000);
                     }
                 }
             }
@@ -686,7 +731,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             return transAmount;
         }
-
         /// <summary>
         /// 判断是否是我的ID
         /// </summary>
@@ -782,7 +826,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// <summary>
             /// redis连接数据
             /// </summary>
-            public string RedisConfig = "127.0.0.1";
+            public string RedisConfig = "localhost";
 
             public void SaveToDB(string DBKey)
             {
