@@ -127,6 +127,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mOrderBookAwsCounter = 0;
                 mOrderBookBwsCounter = 0;
                 await Task.Delay( 1000 * delayTime);
+                Logger.Debug("mOrderBookAwsCounter " + mOrderBookAwsCounter + "mOrderBookBwsCounter " + mOrderBookBwsCounter);
                 if(mOrderBookAwsCounter< delayTime/5 || mOrderBookBwsCounter< delayTime/5)
                 {
                     Logger.Error(new Exception("ws 没有收到推送消息"));
