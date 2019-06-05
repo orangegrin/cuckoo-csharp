@@ -19,6 +19,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
     {
         private IExchangeAPI mExchangeAAPI;
         private IExchangeAPI mExchangeBAPI;
+        private IWebSocket mOrderws;
+        private IWebSocket mOrderBookAws;
+        private IWebSocket mOrderBookBws;
+
+        private int mOrderBookAwsCounter=0;
+        private int mOrderBookBwsCounter=0;
         private int mId;
         /// <summary>
         /// A交易所的的订单薄
@@ -59,7 +65,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private string mDBKey;
         private Task mRunningTask;
         private bool mExchangePending = false;
-        private bool mOnConnect = false;
+        private bool mOrderwsConnect = false;
+        private bool mOrderBookAwsConnect = false;
+        private bool mOrderBookBwsConnect = false;
         public Perpetual2Futures(Options config, int id = -1)
         {
             mId = id;
@@ -79,19 +87,82 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             AppDomain.CurrentDomain.ProcessExit += new EventHandler(OnProcessExit);
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
-            IWebSocket ws = mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
-            ws.Connected += async (socket) => { mOnConnect = true;  };
-            ws.Disconnected += async (socket) => 
+            SubWebSocket();
+            WebSocketProtect();
+        }
+        
+        private void SubWebSocket()
+        {
+            mOrderws = mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            mOrderws.Connected += async (socket) => { mOrderwsConnect = true; Logger.Debug("GetOrderDetailsWebSocket 连接"); };
+            mOrderws.Disconnected += async (socket) =>
             {
-                mOnConnect = false;
-                if (mCurOrderA != null)
-                {
-                    CancelCurOrderA();
-                }
+                mOrderwsConnect = false;
+                WSDisConnectAsync("GetOrderDetailsWebSocket 连接断开");
             };
             //避免没有订阅成功就开始订单
             Thread.Sleep(3 * 1000);
-            mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookHandler, 20, mData.SymbolA, mData.SymbolB);
+            mOrderBookAws = mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 20, mData.SymbolA);
+            mOrderBookAws.Connected += async (socket) => { mOrderBookAwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket A 连接"); };
+            mOrderBookAws.Disconnected += async (socket) =>
+            {
+                mOrderBookAwsConnect = false;
+                WSDisConnectAsync("GetFullOrderBookWebSocket A 连接断开");
+            };
+            mOrderBookBws = mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 20, mData.SymbolB);
+            mOrderBookBws.Connected += async (socket) => { mOrderBookBwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket B 连接"); };
+            mOrderBookBws.Disconnected += async (socket) =>
+            {
+                mOrderBookBwsConnect = false;
+                WSDisConnectAsync("GetFullOrderBookWebSocket B 连接断开");
+            };
+
+        }
+        /// <summary>
+        /// WS 守护线程
+        /// </summary>
+        private async void WebSocketProtect()
+        {
+            while (true)
+            {
+                int delayTime = 60*10;//保证次数至少要5s一次，否则重启
+                mOrderBookAwsCounter = 0;
+                mOrderBookBwsCounter = 0;
+                await Task.Delay( 1000 * delayTime);
+                if(mOrderBookAwsCounter< delayTime/5 || mOrderBookBwsCounter< delayTime/5)
+                {
+                    Logger.Error(new Exception("ws 没有收到推送消息"));
+                    if (mCurOrderA != null)
+                    {
+                        CancelCurOrderA();
+                    }
+                    mOrderwsConnect = false;
+                    mOrderBookAwsConnect = false;
+                    mOrderBookBwsConnect = false;
+                    await Task.Delay(5 * 1000);
+                    Logger.Debug("销毁ws");
+                    mOrderws.Dispose();
+                    mOrderBookAws.Dispose();
+                    mOrderBookBws.Dispose();
+                    Logger.Debug("开始重新连接ws");
+                    SubWebSocket();
+                    await Task.Delay(5 * 1000);
+                }
+            }
+        }
+        private bool OnConnect()
+        {
+            return mOrderwsConnect & mOrderBookAwsConnect & mOrderBookBwsConnect ;
+        }
+        private async Task WSDisConnectAsync(string tag)
+        {
+            if (mCurOrderA != null)
+            {
+                CancelCurOrderA();
+            }
+            await Task.Delay(10 * 60 * 1000);
+            if(OnConnect()==false)
+                throw new Exception(tag+" 连接断开");
         }
         private void OnProcessExit(object sender, EventArgs e)
         {
@@ -132,11 +203,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         private void OnOrderbookAHandler(ExchangeOrderBook order)
         {
+            mOrderBookAwsCounter++;
             mOrderBookA = order;
             OnOrderBookHandler();
         }
         private void OnOrderbookBHandler(ExchangeOrderBook order)
         {
+            mOrderBookBwsCounter++;
             mOrderBookB = order;
             OnOrderBookHandler();
         }
@@ -154,7 +227,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         private bool Precondition()
         {
-            if (mOnConnect == false)
+            if (!OnConnect())
                 return false;
             if (mOrderBookA == null || mOrderBookB == null)
                 return false;
@@ -358,9 +431,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mCurOrderA = null;
                 Logger.Error(Utils.Str2Json("mId" , mId , "ex",ex));
                 if (ex.ToString().Contains("overloaded"))
-                {
                     await Task.Delay(5000);
-                }
+                if (ex.ToString().Contains("RateLimitError"))
+                    await Task.Delay(30000);
             }
         }
         private async Task CancelCurOrderA()
@@ -433,9 +506,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mCurOrderA = null;
                 Logger.Error(Utils.Str2Json("mId" , mId ,"ex", ex));
                 if (ex.ToString().Contains("overloaded"))
-                {
                     await Task.Delay(5000);
-                }
+                if (ex.ToString().Contains("RateLimitError"))
+                    await Task.Delay(30000);
             }
         }
         /// <summary>
@@ -614,7 +687,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         if (ex.ToString().Contains("overloaded"))
                         {
-                            await Task.Delay(1000);
+                            await Task.Delay(2000);
                         }
                         else
                         {
