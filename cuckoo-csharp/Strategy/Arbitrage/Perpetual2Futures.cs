@@ -25,6 +25,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         private int mOrderBookAwsCounter=0;
         private int mOrderBookBwsCounter=0;
+        private int mOrderDetailsAwsCounter = 0;
         private int mId;
         /// <summary>
         /// A交易所的的订单薄
@@ -116,7 +117,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mOrderBookBwsConnect = false;
                 WSDisConnectAsync("GetFullOrderBookWebSocket B 连接断开");
             };
-
         }
         /// <summary>
         /// WS 守护线程
@@ -125,12 +125,22 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             while (true)
             {
-                int delayTime = 60*10;//保证次数至少要5s一次，否则重启
+                if (!OnConnect())
+                {
+                    await Task.Delay(5 * 1000);
+                    continue;
+                }
+                int delayTime = 60*5;//保证次数至少要5s一次，否则重启
                 mOrderBookAwsCounter = 0;
                 mOrderBookBwsCounter = 0;
+                mOrderDetailsAwsCounter = 0;
                 await Task.Delay( 1000 * delayTime);
-                Logger.Debug("mOrderBookAwsCounter " + mOrderBookAwsCounter + "mOrderBookBwsCounter " + mOrderBookBwsCounter);
-                if(mOrderBookAwsCounter< delayTime/5 || mOrderBookBwsCounter< delayTime/5)
+                Logger.Debug(Utils.Str2Json("mOrderBookAwsCounter" , mOrderBookAwsCounter , "mOrderBookBwsCounter" , mOrderBookBwsCounter, "mOrderDetailsAwsCounter" ,mOrderDetailsAwsCounter));
+                bool detailConnect = true;
+                if(mOrderDetailsAwsCounter==0)
+                    detailConnect = await IsConnectAsync();
+                Logger.Debug(Utils.Str2Json("mOrderDetailsAwsCounter",mOrderDetailsAwsCounter));
+                if (mOrderBookAwsCounter< delayTime/5 || mOrderBookBwsCounter< delayTime/5 || (!detailConnect))
                 {
                     Logger.Error(new Exception("ws 没有收到推送消息"));
                     if (mCurOrderA != null)
@@ -150,6 +160,50 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(5 * 1000);
                 }
             }
+        }
+        /// <summary>
+        /// 测试 GetOrderDetailsWebSocket 是否有推送消息
+        /// 发送一个多单限价，用卖一+100作为价格（一定被取消）。 等待10s如果GetOrderDetailsWebSocket没有返回消息说明已经断开
+        private async Task<bool> IsConnectAsync()
+        {
+            decimal buyPrice;
+            lock(mOrderBookA)
+            {
+                buyPrice = mOrderBookA.Asks.FirstOrDefault().Value.Price+100;
+            }
+            ExchangeOrderRequest request = new ExchangeOrderRequest()
+            {
+                ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
+            };
+            request.Amount = mData.PerTrans;
+            request.MarketSymbol = mData.SymbolA;
+            request.IsBuy = true;
+            request.OrderType = OrderType.Limit;
+            request.Price = NormalizationMinUnit(buyPrice);
+            for (int i = 1; ; i++)//防止bitmex overload一直提交到成功
+            {
+                try
+                {
+                    var orderResults = await mExchangeAAPI.PlaceOrdersAsync(request);
+                    break;
+                }
+                catch (System.Exception ex)
+                {
+                    if (ex.ToString().Contains("overloaded"))
+                    {
+                        await Task.Delay(2000);
+                    }
+                    else
+                    {
+                        Logger.Error(Utils.Str2Json("IsConnectAsync抛错", ex.ToString()));
+                        throw ex;
+                        break;
+                    }
+
+                }
+            }
+            await Task.Delay(10 * 1000);
+            return mOrderDetailsAwsCounter > 0;
         }
         private bool OnConnect()
         {
@@ -343,13 +397,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 await Task.Delay(600 * 1000);
             }
         }
-        private void PrintInfo(decimal buyPriceA, decimal sellPriceA, decimal sellPriceB, decimal buyPriceB, decimal a2bDiff, decimal b2aDiff, decimal A2BDiff, decimal B2ADiff, decimal buyAmount)
+        private void PrintInfo(decimal bidA, decimal askA, decimal bidB, decimal askB, decimal a2bDiff, decimal b2aDiff, decimal A2BDiff, decimal B2ADiff, decimal buyAmount)
         {
             Logger.Debug("================================================");
-            Logger.Debug(Utils.Str2Json("BA价差当前百分比上限", a2bDiff.ToString(), "BA价差百分比上限", A2BDiff.ToString() )) ;
-            Logger.Debug(Utils.Str2Json("BA价差当前百分比下限" , b2aDiff.ToString(), "BA价差百分比下限" , B2ADiff.ToString()));
-            Logger.Debug(Utils.Str2Json("Bid A", buyPriceA, " Bid B",  sellPriceB));
-            Logger.Debug(Utils.Str2Json("Ask B", buyPriceB, " Ask A", sellPriceA));
+            Logger.Debug(Utils.Str2Json("BA价差当前百分比↑", a2bDiff.ToString(), "BA价差百分比↑", A2BDiff.ToString() )) ;
+            Logger.Debug(Utils.Str2Json("BA价差当前百分比↓" , b2aDiff.ToString(), "BA价差百分比↓" , B2ADiff.ToString()));
+            Logger.Debug(Utils.Str2Json("Bid A", bidA, " Bid B", bidB));
+            Logger.Debug(Utils.Str2Json("Ask A", askA, " Ask B", askB));
             Logger.Debug(Utils.Str2Json("mCurAmount", mCurAmount, " buyAmount",  buyAmount));
         }
         /// <summary>
@@ -589,6 +643,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <param name="order"></param>
         private void OnOrderAHandler(ExchangeOrderResult order)
         {
+            mOrderDetailsAwsCounter++;
             Logger.Debug("-------------------- OnOrderAHandler ---------------------------");
             if (order.MarketSymbol != mData.SymbolA)
                 return;

@@ -152,7 +152,7 @@ namespace cuckoo_csharp.Tools
         public static string Str2Json(params object[] args)
         {
             StringBuilder jsStr = new StringBuilder("");
-            if (args.Length==0 || args.Length/2==1)
+            if (args.Length==0 || args.Length%2==1)
                 return jsStr.ToString();
             jsStr.Append("{");
             for (int i = 0;i<args.Length;i+=2)
