@@ -76,5 +76,19 @@ namespace cuckoo_csharp.Tools
             Console.WriteLine(jsonResult);
             return jsonResult;
         }
+        public static string Str2Json(params object[] args)
+        {
+            StringBuilder jsStr = new StringBuilder("");
+            if (args.Length == 0 || args.Length % 2 == 1)
+                return jsStr.ToString();
+            jsStr.Append("{");
+            for (int i = 0; i < args.Length; i += 2)
+            {
+                jsStr.Append($"\"{args[i]}\":{args[i + 1]}");
+                jsStr.Append(",");
+            }
+            jsStr.Append("}");
+            return jsStr.ToString();
+        }
     }
 }

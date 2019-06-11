@@ -9,12 +9,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 {
     class Mirrorer
     {
+        private IWebSocket mOrderws;
+        private bool mOrderDetailsAwsPong = false;
         private int mId;
         private string mDBKey;
         private Options mData;
         private IExchangeAPI mExchangeAAPI;
         private IExchangeAPI mExchangeBAPI;
-
+        private bool mOrderwsConnect = false;
         public Mirrorer(Options config, int id)
         {
             mId = id;
@@ -36,14 +38,71 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
             mExchangeBAPI.LoadAPIKeys(mData.EncryptedFileB);
-            mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            SubWebSocket();
+            WebSocketProtect();
         }
-
+        private void SubWebSocket()
+        {
+            mOrderws = mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+            mOrderws.Connected += async (socket) => { mOrderwsConnect = true; Logger.Debug("GetOrderDetailsWebSocket 连接");  };
+            mOrderws.Disconnected += async (socket) =>
+            {
+                mOrderwsConnect = false;
+                WSDisConnectAsync("GetOrderDetailsWebSocket 连接断开");
+            };
+        }
+        /// <summary>
+        /// WS 守护线程
+        /// </summary>
+        private async void WebSocketProtect()
+        {
+            while (true)
+            {
+                if (!OnConnect())
+                {
+                    await Task.Delay(10 * 1000);
+                    continue;
+                }
+                await mOrderws.SendMessageAsync("ping");
+                int delayTime = 10;//保证次数至少要5s一次，否则重启
+                mOrderDetailsAwsPong = false;
+                await Task.Delay(1000 * delayTime);
+                Logger.Debug(Utils.Str2Json("mOrderDetailsAwsPong", mOrderDetailsAwsPong));
+                bool detailConnect = mOrderDetailsAwsPong;
+                if ( (!detailConnect))
+                {
+                    Logger.Error(new Exception("ws 没有收到推送消息"));
+                    mOrderwsConnect = false;
+                    await Task.Delay(5 * 1000);
+                    Logger.Debug("销毁ws");
+                    mOrderws.Dispose();
+                    Logger.Debug("开始重新连接ws");
+                    SubWebSocket();
+                    await Task.Delay(5 * 1000);
+                }
+            }
+        }
+        private bool OnConnect()
+        {
+            return mOrderwsConnect;
+        }
+        private async Task WSDisConnectAsync(string tag)
+        {
+            await Task.Delay(5 * 60 * 1000);
+            if (OnConnect() == false)
+                throw new Exception(tag + " 连接断开");
+        }
         private Dictionary<string, string> mOrderPairs = new Dictionary<string, string>();
         private Dictionary<string, decimal> mFilledPartiallyDic = new Dictionary<string, decimal>();
 
         private void OnOrderAHandler(ExchangeOrderResult order)
         {
+            mOrderDetailsAwsPong = true ;
+            if (order.MarketSymbol.Equals("pong"))
+            {
+                Logger.Debug("pong");
+                return;
+            }
             mData = Options.LoadFromDB<Options>(mDBKey);
             Logger.Debug("Current Multiple: " + mData.Multiple);
             if (order.MarketSymbol != mData.SymbolA)
