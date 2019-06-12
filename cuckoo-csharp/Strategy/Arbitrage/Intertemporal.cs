@@ -395,13 +395,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 await Task.Delay(600 * 1000);
             }
         }
-        private void PrintInfo(decimal buyPriceA, decimal sellPriceA, decimal sellPriceB, decimal buyPriceB, decimal a2bDiff, decimal b2aDiff, decimal A2BDiff, decimal B2ADiff, decimal buyAmount)
+        private void PrintInfo(decimal bidA, decimal askA, decimal bidB, decimal askB, decimal a2bDiff, decimal b2aDiff, decimal A2BDiff, decimal B2ADiff, decimal buyAmount)
         {
             Logger.Debug("================================================");
             Logger.Debug(Utils.Str2Json("BA价差当前百分比上限", a2bDiff.ToString(), "BA价差百分比上限", A2BDiff.ToString() )) ;
             Logger.Debug(Utils.Str2Json("BA价差当前百分比下限" , b2aDiff.ToString(), "BA价差百分比下限" , B2ADiff.ToString()));
-            Logger.Debug(Utils.Str2Json("Bid A", buyPriceA, " Bid B",  sellPriceB));
-            Logger.Debug(Utils.Str2Json("Ask B", buyPriceB, " Ask A", sellPriceA));
+            Logger.Debug(Utils.Str2Json("Bid A", bidA, " Bid B", bidB));
+            Logger.Debug(Utils.Str2Json("Ask B", askB, " Ask A", askA));
             Logger.Debug(Utils.Str2Json("mCurAmount", mCurAmount, " buyAmount",  buyAmount));
         }
         /// <summary>
@@ -455,7 +455,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Debug(Utils.Str2Json(  "requestA" , requestA.ToString()));
                 Logger.Debug(Utils.Str2Json(  "Add mCurrentLimitOrder" , mCurOrderA.ToExcleString() , "CurAmount" , mData.CurAmount));
                 if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
+                {
                     mCurOrderA = null;
+                    await Task.Delay(2000);
+                }
+                await Task.Delay(100);
             }
             catch (Exception ex)
             {
@@ -530,7 +534,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Debug(Utils.Str2Json(  "requestA" , requestA.ToString()));
                 Logger.Debug(Utils.Str2Json(  "Add mCurrentLimitOrder" , mCurOrderA.ToExcleString()));
                 if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
+                {
                     mCurOrderA = null;
+                    await Task.Delay(2000);
+                }
+                await Task.Delay(100);
             }
             catch (Exception ex)
             {
