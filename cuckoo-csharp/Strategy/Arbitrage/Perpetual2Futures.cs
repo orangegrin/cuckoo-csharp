@@ -81,7 +81,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 config.SaveToDB(mDBKey);
             }
             mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mData.ExchangeNameA);
-            mExchangeBAPI = mExchangeAAPI;
+            mExchangeBAPI = new ExchangeBitMEXAPI();
             UpdateAvgDiffAsync();
         }
         public void Start()
@@ -130,7 +130,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(5 * 1000);
                     continue;
                 }
-                int delayTime = 60*5;//保证次数至少要5s一次，否则重启
+                int delayTime = 60*5;//保证次数至少要2s一次，否则重启
                 mOrderBookAwsCounter = 0;
                 mOrderBookBwsCounter = 0;
                 mOrderDetailsAwsCounter = 0;
@@ -140,7 +140,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if(mOrderDetailsAwsCounter==0)
                     detailConnect = await IsConnectAsync();
                 Logger.Debug(Utils.Str2Json("mOrderDetailsAwsCounter",mOrderDetailsAwsCounter));
-                if (mOrderBookAwsCounter< delayTime/5 || mOrderBookBwsCounter< delayTime/5 || (!detailConnect))
+                if (mOrderBookAwsCounter< delayTime/2 || mOrderBookBwsCounter< delayTime/2 || (!detailConnect))
                 {
                     Logger.Error(new Exception("ws 没有收到推送消息"));
                     if (mCurOrderA != null)
@@ -457,7 +457,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Debug(Utils.Str2Json(  "requestA" , requestA.ToString()));
                 Logger.Debug(Utils.Str2Json(  "Add mCurrentLimitOrder" , mCurOrderA.ToExcleString() , "CurAmount" , mData.CurAmount));
                 if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
+                {
                     mCurOrderA = null;
+                    await Task.Delay(1000);
+                }
+                await Task.Delay(100);
             }
             catch (Exception ex)
             {
@@ -532,7 +536,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Debug(Utils.Str2Json(  "requestA" , requestA.ToString()));
                 Logger.Debug(Utils.Str2Json(  "Add mCurrentLimitOrder" , mCurOrderA.ToExcleString()));
                 if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
+                {
                     mCurOrderA = null;
+                    await Task.Delay(1000);
+                }
+                await Task.Delay(100);
             }
             catch (Exception ex)
             {
