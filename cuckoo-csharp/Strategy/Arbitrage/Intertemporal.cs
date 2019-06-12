@@ -168,7 +168,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             decimal buyPrice;
             lock(mOrderBookA)
             {
-                buyPrice = mOrderBookA.Asks.FirstOrDefault().Value.Price+100;
+                buyPrice = mOrderBookA.Asks.FirstOrDefault().Value.Price+100*mData.MinPriceUnit;
             }
             ExchangeOrderRequest request = new ExchangeOrderRequest()
             {
