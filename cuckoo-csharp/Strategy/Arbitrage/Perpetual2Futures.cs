@@ -300,6 +300,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             decimal sellPriceA;
             decimal sellPriceB;
             decimal buyPriceB;
+            decimal bidAAmount, askAAmount, bidBAmount, askBAmount;
             decimal a2bDiff = 0;
             decimal b2aDiff = 0;
             decimal buyAmount = mData.PerTrans;
@@ -309,11 +310,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     return;
                 buyPriceA = mOrderBookA.Bids.FirstOrDefault().Value.Price;
                 sellPriceA = mOrderBookA.Asks.FirstOrDefault().Value.Price;
+                bidAAmount = mOrderBookA.Bids.FirstOrDefault().Value.Amount;
+                askAAmount = mOrderBookA.Asks.FirstOrDefault().Value.Amount;
             }
             lock (mOrderBookB)
             {
                 sellPriceB = mOrderBookB.Bids.FirstOrDefault().Value.Price;
                 buyPriceB = mOrderBookB.Asks.FirstOrDefault().Value.Price;
+                bidBAmount = mOrderBookB.Bids.FirstOrDefault().Value.Amount;
+                askBAmount = mOrderBookB.Asks.FirstOrDefault().Value.Amount;
             }
             //有可能orderbook bids或者 asks没有改变
             if (buyPriceA != 0 && sellPriceA != 0 && sellPriceB != 0 && buyPriceB != 0 && buyAmount != 0)
@@ -321,7 +326,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 a2bDiff = (sellPriceB / buyPriceA - 1);
                 b2aDiff = (buyPriceB / sellPriceA - 1);
                 var avgDiff = (a2bDiff + b2aDiff) / 2;
-                PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, -a2bDiff, -b2aDiff, -mData.A2BDiff, -mData.B2ADiff, buyAmount);
+                PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, -a2bDiff, -b2aDiff, -mData.A2BDiff, -mData.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff > mData.A2BDiff && mData.CurAmount + mData.PerTrans <= mData.InitialExchangeBAmount) //满足差价并且当前A空仓
@@ -397,13 +402,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 await Task.Delay(600 * 1000);
             }
         }
-        private void PrintInfo(decimal bidA, decimal askA, decimal bidB, decimal askB, decimal a2bDiff, decimal b2aDiff, decimal A2BDiff, decimal B2ADiff, decimal buyAmount)
+        private void PrintInfo(decimal bidA, decimal askA, decimal bidB, decimal askB, decimal a2bDiff, decimal b2aDiff, decimal A2BDiff, decimal B2ADiff, decimal buyAmount, 
+            decimal bidAAmount, decimal askAAmount, decimal bidBAmount, decimal askBAmount )
         {
             Logger.Debug("================================================");
             Logger.Debug(Utils.Str2Json("BA价差当前百分比↑", a2bDiff.ToString(), "BA价差百分比↑", A2BDiff.ToString() )) ;
             Logger.Debug(Utils.Str2Json("BA价差当前百分比↓" , b2aDiff.ToString(), "BA价差百分比↓" , B2ADiff.ToString()));
-            Logger.Debug(Utils.Str2Json("Bid A", bidA, " Bid B", bidB));
-            Logger.Debug(Utils.Str2Json("Ask A", askA, " Ask B", askB));
+            Logger.Debug(Utils.Str2Json("Bid A", bidA, " Bid B", bidB, "bidAAmount", bidAAmount, "bidBAmount", bidBAmount));
+            Logger.Debug(Utils.Str2Json("Ask A", askA, " Ask B", askB, "askAAmount", askAAmount, "askBAmount", askBAmount));
             Logger.Debug(Utils.Str2Json("mCurAmount", mCurAmount, " buyAmount",  buyAmount));
         }
         /// <summary>
