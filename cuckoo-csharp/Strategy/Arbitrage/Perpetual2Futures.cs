@@ -81,7 +81,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 config.SaveToDB(mDBKey);
             }
             mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mData.ExchangeNameA);
-            mExchangeBAPI = new ExchangeBitMEXAPI();
+            mExchangeBAPI = mExchangeAAPI;
             UpdateAvgDiffAsync();
         }
         public void Start()
@@ -459,7 +459,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
                 {
                     mCurOrderA = null;
-                    await Task.Delay(1000);
+                    await Task.Delay(2000);
                 }
                 await Task.Delay(100);
             }
@@ -538,7 +538,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
                 {
                     mCurOrderA = null;
-                    await Task.Delay(1000);
+                    await Task.Delay(2000);
                 }
                 await Task.Delay(100);
             }
