@@ -91,7 +91,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             SubWebSocket();
             WebSocketProtect();
         }
-        
+#region Connect
+
+
         private void SubWebSocket()
         {
             mOrderws = mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
@@ -219,6 +221,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if(OnConnect()==false)
                 throw new Exception(tag+" 连接断开");
         }
+#endregion
         private void OnProcessExit(object sender, EventArgs e)
         {
             Logger.Debug("------------------------ OnProcessExit ---------------------------");
@@ -319,22 +322,21 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 buyPriceB = mOrderBookB.Asks.FirstOrDefault().Value.Price;
                 bidBAmount = mOrderBookB.Bids.FirstOrDefault().Value.Amount;
                 askBAmount = mOrderBookB.Asks.FirstOrDefault().Value.Amount;
-            }
+            } 
             //有可能orderbook bids或者 asks没有改变
             if (buyPriceA != 0 && sellPriceA != 0 && sellPriceB != 0 && buyPriceB != 0 && buyAmount != 0)
             {
-                a2bDiff = (sellPriceB / buyPriceA - 1);
-                b2aDiff = (buyPriceB / sellPriceA - 1);
-                var avgDiff = (a2bDiff + b2aDiff) / 2;
-                PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, -a2bDiff, -b2aDiff, -mData.A2BDiff, -mData.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
+                a2bDiff = (buyPriceA/sellPriceB - 1);
+                b2aDiff = (sellPriceA/buyPriceB - 1);
+                PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, mData.A2BDiff, mData.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
+                
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
-                if (a2bDiff > mData.A2BDiff && mData.CurAmount + mData.PerTrans <= mData.InitialExchangeBAmount) //满足差价并且当前A空仓
+                if (a2bDiff < mData.A2BDiff && mData.CurAmount + mData.PerTrans <= mData.InitialExchangeBAmount) //满足差价并且当前A空仓
                 {
-
                     mRunningTask = A2BExchange(buyPriceA);
                 }
-                else if (b2aDiff < mData.B2ADiff && -mCurAmount < mData.MaxAmount) //满足差价并且没达到最大数量
+                else if (b2aDiff > mData.B2ADiff && -mCurAmount < mData.MaxAmount) //满足差价并且没达到最大数量
                 {
                     //如果只是修改订单
                     if (mCurOrderA != null && !mCurOrderA.IsBuy)
@@ -347,9 +349,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         mRunningTask = B2AExchange(sellPriceA);
                     }
                 }
-                else if (mCurOrderA != null && mData.B2ADiff <= a2bDiff && a2bDiff <= mData.A2BDiff)//如果在波动区间中，那么取消挂单
+                else if (mCurOrderA != null && mData.B2ADiff >= a2bDiff && a2bDiff >= mData.A2BDiff)//如果在波动区间中，那么取消挂单
                 {
-                    Logger.Debug(Utils.Str2Json("在波动区间中取消订单" , b2aDiff.ToString()));
+                    Logger.Debug(Utils.Str2Json("在波动区间中取消订单" , a2bDiff.ToString()));
                     ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
                     cancleRequestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
                     mRunningTask = mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
@@ -387,9 +389,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         if (jsonResult["status"].ConvertInvariant<int>() == 1)
                         {
                             decimal avgDiff = jsonResult["data"]["value"].ConvertInvariant<decimal>();
-                            avgDiff = -Math.Round(avgDiff, 4);//强行转换
-                            mData.A2BDiff = avgDiff + mData.ProfitRange;
-                            mData.B2ADiff = avgDiff - mData.ProfitRange;
+                            avgDiff = Math.Round(avgDiff, 4);//强行转换
+                            mData.A2BDiff = avgDiff - mData.ProfitRange;
+                            mData.B2ADiff = avgDiff + mData.ProfitRange;
                             mData.SaveToDB(mDBKey);
                             Logger.Debug(Utils.Str2Json(" UpdateAvgDiffAsync avgDiff" , avgDiff));
                         }
