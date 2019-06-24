@@ -328,15 +328,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 a2bDiff = (buyPriceA/sellPriceB - 1);
                 b2aDiff = (sellPriceA/buyPriceB - 1);
-                PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, mData.A2BDiff, mData.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
+                Diff diff = GetDiff(a2bDiff, b2aDiff);
+                PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
                 
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
-                if (a2bDiff < mData.A2BDiff && mData.CurAmount + mData.PerTrans <= mData.InitialExchangeBAmount) //满足差价并且当前A空仓
+                if (a2bDiff < diff.A2BDiff && mData.CurAmount + mData.PerTrans <= diff.InitialExchangeBAmount) //满足差价并且当前A空仓
                 {
                     mRunningTask = A2BExchange(buyPriceA);
                 }
-                else if (b2aDiff > mData.B2ADiff && -mCurAmount < mData.MaxAmount) //满足差价并且没达到最大数量
+                else if (b2aDiff > diff.B2ADiff && -mCurAmount < diff.MaxAmount) //满足差价并且没达到最大数量
                 {
                     //如果只是修改订单
                     if (mCurOrderA != null && !mCurOrderA.IsBuy)
@@ -349,7 +350,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         mRunningTask = B2AExchange(sellPriceA);
                     }
                 }
-                else if (mCurOrderA != null && mData.B2ADiff >= a2bDiff && a2bDiff >= mData.A2BDiff)//如果在波动区间中，那么取消挂单
+                else if (mCurOrderA != null && diff.B2ADiff >= a2bDiff && a2bDiff >= diff.A2BDiff)//如果在波动区间中，那么取消挂单
                 {
                     Logger.Debug(Utils.Str2Json("在波动区间中取消订单" , a2bDiff.ToString()));
                     ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
@@ -374,6 +375,35 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
         }
         /// <summary>
+        /// 网格，分为n段。从小范围到大范围，如果当前方向为开仓，并且小于当前最大开仓数量 那么设置diff为本段值
+        /// </summary>
+        /// <param name="a2bDiff"></param>
+        /// <param name="b2aDiff"></param>
+        private Diff GetDiff(decimal a2bDiff,decimal b2aDiff)
+        {
+            List<Diff> diffList;
+            lock (mData.DiffGrid)
+            {
+                diffList = new List<Diff>(mData.DiffGrid);
+            }
+            Diff returnDiff = diffList[0];
+            foreach (var diff in diffList)
+            {
+                if(a2bDiff < diff.A2BDiff && mCurAmount + mData.PerTrans <= diff.InitialExchangeBAmount)
+                {
+                    returnDiff = diff;
+                    break;
+                }
+                else if (b2aDiff > diff.B2ADiff && -mCurAmount < diff.MaxAmount)
+                {
+                    returnDiff = diff;
+                    break;
+                }
+            }
+            return returnDiff;
+        }
+
+        /// <summary>
         /// 刷新差价
         /// </summary>
         public async Task UpdateAvgDiffAsync()
@@ -390,9 +420,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         {
                             decimal avgDiff = jsonResult["data"]["value"].ConvertInvariant<decimal>();
                             avgDiff = Math.Round(avgDiff, 4);//强行转换
-                            mData.A2BDiff = avgDiff - mData.ProfitRange;
-                            mData.B2ADiff = avgDiff + mData.ProfitRange;
-                            mData.SaveToDB(mDBKey);
+                            foreach (var diff in mData.DiffGrid)
+                            {
+                                diff.A2BDiff = avgDiff - diff.ProfitRange;
+                                diff.B2ADiff = avgDiff + diff.ProfitRange;
+                                mData.SaveToDB(mDBKey);
+                            }
                             Logger.Debug(Utils.Str2Json(" UpdateAvgDiffAsync avgDiff" , avgDiff));
                         }
                     }
@@ -870,11 +903,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// <summary>
             /// 开仓差
             /// </summary>
-            public decimal A2BDiff;
-            /// <summary>
-            /// 平仓差
-            /// </summary>
-            public decimal B2ADiff;
+            public List<Diff> DiffGrid = new List<Diff>();
             public decimal PerTrans;
             /// <summary>
             /// 最小价格单位
@@ -893,11 +922,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// </summary>
             public int IntervalMillisecond = 500;
             /// <summary>
-            /// 利润范围
-            /// 当AutoCalcProfitRange 开启时有效
-            /// </summary>
-            public decimal ProfitRange = 0.003m;
-            /// <summary>
             /// 自动计算利润范围
             /// </summary>
             public bool AutoCalcProfitRange = false;
@@ -906,10 +930,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// </summary>
             public string AmountSymbol = "BTC";
             /// <summary>
-            /// 开始交易时候的初始火币数量
-            /// </summary>
-            public decimal InitialExchangeBAmount = 0m;
-            /// <summary>
             /// A交易所手续费
             /// </summary>
             public decimal FeesA;
@@ -917,10 +937,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// B交易所手续费
             /// </summary>
             public decimal FeesB;
-            /// <summary>
-            /// 最大数量
-            /// </summary>
-            public decimal MaxAmount;
             /// <summary>
             /// A交易所加密串路径
             /// </summary>
@@ -942,6 +958,31 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 return RedisDB.Instance.StringGet<T>(DBKey);
             }
+        }
+
+        public class Diff
+        {
+            /// <summary>
+            /// 开仓差
+            /// </summary>
+            public decimal A2BDiff;
+            /// <summary>
+            /// 平仓差
+            /// </summary>
+            public decimal B2ADiff;
+            /// <summary>
+            /// 利润范围
+            /// 当AutoCalcProfitRange 开启时有效
+            /// </summary>
+            public decimal ProfitRange = 0.003m;
+            /// <summary>
+            /// 最大数量
+            /// </summary>
+            public decimal MaxAmount;
+            /// <summary>
+            /// 开始交易时候的初始火币数量
+            /// </summary>
+            public decimal InitialExchangeBAmount = 0m;
         }
 
     }
