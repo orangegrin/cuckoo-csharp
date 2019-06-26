@@ -91,9 +91,26 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             SubWebSocket();
             WebSocketProtect();
         }
+        /// <summary>
+        /// 倒计时平仓
+        /// </summary>
+        private async Task ClosePosition()
+        {
+            double deltaTime = (mData.CloseDate - DateTime.Now).TotalSeconds;
+            Logger.Debug(Utils.Str2Json("deltaTime",deltaTime));
+            await Task.Delay((int)(deltaTime * 1000));
+            Logger.Debug("关闭策略只平仓不开仓");
+            lock(mData)
+            {
+                foreach (var diff in mData.DiffGrid)
+                {
+                    diff.MaxAmount = 0;
+                    diff.InitialExchangeBAmount = 0;
+                }
+                mData.SaveToDB(mDBKey);
+            }
+        }
 #region Connect
-
-
         private void SubWebSocket()
         {
             mOrderws = mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
@@ -231,7 +248,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 CancelCurOrderA();
                 Thread.Sleep(5 * 1000);
             }
-
         }
         /// <summary>
         /// 获取交易所某个币种的数量
@@ -422,8 +438,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             avgDiff = Math.Round(avgDiff, 4);//强行转换
                             foreach (var diff in mData.DiffGrid)
                             {
-                                diff.A2BDiff = avgDiff - diff.ProfitRange;
-                                diff.B2ADiff = avgDiff + diff.ProfitRange;
+                                diff.A2BDiff = avgDiff - diff.ProfitRange + mData.DeltaDiff;
+                                diff.B2ADiff = avgDiff + diff.ProfitRange + mData.DeltaDiff;
                                 mData.SaveToDB(mDBKey);
                             }
                             Logger.Debug(Utils.Str2Json(" UpdateAvgDiffAsync avgDiff" , avgDiff));
@@ -631,9 +647,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug( "-------------------- Order Filed ---------------------------");
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
-            lock (mCurOrderA)
+            void fun()
             {
-                PrintFilledOrder(order);
                 mExchangePending = true;
                 ReverseOpenMarketOrder(order);
                 mExchangePending = false;
@@ -643,6 +658,18 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     //重置数量
                     mCurOrderA = null;
                 }
+                PrintFilledOrder(order);
+            }
+            if (mCurOrderA !=null)//可能为null ，locknull报错
+            {
+                lock (mCurOrderA)
+                {
+                    fun();
+                }
+            }
+            else
+            {
+                fun();
             }
         }
         /// <summary>
@@ -656,13 +683,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug( "-------------------- Order Filed Partially---------------------------");
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
-            PrintFilledOrder(order);
             ReverseOpenMarketOrder(order);
+            PrintFilledOrder(order);
         }
         private void PrintFilledOrder(ExchangeOrderResult order)
         {
             try
             {
+                Logger.Debug("--------------PrintFilledOrder--------------");
                 Logger.Debug(Utils.Str2Json("filledTime", Utils.GetGMTimeTicks(order.OrderDate).ToString(),
                     "direction", order.IsBuy ? "buy" : "sell",
                     "orderData", order.ToExcleString()));
@@ -775,6 +803,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private async void ReverseOpenMarketOrder(ExchangeOrderResult order)
         {
             var transAmount = GetParTrans(order);
+            if (transAmount <= 0)//部分成交返回两次一样的数据，导致第二次transAmount=0
+                return;
             if (order.AveragePrice * transAmount < mData.MinOrderPrice)//如果小于最小成交价格，1补全到最小成交价格的数量x，A交易所买x，B交易所卖x+transAmount
             {
                 for (int i = 1; ; i++)//防止bitmex overload一直提交到成功
@@ -900,6 +930,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             public string SymbolA;
             public string SymbolB;
             public string Symbol;
+            public decimal DeltaDiff = 0m;
             /// <summary>
             /// 开仓差
             /// </summary>
@@ -949,6 +980,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// redis连接数据
             /// </summary>
             public string RedisConfig = "localhost";
+            /// <summary>
+            /// redis连接数据
+            /// </summary>
+            public DateTime CloseDate = DateTime.Now.AddMinutes(1);
 
             public void SaveToDB(string DBKey)
             {
