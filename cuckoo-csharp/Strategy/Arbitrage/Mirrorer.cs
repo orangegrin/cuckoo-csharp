@@ -206,7 +206,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             catch (Exception ex)
             {
                 Logger.Error(ex.ToString());
-                Task.Delay(mData.IntervalMillisecond);
+                await Task.Delay(mData.IntervalMillisecond);
                 goto start;
             }
         }
