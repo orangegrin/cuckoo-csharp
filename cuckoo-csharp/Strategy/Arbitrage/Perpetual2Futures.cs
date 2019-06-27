@@ -344,26 +344,25 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 a2bDiff = (buyPriceA/sellPriceB - 1);
                 b2aDiff = (sellPriceA/buyPriceB - 1);
-                Diff diff = GetDiff(a2bDiff, b2aDiff);
+                Diff diff = GetDiff(a2bDiff, b2aDiff,out buyAmount);
                 PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
-                
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff < diff.A2BDiff && mData.CurAmount + mData.PerTrans <= diff.InitialExchangeBAmount) //满足差价并且当前A空仓
                 {
-                    mRunningTask = A2BExchange(buyPriceA);
+                    mRunningTask = A2BExchange(buyPriceA, buyAmount);
                 }
                 else if (b2aDiff > diff.B2ADiff && -mCurAmount < diff.MaxAmount) //满足差价并且没达到最大数量
                 {
                     //如果只是修改订单
                     if (mCurOrderA != null && !mCurOrderA.IsBuy)
                     {
-                        mRunningTask = B2AExchange(sellPriceA);
+                        mRunningTask = B2AExchange(sellPriceA, buyAmount);
                     }
                     //表示是新创建订单
                     else //if (await SufficientBalance())
                     {
-                        mRunningTask = B2AExchange(sellPriceA);
+                        mRunningTask = B2AExchange(sellPriceA, buyAmount);
                     }
                 }
                 else if (mCurOrderA != null && diff.B2ADiff >= a2bDiff && a2bDiff >= diff.A2BDiff)//如果在波动区间中，那么取消挂单
@@ -395,8 +394,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         /// <param name="a2bDiff"></param>
         /// <param name="b2aDiff"></param>
-        private Diff GetDiff(decimal a2bDiff,decimal b2aDiff)
+        private Diff GetDiff(decimal a2bDiff,decimal b2aDiff,out decimal buyAmount)
         {
+            buyAmount = mData.PerTrans;
             List<Diff> diffList;
             lock (mData.DiffGrid)
             {
@@ -408,10 +408,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if(a2bDiff < diff.A2BDiff && mCurAmount + mData.PerTrans <= diff.InitialExchangeBAmount)
                 {
                     returnDiff = diff;
+                    if ((mCurAmount + mData.ClosePerTrans) <= 0)
+                        buyAmount = mData.ClosePerTrans;
                     break;
                 }
                 else if (b2aDiff > diff.B2ADiff && -mCurAmount < diff.MaxAmount)
                 {
+                    if((mCurAmount - mData.ClosePerTrans) >= 0)
+                        buyAmount = mData.ClosePerTrans;
                     returnDiff = diff;
                     break;
                 }
@@ -467,14 +471,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 当curAmount 小于 0的时候就是平仓
         /// A买B卖
         /// </summary>
-        private async Task A2BExchange(decimal buyPrice)
+        private async Task A2BExchange(decimal buyPrice,decimal buyAmount)
         {
             //A限价买
             ExchangeOrderRequest requestA = new ExchangeOrderRequest()
             {
                 ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
             };
-            requestA.Amount = mData.PerTrans;
+            requestA.Amount = buyAmount;
             requestA.MarketSymbol = mData.SymbolA;
             requestA.IsBuy = true;
             requestA.OrderType = OrderType.Limit;
@@ -544,14 +548,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// B买A卖
         /// </summary>
         /// <param name="exchangeAmount"></param>
-        private async Task B2AExchange(decimal sellPrice)
+        private async Task B2AExchange(decimal sellPrice,decimal buyAmount)
         {
             //开仓
             ExchangeOrderRequest requestA = new ExchangeOrderRequest()
             {
                 ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
             };
-            requestA.Amount = mData.PerTrans;
+            requestA.Amount = buyAmount;
             requestA.MarketSymbol = mData.SymbolA;
             requestA.IsBuy = false;
             requestA.OrderType = OrderType.Limit;
@@ -610,33 +614,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (ex.ToString().Contains("RateLimitError"))
                     await Task.Delay(30000);
             }
-        }
-        /// <summary>
-        /// 检查是否有足够的币
-        /// </summary>
-        /// <returns></returns>
-        private async Task<bool> SufficientBalance()
-        {
-            var bAmount = await GetAmountsAvailableToTradeAsync(mExchangeBAPI, mData.AmountSymbol);
-            decimal buyPrice;
-            decimal exchangeAmount;
-            lock (mOrderBookB)
-            {
-                mOrderBookB.GetPriceToBuy(mData.PerTrans, out exchangeAmount, out buyPrice);
-            }
-            //避免挂新单之前，上一笔B的市价没有成交完
-            var spend = mData.PerTrans * buyPrice * 1.3m;
-            if (bAmount < spend)
-            {
-                Logger.Debug(Utils.Str2Json("Insufficient exchange balance", bAmount," ,need spend", spend));
-                await Task.Delay(5000);
-                return false;
-            }
-            else
-            {
-                Logger.Debug(Utils.Str2Json("Insufficient exchange balance", bAmount, " ,need spend", spend));
-            }
-            return true;
         }
         /// <summary>
         /// 订单成交 ，修改当前仓位和删除当前订单
@@ -941,6 +918,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// </summary>
             public List<Diff> DiffGrid = new List<Diff>();
             public decimal PerTrans;
+            /// <summary>
+            /// 平仓倍数，平仓是开仓的n倍
+            /// </summary>
+            public decimal ClosePerTrans;
             /// <summary>
             /// 最小价格单位
             /// </summary>
