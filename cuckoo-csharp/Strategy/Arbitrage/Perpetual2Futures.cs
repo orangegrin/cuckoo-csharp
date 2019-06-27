@@ -781,8 +781,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             if (order.Result == ExchangeAPIOrderResult.FilledPartially && filledAmount != 0)
             {
-                mFilledPartiallyDic[order.OrderId] = order.AmountFilled;
-                return order.AmountFilled - filledAmount;
+                if(filledAmount< order.AmountFilled)
+                {
+                    mFilledPartiallyDic[order.OrderId] = order.AmountFilled;
+                    return order.AmountFilled - filledAmount;
+                }
+                else
+                    return 0;
             }
 
             if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount == 0)
