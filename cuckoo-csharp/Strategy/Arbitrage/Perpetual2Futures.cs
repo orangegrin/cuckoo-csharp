@@ -346,6 +346,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 b2aDiff = (sellPriceA/buyPriceB - 1);
                 Diff diff = GetDiff(a2bDiff, b2aDiff,out buyAmount);
                 PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
+                return;
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff < diff.A2BDiff && mData.CurAmount + mData.PerTrans <= diff.InitialExchangeBAmount) //满足差价并且当前A空仓
@@ -526,8 +527,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             catch (Exception ex)
             {
-                //如果是添加新单那么设置为null
-                if (isAddNew || ex.ToString().Contains("Invalid orderID"))
+                //如果是添加新单那么设置为null 
+                if (isAddNew || ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found"))
                     mCurOrderA = null;
                 Logger.Error(Utils.Str2Json(  "ex",ex));
                 if (ex.ToString().Contains("overloaded"))
@@ -606,7 +607,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             catch (Exception ex)
             {
                 //如果是添加新单那么设置为null
-                if (newOrder || ex.ToString().Contains("Invalid orderID"))
+                if (newOrder || ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found"))
                     mCurOrderA = null;
                 Logger.Error(Utils.Str2Json( "ex", ex));
                 if (ex.ToString().Contains("overloaded"))
