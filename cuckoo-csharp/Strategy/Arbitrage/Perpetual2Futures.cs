@@ -203,6 +203,27 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if(OnConnect()==false)
                 throw new Exception(tag+" 连接断开");
         }
+        /// <summary>
+        /// 检查仓位是否对齐
+        /// 在非开仓阶段检测，避免A成交B成交中的情况
+        /// </summary>
+        private async void CheckPosition()
+        {
+            while (true)
+            {
+                if (!OnConnect())
+                {
+                    await Task.Delay(5 * 1000);
+                    continue;
+                }
+                await Task.Delay(60 * 1000);
+                ExchangeMarginPositionResult posA = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolA);
+                ExchangeMarginPositionResult posB = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolB);
+                if (posA.Amount != posB.Amount)//如果没有对齐停止交易，市价单到对齐
+                {
+                }
+            }
+        }
 #endregion
         private void OnProcessExit(object sender, EventArgs e)
         {
@@ -589,10 +610,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug( "-------------------- Order Filed ---------------------------");
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
-            void fun()
+            async void fun()
             {
                 mExchangePending = true;
-                ReverseOpenMarketOrder(order);
+                await ReverseOpenMarketOrder(order);
                 mExchangePending = false;
                 // 如果 当前挂单和订单相同那么删除
                 if (mCurOrderA != null && mCurOrderA.OrderId == order.OrderId)
@@ -752,7 +773,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <summary>
         /// 反向市价开仓
         /// </summary>
-        private async void ReverseOpenMarketOrder(ExchangeOrderResult order)
+        private async Task ReverseOpenMarketOrder(ExchangeOrderResult order)
         {
             var transAmount = GetParTrans(order);
             if (transAmount <= 0)//部分成交返回两次一样的数据，导致第二次transAmount=0
