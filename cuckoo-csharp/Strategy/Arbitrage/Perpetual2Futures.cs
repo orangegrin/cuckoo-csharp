@@ -149,7 +149,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(5 * 1000);
                     continue;
                 }
-                int delayTime = 60*5;//保证次数至少要2s一次，否则重启
+                int delayTime = 10;//保证次数至少要2s一次，否则重启
                 mOrderBookAwsCounter = 0;
                 mOrderBookBwsCounter = 0;
                 mOrderDetailsAwsCounter = 0;
@@ -185,43 +185,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 发送一个多单限价，用卖一+100作为价格（一定被取消）。 等待10s如果GetOrderDetailsWebSocket没有返回消息说明已经断开
         private async Task<bool> IsConnectAsync()
         {
-            decimal buyPrice;
-            lock(mOrderBookA)
-            {
-                buyPrice = mOrderBookA.Asks.FirstOrDefault().Value.Price+100;
-            }
-            ExchangeOrderRequest request = new ExchangeOrderRequest()
-            {
-                ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
-            };
-            request.Amount = mData.PerTrans;
-            request.MarketSymbol = mData.SymbolA;
-            request.IsBuy = true;
-            request.OrderType = OrderType.Limit;
-            request.Price = NormalizationMinUnit(buyPrice);
-            for (int i = 1; ; i++)//防止bitmex overload一直提交到成功
-            {
-                try
-                {
-                    var orderResults = await mExchangeAAPI.PlaceOrdersAsync(request);
-                    break;
-                }
-                catch (System.Exception ex)
-                {
-                    if (ex.ToString().Contains("overloaded"))
-                    {
-                        await Task.Delay(2000);
-                    }
-                    else
-                    {
-                        Logger.Error(Utils.Str2Json("IsConnectAsync抛错", ex.ToString()));
-                        throw ex;
-                        break;
-                    }
-
-                }
-            }
-            await Task.Delay(10 * 1000);
+            await mOrderws.SendMessageAsync("ping");
+            await Task.Delay(5 * 1000);
             return mOrderDetailsAwsCounter > 0;
         }
         private bool OnConnect()
@@ -346,7 +311,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 b2aDiff = (sellPriceA/buyPriceB - 1);
                 Diff diff = GetDiff(a2bDiff, b2aDiff,out buyAmount);
                 PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
-                return;
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff < diff.A2BDiff && mData.CurAmount + mData.PerTrans <= diff.InitialExchangeBAmount) //满足差价并且当前A空仓
@@ -699,6 +663,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private void OnOrderAHandler(ExchangeOrderResult order)
         {
             mOrderDetailsAwsCounter++;
+            if (order.MarketSymbol.Equals("pong"))
+            {
+                Logger.Debug("pong");
+                return;
+            }
             Logger.Debug("-------------------- OnOrderAHandler ---------------------------");
             if (order.MarketSymbol != mData.SymbolA)
                 return;
