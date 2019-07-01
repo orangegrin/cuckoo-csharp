@@ -69,6 +69,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private bool mOrderwsConnect = false;
         private bool mOrderBookAwsConnect = false;
         private bool mOrderBookBwsConnect = false;
+        private bool mOnTrade = false;//是否在交易中
         public Perpetual2Futures(Options config, int id = -1)
         {
             mId = id;
@@ -90,6 +91,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
             SubWebSocket();
             WebSocketProtect();
+            CheckPosition();
         }
         /// <summary>
         /// 倒计时平仓
@@ -217,11 +219,54 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     continue;
                 }
                 await Task.Delay(60 * 1000);
+                if (mCurOrderA != null)
+                    return;
+                if (mOnTrade)
+                    return;
+                mExchangePending = true;
                 ExchangeMarginPositionResult posA = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolA);
                 ExchangeMarginPositionResult posB = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolB);
-                if (posA.Amount != posB.Amount)//如果没有对齐停止交易，市价单到对齐
+                decimal realAmount = posA.Amount;
+                if ((posA.Amount + posB.Amount) !=0)//如果没有对齐停止交易，市价单到对齐
                 {
+                    for (int i=0; ;)
+                    {
+                        decimal count = posA.Amount + posB.Amount;
+                        ExchangeOrderRequest requestA = new ExchangeOrderRequest();
+                        requestA.Amount = Math.Abs(count);
+                        requestA.MarketSymbol = mData.SymbolA;
+                        requestA.IsBuy = count* posA.Amount<0;
+                        requestA.OrderType = OrderType.Market;
+                        try
+                        {
+                            Logger.Debug(Utils.Str2Json("差数量" , count));
+                            Logger.Debug(Utils.Str2Json("requestA", requestA.ToString()));
+                            var orderResults = await mExchangeAAPI.PlaceOrdersAsync(requestA);
+                            ExchangeOrderResult resultA = orderResults[0];
+                            realAmount += requestA.IsBuy ? requestA.Amount : -requestA.Amount;
+                            break; 
+                        }
+                        catch (System.Exception ex)
+                        {
+                            if (ex.ToString().Contains("overloaded"))
+                            {
+                                await Task.Delay(2000);
+                            }
+                            else
+                            {
+                                Logger.Error(Utils.Str2Json("CheckPosition ex", ex.ToString()));
+                                throw ex;
+                                break; 
+                            }
+                        }
+                    }
                 }
+                if (realAmount!=mCurAmount)
+                {
+                    Logger.Debug(Utils.Str2Json("Change curAmount", realAmount));
+                    mCurAmount = realAmount;
+                }
+                mExchangePending = false;
             }
         }
 #endregion
@@ -278,7 +323,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (Precondition())
             {
                 mExchangePending = true;
-                mData = Options.LoadFromDB<Options>(mDBKey);
+                if(mCurOrderA==null)//避免多线程读写错误
+                    mData = Options.LoadFromDB<Options>(mDBKey);
                 await Execute();
                 await Task.Delay(mData.IntervalMillisecond);
                 mExchangePending = false;
@@ -336,10 +382,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff < diff.A2BDiff && mData.CurAmount + mData.PerTrans <= diff.InitialExchangeBAmount) //满足差价并且当前A空仓
                 {
+                    mOnTrade = true;
                     mRunningTask = A2BExchange(buyPriceA, buyAmount);
                 }
                 else if (b2aDiff > diff.B2ADiff && -mCurAmount < diff.MaxAmount) //满足差价并且没达到最大数量
                 {
+                    mOnTrade = true;
                     //如果只是修改订单
                     if (mCurOrderA != null && !mCurOrderA.IsBuy)
                     {
@@ -505,6 +553,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
                 {
                     mCurOrderA = null;
+                    mOnTrade = false;
                     await Task.Delay(2000);
                 }
                 await Task.Delay(100);
@@ -513,7 +562,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 //如果是添加新单那么设置为null 
                 if (isAddNew || ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found"))
+                {
                     mCurOrderA = null;
+                    mOnTrade = false;
+                }
                 Logger.Error(Utils.Str2Json(  "ex",ex));
                 if (ex.ToString().Contains("overloaded"))
                     await Task.Delay(5000);
@@ -584,6 +636,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
                 {
                     mCurOrderA = null;
+                    mOnTrade = false;
                     await Task.Delay(2000);
                 }
                 await Task.Delay(100);
@@ -592,7 +645,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 //如果是添加新单那么设置为null
                 if (newOrder || ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found"))
+                {
                     mCurOrderA = null;
+                    mOnTrade = false;
+                }
                 Logger.Error(Utils.Str2Json( "ex", ex));
                 if (ex.ToString().Contains("overloaded"))
                     await Task.Delay(5000);
@@ -617,8 +673,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 // 如果 当前挂单和订单相同那么删除
                 if (mCurOrderA != null && mCurOrderA.OrderId == order.OrderId)
                 {
-                    //重置数量
                     mCurOrderA = null;
+                    mOnTrade = false;
                 }
                 PrintFilledOrder(order);
             }
@@ -674,6 +730,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (mCurOrderA != null && mCurOrderA.OrderId == order.OrderId)
             {
                 mCurOrderA = null;
+                mOnTrade = false;
             }
         }
         /// <summary>
