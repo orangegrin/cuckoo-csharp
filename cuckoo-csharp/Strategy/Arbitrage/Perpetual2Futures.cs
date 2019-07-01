@@ -391,9 +391,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Diff returnDiff = diffList[0];
             foreach (var diff in diffList)
             {
-                if(a2bDiff < diff.A2BDiff && mCurAmount + mData.PerTrans <= diff.InitialExchangeBAmount)
+                returnDiff = diff;
+                if (a2bDiff < diff.A2BDiff && mCurAmount + mData.PerTrans <= diff.InitialExchangeBAmount)
                 {
-                    returnDiff = diff;
                     if ((mCurAmount + mData.ClosePerTrans) <= 0)
                         buyAmount = mData.ClosePerTrans;
                     break;
@@ -402,7 +402,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 {
                     if((mCurAmount - mData.ClosePerTrans) >= 0)
                         buyAmount = mData.ClosePerTrans;
-                    returnDiff = diff;
                     break;
                 }
             }
