@@ -318,11 +318,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         decimal allBtc = noUseBtc;
                         //总仓位 = 总btc数量*（z19+u19）/2 *3倍杠杆/2种合约 
                         decimal allPosition = allBtc * (mOrderBookA.Bids.FirstOrDefault().Value.Price + mOrderBookB.Asks.FirstOrDefault().Value.Price) / 2 * mData.Leverage / 2;
-                        allPosition = Math.Round(mData.PerTrans);
+                        allPosition = Math.Round(allPosition/mData.PerTrans)* mData.PerTrans;
                         Diff lastDiff = mData.DiffGrid.LastOrDefault();
                         lastDiff.InitialExchangeBAmount = allPosition;
                         lastDiff.MaxAmount = allPosition;
                         mData.SaveToDB(mDBKey);
+                        Logger.Debug("noUseBtc", noUseBtc, "allPosition", allPosition);
                     }
                     catch (System.Exception ex)
                     {
