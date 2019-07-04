@@ -323,14 +323,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         lastDiff.InitialExchangeBAmount = allPosition;
                         lastDiff.MaxAmount = allPosition;
                         mData.SaveToDB(mDBKey);
-                        Logger.Debug("noUseBtc", noUseBtc, "allPosition", allPosition);
+                        Logger.Debug(Utils.Str2Json( "noUseBtc", noUseBtc, "allPosition", allPosition));
                     }
                     catch (System.Exception ex)
                     {
                         Logger.Error("ChangeMaxCount ex" + ex.ToString());
                     }
                 }
-                await Task.Delay(12*3600 * 1000);
+                await Task.Delay(2*3600 * 1000);
             }
         }
         private void OnOrderbookHandler(ExchangeOrderBook order)
