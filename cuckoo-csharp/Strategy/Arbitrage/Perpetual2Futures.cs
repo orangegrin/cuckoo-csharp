@@ -289,14 +289,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <returns></returns>
         public async Task<decimal> GetAmountsAvailableToTradeAsync(IExchangeAPI exchange, string symbol)
         {
-            var amounts = await exchange.GetAmountsAvailableToTradeAsync();
-            decimal value = 0;
-            foreach (var amount in amounts)
-            {
-                if (amount.Key == symbol)
-                    value = amount.Value;
-            }
-            return value;
+            var amount = await exchange.GetWalletSummaryAsync(symbol);
+            return amount;
         }
         /// <summary>
         /// 根据当前btc数量修改最大购买数量
