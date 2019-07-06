@@ -225,8 +225,19 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (mOnTrade)
                     return;
                 mExchangePending = true;
-                ExchangeMarginPositionResult posA = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolA);
-                ExchangeMarginPositionResult posB = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolB);
+                Logger.Debug("-----------------------CheckPosition-----------------------------------");
+                ExchangeMarginPositionResult posA ;
+                ExchangeMarginPositionResult posB ;
+                try
+                {
+                    posA = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolA);
+                    posB = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolB);
+                }
+                catch (System.Exception ex)
+                {
+                    Logger.Error(Utils.Str2Json("GetOpenPositionAsync ex", ex.ToString()));
+                    continue;
+                }
                 decimal realAmount = posA.Amount;
                 if ((posA.Amount + posB.Amount) !=0)//如果没有对齐停止交易，市价单到对齐
                 {
