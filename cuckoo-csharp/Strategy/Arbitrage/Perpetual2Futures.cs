@@ -269,7 +269,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             {
                                 Logger.Error(Utils.Str2Json("CheckPosition ex", ex.ToString()));
                                 throw ex;
-                                break; 
                             }
                         }
                     }
@@ -344,7 +343,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                                 var orderResults = await mExchangeAAPI.PlaceOrdersAsync(request);
                                 ExchangeOrderResult result = orderResults[0];
                                 return result;
-                                break;
                             }
                             catch (System.Exception ex)
                             {
@@ -356,7 +354,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                                 {
                                     Logger.Error(Utils.Str2Json("doProfitAsync ex", ex.ToString()));
                                     throw ex;
-                                    break;
                                 }
                             }
                         }
@@ -1004,7 +1001,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         {
                             Logger.Error(Utils.Str2Json("最小成交价抛错" , ex.ToString()));
                             throw ex;
-                            break; 
                         }
                         
                     }
@@ -1046,7 +1042,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         Logger.Error(Utils.Str2Json("ReverseOpenMarketOrder抛错" , ex.ToString()));
                         throw ex;
-                        break;
                     }
                 }
             }
