@@ -219,11 +219,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(5 * 1000);
                     continue;
                 }
-                await Task.Delay(5 *60 * 1000);
+                await Task.Delay(2 *60 * 1000);
                 if (mCurOrderA != null)
-                    return;
+                    continue;
                 if (mOnTrade)
-                    return;
+                    continue;
                 mExchangePending = true;
                 Logger.Debug("-----------------------CheckPosition-----------------------------------");
                 ExchangeMarginPositionResult posA ;
@@ -318,13 +318,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                     async Task<ExchangeOrderResult> doProfitAsync(ExchangeOrderRequest request, ExchangeOrderResult lastResult)
                     {
-                        if (request.StopPrice > mOrderBookA.Bids.FirstOrDefault().Value.Price * 3)//如果止盈点价格>三倍当前价格那么不挂止盈单
-                            return null;
                         if (lastResult != null)
                         {
-                            if (lastResult.Amount == request.Amount)
-                                return null;
-                            if (lastResult.IsBuy != request.IsBuy)
+                            if (lastResult.IsBuy != request.IsBuy)//方向不同取消
                             {
                                 await mExchangeAAPI.CancelOrderAsync(lastResult.OrderId);
                                 lastResult = null;
@@ -333,7 +329,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             {
                                 request.ExtraParameters.Add("orderID", lastResult.OrderId);
                             }
+                            if (lastResult.Amount == request.Amount)//数量相同不修改
+                                return null;
                         }
+                        if (request.StopPrice > mOrderBookA.Bids.FirstOrDefault().Value.Price * 3)//如果止盈点价格>三倍当前价格那么不挂止盈单
+                            return null;
                         request.ExtraParameters.Add("execInst", "Close,LastPrice");
                         for (int i = 0; ;)
                         {
