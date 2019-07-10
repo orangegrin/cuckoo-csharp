@@ -327,13 +327,18 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             }
                             else
                             {
+                                if (lastResult.Amount == request.Amount)//数量相同不修改
+                                    return null;
                                 request.ExtraParameters.Add("orderID", lastResult.OrderId);
                             }
-                            if (lastResult.Amount == request.Amount)//数量相同不修改
-                                return null;
                         }
                         if (request.StopPrice > mOrderBookA.Bids.FirstOrDefault().Value.Price * 3)//如果止盈点价格>三倍当前价格那么不挂止盈单
+                        {
+                            if (lastResult != null)
+                                await mExchangeAAPI.CancelOrderAsync(lastResult.OrderId);
                             return null;
+                        }
+
                         request.ExtraParameters.Add("execInst", "Close,LastPrice");
                         for (int i = 0; ;)
                         {
