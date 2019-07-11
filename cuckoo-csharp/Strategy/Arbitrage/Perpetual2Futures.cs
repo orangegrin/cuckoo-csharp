@@ -572,6 +572,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     catch (System.Exception ex)
                     {
                         Logger.Error(Utils.Str2Json("mRunningTask ex", ex));
+                        mRunningTask = null;
                     }
                 }
             }
