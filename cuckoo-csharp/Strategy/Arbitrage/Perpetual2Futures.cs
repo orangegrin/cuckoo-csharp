@@ -219,7 +219,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(5 * 1000);
                     continue;
                 }
-                await Task.Delay(2 *60 * 1000);
+                await Task.Delay(5*60 * 1000);
                 if (mCurOrderA != null)
                     continue;
                 if (mOnTrade)
@@ -248,7 +248,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         ExchangeOrderRequest requestA = new ExchangeOrderRequest();
                         requestA.Amount = Math.Abs(count);
                         requestA.MarketSymbol = mData.SymbolA;
-                        requestA.IsBuy = count* posA.Amount<0;
+                        bool bigerA = Math.Abs(posA.Amount) > Math.Abs(posB.Amount);//如果A数量多，A平仓，否则相反
+                        bool isABuy = posA.Amount > 0;
+                        requestA.IsBuy = bigerA ? (!isABuy) : isABuy;//如果A数量多，平仓，那么和当前方向反向操作
                         requestA.OrderType = OrderType.Market;
                         try
                         {
