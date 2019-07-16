@@ -474,6 +474,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mExchangePending = true;
                 if(mCurOrderA==null)//避免多线程读写错误
                     mData = Options.LoadFromDB<Options>(mDBKey);
+                else
+                {
+                   Options temp = Options.LoadFromDB<Options>(mDBKey);
+                    temp.CurAmount = mData.CurAmount;
+                    mData = temp;
+                }
                 await Execute();
                 await Task.Delay(mData.IntervalMillisecond);
                 mExchangePending = false;
@@ -883,7 +889,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     DateTime dt = backOrder.OrderDate.AddHours(8);
                     List<string> strList = new List<string>()
                     {
-                        dt.ToShortDateString()+"/"+dt.ToLongTimeString(),backOrder.Amount.ToString(), (order.Price/backOrder.Price-1).ToString()
+                        dt.ToShortDateString()+"/"+dt.ToLongTimeString(),order.IsBuy ? "buy" : "sell",backOrder.Amount.ToString(), (order.Price/backOrder.Price-1).ToString()
                     };
                     Utils.AppendCSV(new List<List<string>>() { strList }, Path.Combine(Directory.GetCurrentDirectory(), "ClosePosition.csv"), false);
                 }
