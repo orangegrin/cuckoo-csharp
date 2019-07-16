@@ -889,7 +889,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     DateTime dt = backOrder.OrderDate.AddHours(8);
                     List<string> strList = new List<string>()
                     {
-                        dt.ToShortDateString()+"/"+dt.ToLongTimeString(),order.IsBuy ? "buy" : "sell",backOrder.Amount.ToString(), (order.Price/backOrder.Price-1).ToString()
+                        dt.ToShortDateString()+"/"+dt.ToLongTimeString(),order.IsBuy ? "buy" : "sell",backOrder.Amount.ToString(), (order.AveragePrice/backOrder.AveragePrice-1).ToString()
                     };
                     Utils.AppendCSV(new List<List<string>>() { strList }, Path.Combine(Directory.GetCurrentDirectory(), "ClosePosition.csv"), false);
                 }
