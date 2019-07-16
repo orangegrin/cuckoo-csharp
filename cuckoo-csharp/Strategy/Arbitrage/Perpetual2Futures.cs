@@ -8,6 +8,7 @@ using System.Threading;
 using cuckoo_csharp.Tools;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.IO;
 
 namespace cuckoo_csharp.Strategy.Arbitrage
 {
@@ -824,7 +825,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             async void fun()
             {
                 mExchangePending = true;
-                await ReverseOpenMarketOrder(order);
+                ExchangeOrderResult backResult = await ReverseOpenMarketOrder(order);
                 mExchangePending = false;
                 // 如果 当前挂单和订单相同那么删除
                 if (mCurOrderA != null && mCurOrderA.OrderId == order.OrderId)
@@ -832,7 +833,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mCurOrderA = null;
                     mOnTrade = false;
                 }
-                PrintFilledOrder(order);
+                PrintFilledOrder(order,backResult);
             }
             if (mCurOrderA !=null)//可能为null ，locknull报错
             {
@@ -850,28 +851,45 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 订单部分成交
         /// </summary>
         /// <param name="order"></param>
-        private void OnFilledPartially(ExchangeOrderResult order)
+        private async Task OnFilledPartiallyAsync(ExchangeOrderResult order)
         {
             if (order.Amount == order.AmountFilled)
                 return;
             Logger.Debug( "-------------------- Order Filed Partially---------------------------");
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
-            ReverseOpenMarketOrder(order);
-            PrintFilledOrder(order);
+            ExchangeOrderResult backOrder = await ReverseOpenMarketOrder(order);
+            PrintFilledOrder(order, backOrder);
         }
-        private void PrintFilledOrder(ExchangeOrderResult order)
+        private void PrintFilledOrder(ExchangeOrderResult order, ExchangeOrderResult backOrder)
         {
+            if (order == null)
+                return;
+            if (backOrder == null)
+                return;
+            if (order.Amount != backOrder.Amount)
+                return;
             try
             {
                 Logger.Debug("--------------PrintFilledOrder--------------");
                 Logger.Debug(Utils.Str2Json("filledTime", Utils.GetGMTimeTicks(order.OrderDate).ToString(),
                     "direction", order.IsBuy ? "buy" : "sell",
                     "orderData", order.ToExcleString()));
+                //如果是平仓打印日志记录 时间  ，diff，数量
+                decimal lastAmount = mCurAmount + (order.IsBuy? -order.Amount : order.Amount);
+                if ((lastAmount >0 && !order.IsBuy) ||//正仓位，卖
+                    (lastAmount < 0) && order.IsBuy)//负的仓位，买
+                {
+                    DateTime dt = backOrder.OrderDate.AddHours(8);
+                    List<string> strList = new List<string>()
+                    {
+                        dt.ToShortDateString()+"/"+dt.ToLongTimeString(),backOrder.Amount.ToString(), (order.Price/backOrder.Price-1).ToString()
+                    };
+                    Utils.AppendCSV(new List<List<string>>() { strList }, Path.Combine(Directory.GetCurrentDirectory(), "ClosePosition.csv"), false);
+                }
             }
             catch (Exception ex)
             {
-
                 Logger.Error("PrintFilledOrder"+ex);
             }
         }
@@ -916,7 +934,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     OnOrderFilled(order);
                     break;
                 case ExchangeAPIOrderResult.FilledPartially:
-                    OnFilledPartially(order);
+                    OnFilledPartiallyAsync(order);
                     break;
                 case ExchangeAPIOrderResult.Pending:
                     Logger.Debug("-------------------- Order Pending ---------------------------");
@@ -985,11 +1003,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <summary>
         /// 反向市价开仓
         /// </summary>
-        private async Task ReverseOpenMarketOrder(ExchangeOrderResult order)
+        private async Task<ExchangeOrderResult> ReverseOpenMarketOrder(ExchangeOrderResult order)
         {
+            
             var transAmount = GetParTrans(order);
             if (transAmount <= 0)//部分成交返回两次一样的数据，导致第二次transAmount=0
-                return;
+                return null;
+            ExchangeOrderResult backResult = null;
             if (order.AveragePrice * transAmount < mData.MinOrderPrice)//如果小于最小成交价格，1补全到最小成交价格的数量x，A交易所买x，B交易所卖x+transAmount
             {
                 for (int i = 1; ; i++)//防止bitmex overload一直提交到成功
@@ -1037,6 +1057,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     var res = await mExchangeBAPI.PlaceOrderAsync(req);
                     Logger.Debug(  "--------------------------------ReverseOpenMarketOrder Result-------------------------------------");
                     Logger.Debug(res.ToString());
+                    backResult = res;
                     break;
                 }
                 catch (Exception ex)
@@ -1054,6 +1075,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
             }
             await Task.Delay(mData.IntervalMillisecond);
+            return backResult;
         }
         /// <summary>
         /// 如果overload抛出异常
