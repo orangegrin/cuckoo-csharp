@@ -556,7 +556,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 else if (mCurOrderA != null && diff.B2ADiff >= a2bDiff && a2bDiff >= diff.A2BDiff)//如果在波动区间中，那么取消挂单
                 {
-                    Logger.Debug(Utils.Str2Json("在波动区间中取消订单" , a2bDiff.ToString()));
+                    Logger.Debug(Utils.Str2Json("在波动区间中取消订单" , a2bDiff.ToString(),"cancleID", mCurOrderA.OrderId));
                     ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
                     cancleRequestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
                     try
@@ -581,6 +581,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     catch (System.Exception ex)
                     {
                         Logger.Error(Utils.Str2Json("mRunningTask ex", ex));
+                        if (ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found"))
+                            mCurOrderA = null;
                         mRunningTask = null;
                     }
                 }
