@@ -205,7 +205,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             await Task.Delay(10 * 60 * 1000);
             if(OnConnect()==false)
-                throw new Exception(tag+" 连接断开");
+            {
+                Logger.Error(tag + " 连接断开");
+                throw new Exception(tag + " 连接断开");
+            }
+                
         }
         /// <summary>
         /// 检查仓位是否对齐
@@ -245,8 +249,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 {
                     if (Math.Abs(posA.Amount + posB.Amount)>mData.PerTrans*10)
                     {
+                        Logger.Error(Utils.Str2Json("CheckPosition ex", "A,B交易所相差过大 程序关闭，请手动处理"));
                         throw new Exception("A,B交易所相差过大 程序关闭，请手动处理");
                     }
+                        
                     for (int i=0; ;)
                     {
                         decimal count = posA.Amount + posB.Amount;
@@ -488,7 +494,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 await Task.Delay(mData.IntervalMillisecond);
                 mExchangePending = false;
             }
-
         }
         private bool Precondition()
         {
@@ -932,6 +937,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 return;
             }
             Logger.Debug("-------------------- OnOrderAHandler ---------------------------");
+            if (order.Result == ExchangeAPIOrderResult.FilledPartially || order.Result == ExchangeAPIOrderResult.Filled)
+            {
+                if (order.StopPrice > 0 && order.Amount > 0)
+                {
+                    Logger.Error("止盈触发停止运行程序");
+                    throw new Exception("止盈触发停止运行程序");
+                }
+
+            }
+
             if (order.MarketSymbol != mData.SymbolA)
                 return;
             if (!IsMyOrder(order.OrderId))
