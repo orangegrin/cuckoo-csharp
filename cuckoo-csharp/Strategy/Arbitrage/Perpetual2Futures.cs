@@ -243,6 +243,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 decimal realAmount = posA.Amount;
                 if ((posA.Amount + posB.Amount) !=0)//如果没有对齐停止交易，市价单到对齐
                 {
+                    if (Math.Abs(posA.Amount + posB.Amount)>mData.PerTrans*10)
+                    {
+                        throw new Exception("A,B交易所相差过大 程序关闭，请手动处理");
+                    }
                     for (int i=0; ;)
                     {
                         decimal count = posA.Amount + posB.Amount;
