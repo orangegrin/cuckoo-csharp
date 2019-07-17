@@ -252,7 +252,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         Logger.Error(Utils.Str2Json("CheckPosition ex", "A,B交易所相差过大 程序关闭，请手动处理"));
                         throw new Exception("A,B交易所相差过大 程序关闭，请手动处理");
                     }
-                        
                     for (int i=0; ;)
                     {
                         decimal count = posA.Amount + posB.Amount;
@@ -884,8 +883,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 return;
             if (backOrder == null)
                 return;
-            if (order.Amount != backOrder.Amount)
-                return;
             try
             {
                 Logger.Debug("--------------PrintFilledOrder--------------");
@@ -893,7 +890,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     "direction", order.IsBuy ? "buy" : "sell",
                     "orderData", order.ToExcleString()));
                 //如果是平仓打印日志记录 时间  ，diff，数量
-                decimal lastAmount = mCurAmount + (order.IsBuy? -order.Amount : order.Amount);
+                decimal lastAmount = mCurAmount + (order.IsBuy? -backOrder.Amount : backOrder.Amount);
                 if ((lastAmount >0 && !order.IsBuy) ||//正仓位，卖
                     (lastAmount < 0) && order.IsBuy)//负的仓位，买
                 {
@@ -942,11 +939,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (order.StopPrice > 0 && order.Amount > 0)
                 {
                     Logger.Error("止盈触发停止运行程序");
+                    Environment.Exit(0);
                     throw new Exception("止盈触发停止运行程序");
                 }
-
             }
-
             if (order.MarketSymbol != mData.SymbolA)
                 return;
             if (!IsMyOrder(order.OrderId))
