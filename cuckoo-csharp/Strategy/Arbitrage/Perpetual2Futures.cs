@@ -224,7 +224,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(5 * 1000);
                     continue;
                 }
-                await Task.Delay(5*60 * 1000);
                 if (mCurOrderA != null)
                     continue;
                 if (mOnTrade)
@@ -397,6 +396,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     profitOrderB = await doProfitAsync(orderB, profitOrderB);
                 }
                 mExchangePending = false;
+                await Task.Delay(5 * 60 * 1000);
             }
         }
 #endregion
@@ -433,27 +433,36 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(5 * 1000);
                     continue;
                 }
-                if(mData.AutoCalcMaxPosition)
-                {
-                    try
-                    {
-                        decimal noUseBtc = await GetAmountsAvailableToTradeAsync(mExchangeAAPI, "XBt") / 100000000;
-                        decimal allBtc = noUseBtc;
-                        //总仓位 = 总btc数量*（z19+u19）/2 *3倍杠杆/2种合约 
-                        decimal allPosition = allBtc * (mOrderBookA.Bids.FirstOrDefault().Value.Price + mOrderBookB.Asks.FirstOrDefault().Value.Price) / 2 * mData.Leverage / 2;
-                        allPosition = Math.Round(allPosition/mData.PerTrans)* mData.PerTrans;
-                        Diff lastDiff = mData.DiffGrid.LastOrDefault();
-                        lastDiff.InitialExchangeBAmount = allPosition;
-                        lastDiff.MaxAmount = allPosition;
-                        mData.SaveToDB(mDBKey);
-                        Logger.Debug(Utils.Str2Json( "noUseBtc", noUseBtc, "allPosition", allPosition));
-                    }
-                    catch (System.Exception ex)
-                    {
-                        Logger.Error("ChangeMaxCount ex" + ex.ToString());
-                    }
-                }
+                await CountDiffGridMaxCount();
                 await Task.Delay(2*3600 * 1000);
+            }
+        }
+        private async Task CountDiffGridMaxCount()
+        {
+            if (mData.AutoCalcMaxPosition)
+            {
+                try
+                {
+                    decimal noUseBtc = await GetAmountsAvailableToTradeAsync(mExchangeAAPI, "XBt") / 100000000;
+                    decimal allBtc = noUseBtc;
+                    //总仓位 = 总btc数量*（z19+u19）/2 *3倍杠杆/2种合约 
+                    decimal allPosition = allBtc * (mOrderBookA.Bids.FirstOrDefault().Value.Price + mOrderBookB.Asks.FirstOrDefault().Value.Price) / 2 * mData.Leverage / 2;
+                    allPosition = Math.Round(allPosition / mData.PerTrans) * mData.PerTrans;
+                    decimal lastPosition = 0;
+                    foreach (Diff diff in mData.DiffGrid )
+                    {
+                        lastPosition += allPosition * diff.Rate;
+                        lastPosition = Math.Round(lastPosition / mData.PerTrans) * mData.PerTrans;
+                        diff.MaxAmount = mData.OpenPositionBuyA ? lastPosition : 0;
+                        diff.InitialExchangeBAmount = mData.OpenPositionSellA ? lastPosition : 0;
+                    }
+                    mData.SaveToDB(mDBKey);
+                    Logger.Debug(Utils.Str2Json("noUseBtc", noUseBtc, "allPosition", allPosition));
+                }
+                catch (System.Exception ex)
+                {
+                    Logger.Error("ChangeMaxCount ex" + ex.ToString());
+                }
             }
         }
         private void OnOrderbookHandler(ExchangeOrderBook order)
@@ -481,14 +490,17 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (Precondition())
             {
                 mExchangePending = true;
-                if(mCurOrderA==null)//避免多线程读写错误
-                    mData = Options.LoadFromDB<Options>(mDBKey);
+                Options temp = Options.LoadFromDB<Options>(mDBKey);
+                Options last_mData = mData;
+                if (mCurOrderA==null)//避免多线程读写错误
+                    mData = temp;
                 else
                 {
-                   Options temp = Options.LoadFromDB<Options>(mDBKey);
                     temp.CurAmount = mData.CurAmount;
                     mData = temp;
                 }
+                if (last_mData.OpenPositionBuyA != mData.OpenPositionBuyA || last_mData.OpenPositionSellA != mData.OpenPositionSellA)//仓位修改立即刷新
+                    CountDiffGridMaxCount();
                 await Execute();
                 await Task.Delay(mData.IntervalMillisecond);
                 mExchangePending = false;
@@ -578,7 +590,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         mRunningTask = null;
                     }
                 }
-
                 if (mRunningTask != null)
                 {
                     try
@@ -1193,6 +1204,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// </summary>
             public bool AutoCalcMaxPosition = true;
             /// <summary>
+            /// 是否能开多仓
+            /// </summary>
+            public bool OpenPositionBuyA = true;
+            /// <summary>
+            /// 是否能开空仓
+            /// </summary>
+            public bool OpenPositionSellA = true;
+            /// <summary>
             /// 杠杆倍率
             /// </summary>
             public decimal Leverage = 3;
@@ -1258,6 +1277,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// 开始交易时候的初始火币数量
             /// </summary>
             public decimal InitialExchangeBAmount = 0m;
+
+            public decimal Rate = 0.5m;
         }
 
     }
