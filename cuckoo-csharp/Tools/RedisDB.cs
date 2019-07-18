@@ -10,6 +10,7 @@ namespace cuckoo_csharp.Tools
     {
         private static ConnectionMultiplexer connection;
         private static IDatabase instance;
+        private static string configStr = null;
 
         public static IDatabase Instance
         {
@@ -17,18 +18,19 @@ namespace cuckoo_csharp.Tools
             {
                 if (connection == null || !connection.IsConnected)
                 {
-                    //connection = ConnectionMultiplexer.Connect("localhost");
-                    //instance = connection.GetDatabase();
-                    throw new Exception("请先使用 Init初始化连接");
+                    if (RedisDB.configStr == null || RedisDB.configStr.Equals(string.Empty))
+                        throw new Exception("请先调用 Init");
+                    Init(RedisDB.configStr);
                 }
                 return instance;
             }
         }
         public static void Init(string configStr)
         {
+            RedisDB.configStr = configStr;
             if (connection == null || !connection.IsConnected)
             {
-                connection = ConnectionMultiplexer.Connect(configStr);
+                connection = ConnectionMultiplexer.Connect(RedisDB.configStr);
                 instance = connection.GetDatabase();
             }
         }
