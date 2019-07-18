@@ -26,6 +26,7 @@ namespace cuckoo_csharp
         }
         static void Main(string[] args)
         {
+            AppDomain.CurrentDomain.UnhandledException += new UnhandledExceptionEventHandler(UnhandledExceptionHundle);
             if (args.Length > 0)
             {
                 Parser.Default.ParseArguments<Options>(args).WithParsed<Options>(OnParsedHandler);
@@ -64,6 +65,15 @@ namespace cuckoo_csharp
                     Thread.Sleep(1 * 1000);
                 }
             }
+        }
+        /// <summary>
+        /// 抛出未经处理异常
+        /// </summary>
+        /// <param name="exception"></param>
+        /// <param name="isTerminating"></param>
+        static private void UnhandledExceptionHundle(object sender, UnhandledExceptionEventArgs e)
+        {
+            Logger.Error((Exception)e.ExceptionObject);
         }
     }
 }
