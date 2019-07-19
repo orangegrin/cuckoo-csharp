@@ -209,7 +209,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Error(tag + " 连接断开");
                 throw new Exception(tag + " 连接断开");
             }
-                
         }
         /// <summary>
         /// 检查仓位是否对齐
@@ -582,7 +581,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     try
                     {
                         mRunningTask = mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
-                        await Task.Delay(5000);
+                        await Task.Delay(3500);
                     }
                     catch (Exception ex)
                     {
@@ -690,14 +689,27 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         private async Task A2BExchange(decimal buyPrice,decimal buyAmount)
         {
+            await AddOrder2Exchange(true, mData.SymbolA, buyPrice, buyAmount);
+        }
+        /// <summary>
+        /// 当curAmount大于0的时候就是开仓
+        /// B买A卖
+        /// </summary>
+        /// <param name="exchangeAmount"></param>
+        private async Task B2AExchange(decimal sellPrice, decimal buyAmount)
+        {
+            await AddOrder2Exchange(false, mData.SymbolA, sellPrice, buyAmount);
+        }
+        private async Task AddOrder2Exchange(bool isBuy,string symbol,decimal buyPrice, decimal buyAmount)
+        {
             //A限价买
             ExchangeOrderRequest requestA = new ExchangeOrderRequest()
             {
                 ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
             };
             requestA.Amount = buyAmount;
-            requestA.MarketSymbol = mData.SymbolA;
-            requestA.IsBuy = true;
+            requestA.MarketSymbol = symbol;
+            requestA.IsBuy = isBuy;
             requestA.OrderType = OrderType.Limit;
             requestA.Price = NormalizationMinUnit(buyPrice);
             bool isAddNew = true;
@@ -732,8 +744,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 var v = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 mCurOrderA = v[0];
                 mOrderIds.Add(mCurOrderA.OrderId);
-                Logger.Debug(Utils.Str2Json(  "requestA" , requestA.ToString()));
-                Logger.Debug(Utils.Str2Json(  "Add mCurrentLimitOrder" , mCurOrderA.ToExcleString() , "CurAmount" , mData.CurAmount));
+                Logger.Debug(Utils.Str2Json("requestA", requestA.ToString()));
+                Logger.Debug(Utils.Str2Json("Add mCurrentLimitOrder", mCurOrderA.ToExcleString(), "CurAmount", mData.CurAmount));
                 if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
                 {
                     mCurOrderA = null;
@@ -750,7 +762,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mCurOrderA = null;
                     mOnTrade = false;
                 }
-                Logger.Error(Utils.Str2Json(  "ex",ex));
+                Logger.Error(Utils.Str2Json("ex", ex));
                 if (ex.ToString().Contains("overloaded"))
                     await Task.Delay(5000);
                 if (ex.ToString().Contains("RateLimitError"))
@@ -763,82 +775,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             cancleRequestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
             //在onOrderCancle的时候处理
             await mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
-        }
-        /// <summary>
-        /// 当curAmount大于0的时候就是开仓
-        /// B买A卖
-        /// </summary>
-        /// <param name="exchangeAmount"></param>
-        private async Task B2AExchange(decimal sellPrice,decimal buyAmount)
-        {
-            //开仓
-            ExchangeOrderRequest requestA = new ExchangeOrderRequest()
-            {
-                ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
-            };
-            requestA.Amount = buyAmount;
-            requestA.MarketSymbol = mData.SymbolA;
-            requestA.IsBuy = false;
-            requestA.OrderType = OrderType.Limit;
-            //避免市价成交
-            requestA.Price = NormalizationMinUnit(sellPrice);
-            //如果当前有限价单，并且方向不相同，那么取消
-            //如果方向相同那么改价
-            bool newOrder = true;
-            try
-            {
-                if (mCurOrderA != null)
-                {
-                    if (mCurOrderA.IsBuy == requestA.IsBuy)
-                    {
-                        newOrder = false;
-                        requestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
-                        //检查是否有改动必要
-                        //做空涨价则判断
-                        if (requestA.Price == mCurOrderA.Price)
-                        {
-                            return;
-                        }
-                    }
-                    else
-                    {
-                        CancelCurOrderA();
-                    }
-                    //如果已出现部分成交并且需要修改价格，则取消部分成交并重新创建新的订单
-                    if (mFilledPartiallyDic.Keys.Contains(mCurOrderA.OrderId))
-                    {
-                        await CancelCurOrderA();
-                        if (requestA.ExtraParameters.Keys.Contains("orderID"))
-                            requestA.ExtraParameters.Remove("orderID");
-                    }
-                };
-                var orderResults = await mExchangeAAPI.PlaceOrdersAsync(requestA);
-                mCurOrderA = orderResults[0];
-                mOrderIds.Add(mCurOrderA.OrderId);
-                Logger.Debug(Utils.Str2Json(  "requestA" , requestA.ToString()));
-                Logger.Debug(Utils.Str2Json(  "Add mCurrentLimitOrder" , mCurOrderA.ToExcleString()));
-                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
-                {
-                    mCurOrderA = null;
-                    mOnTrade = false;
-                    await Task.Delay(2000);
-                }
-                await Task.Delay(100);
-            }
-            catch (Exception ex)
-            {
-                //如果是添加新单那么设置为null
-                if (newOrder || ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found"))
-                {
-                    mCurOrderA = null;
-                    mOnTrade = false;
-                }
-                Logger.Error(Utils.Str2Json( "ex", ex));
-                if (ex.ToString().Contains("overloaded"))
-                    await Task.Delay(5000);
-                if (ex.ToString().Contains("RateLimitError"))
-                    await Task.Delay(30000);
-            }
         }
         /// <summary>
         /// 订单成交 ，修改当前仓位和删除当前订单
