@@ -71,6 +71,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private bool mOrderBookAwsConnect = false;
         private bool mOrderBookBwsConnect = false;
         private bool mOnTrade = false;//是否在交易中
+        private bool mOnConnecting = false;
         public Perpetual2Futures(Options config, int id = -1)
         {
             mId = id;
@@ -117,8 +118,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 #region Connect
         private void SubWebSocket()
         {
+            mOnConnecting = true;
             mOrderws = mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
-            mOrderws.Connected += async (socket) => { mOrderwsConnect = true; Logger.Debug("GetOrderDetailsWebSocket 连接"); };
+            mOrderws.Connected += async (socket) => { mOrderwsConnect = true; Logger.Debug("GetOrderDetailsWebSocket 连接"); OnConnect(); };
             mOrderws.Disconnected += async (socket) =>
             {
                 mOrderwsConnect = false;
@@ -127,14 +129,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //避免没有订阅成功就开始订单
             Thread.Sleep(3 * 1000);
             mOrderBookAws = mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 20, mData.SymbolA);
-            mOrderBookAws.Connected += async (socket) => { mOrderBookAwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket A 连接"); };
+            mOrderBookAws.Connected += async (socket) => { mOrderBookAwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket A 连接"); OnConnect(); };
             mOrderBookAws.Disconnected += async (socket) =>
             {
                 mOrderBookAwsConnect = false;
                 WSDisConnectAsync("GetFullOrderBookWebSocket A 连接断开");
             };
             mOrderBookBws = mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 20, mData.SymbolB);
-            mOrderBookBws.Connected += async (socket) => { mOrderBookBwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket B 连接"); };
+            mOrderBookBws.Connected += async (socket) => { mOrderBookBwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket B 连接"); OnConnect(); };
             mOrderBookBws.Disconnected += async (socket) =>
             {
                 mOrderBookBwsConnect = false;
@@ -170,20 +172,26 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         CancelCurOrderA();
                     }
-                    mOrderwsConnect = false;
-                    mOrderBookAwsConnect = false;
-                    mOrderBookBwsConnect = false;
-                    await Task.Delay(5 * 1000);
-                    Logger.Debug("销毁ws");
-                    mOrderws.Dispose();
-                    mOrderBookAws.Dispose();
-                    mOrderBookBws.Dispose();
+                    await CloseWS();
                     Logger.Debug("开始重新连接ws");
                     SubWebSocket();
                     await Task.Delay(5 * 1000);
                 }
             }
         }
+
+        private async Task CloseWS()
+        {
+            mOrderwsConnect = false;
+            mOrderBookAwsConnect = false;
+            mOrderBookBwsConnect = false;
+            await Task.Delay(5 * 1000);
+            Logger.Debug("销毁ws");
+            mOrderws.Dispose();
+            mOrderBookAws.Dispose();
+            mOrderBookBws.Dispose();
+        }
+
         /// <summary>
         /// 测试 GetOrderDetailsWebSocket 是否有推送消息
         /// 发送一个多单限价，用卖一+100作为价格（一定被取消）。 等待10s如果GetOrderDetailsWebSocket没有返回消息说明已经断开
@@ -195,7 +203,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         private bool OnConnect()
         {
-            return mOrderwsConnect & mOrderBookAwsConnect & mOrderBookBwsConnect ;
+            bool connect = mOrderwsConnect & mOrderBookAwsConnect & mOrderBookBwsConnect;
+            if (connect)
+                mOnConnecting = false;
+            return connect;
         }
         private async Task WSDisConnectAsync(string tag)
         {
@@ -203,11 +214,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 CancelCurOrderA();
             }
-            await Task.Delay(10 * 60 * 1000);
-            if(OnConnect()==false)
+            await Task.Delay(30 * 1000);
+            Logger.Error(tag + " 连接断开");
+            if (OnConnect()==false)
             {
-                Logger.Error(tag + " 连接断开");
-                throw new Exception(tag + " 连接断开");
+                if (!mOnConnecting)//如果当前正在连接中那么不连接否则开始重连
+                {
+                    await CloseWS();
+                    SubWebSocket();
+                }
             }
         }
         /// <summary>
