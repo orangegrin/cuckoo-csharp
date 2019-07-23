@@ -555,8 +555,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             lock (mOrderBookB)
             {
-                sellPriceB = mOrderBookB.Bids.FirstOrDefault().Value.Price;
-                buyPriceB = mOrderBookB.Asks.FirstOrDefault().Value.Price;
+                buyPriceB = mOrderBookB.Bids.FirstOrDefault().Value.Price;
+                sellPriceB = mOrderBookB.Asks.FirstOrDefault().Value.Price;
                 bidBAmount = mOrderBookB.Bids.FirstOrDefault().Value.Amount;
                 askBAmount = mOrderBookB.Asks.FirstOrDefault().Value.Amount;
             } 
@@ -567,6 +567,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 b2aDiff = (sellPriceA/buyPriceB - 1);
                 Diff diff = GetDiff(a2bDiff, b2aDiff,out buyAmount);
                 PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
+                //如果盘口差价超过4usdt 不进行挂单，但是可以改单（bitmex overload 推送ws不及时）
+                if (mCurOrderA == null && ((sellPriceA <= buyPriceA) || (sellPriceA - buyPriceA >= 4) || (sellPriceB <= buyPriceB) || (sellPriceB - buyPriceB >= 4)))
+                {
+                    Logger.Debug("范围更新不及时，不纳入计算");
+                    return;
+                }
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff < diff.A2BDiff && mData.CurAmount + mData.PerTrans <= diff.InitialExchangeBAmount) //满足差价并且当前A空仓
