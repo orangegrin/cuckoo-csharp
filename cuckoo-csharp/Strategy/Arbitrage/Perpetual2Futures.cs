@@ -1195,7 +1195,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// <summary>
             /// redis连接数据
             /// </summary>
-            public string RedisConfig = "localhost";
+            public string RedisConfig = "localhost,password=l3h2p1w0*";
             /// <summary>
             /// redis连接数据
             /// </summary>
