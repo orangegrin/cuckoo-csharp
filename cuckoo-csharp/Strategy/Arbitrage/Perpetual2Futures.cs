@@ -155,7 +155,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(5 * 1000);
                     continue;
                 }
-                int delayTime = 10;//保证次数至少要2s一次，否则重启
+                int delayTime = 20;//保证次数至少要3s一次，否则重启
                 mOrderBookAwsCounter = 0;
                 mOrderBookBwsCounter = 0;
                 mOrderDetailsAwsCounter = 0;
@@ -165,7 +165,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if(mOrderDetailsAwsCounter==0)
                     detailConnect = await IsConnectAsync();
                 Logger.Debug(Utils.Str2Json("mOrderDetailsAwsCounter",mOrderDetailsAwsCounter));
-                if (mOrderBookAwsCounter< delayTime/2 || mOrderBookBwsCounter< delayTime/2 || (!detailConnect))
+                if (mOrderBookAwsCounter< 1 || mOrderBookBwsCounter< 1 || (!detailConnect))
                 {
                     Logger.Error(new Exception("ws 没有收到推送消息"));
                     if (mCurOrderA != null)
