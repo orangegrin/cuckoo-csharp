@@ -248,6 +248,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 ExchangeMarginPositionResult posB ;
                 try
                 {
+                    //等待10秒 避免ws虽然推送数据刷新，但是rest 还没有刷新数据
+                    await Task.Delay(10* 1000);
                     posA = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolA);
                     posB = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolB);
                 }
