@@ -85,12 +85,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mData.ExchangeNameA);
             mExchangeBAPI = mExchangeAAPI;
-            UpdateAvgDiffAsync();
         }
         public void Start()
         {
             AppDomain.CurrentDomain.ProcessExit += new EventHandler(OnProcessExit);
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
+            UpdateAvgDiffAsync();
             SubWebSocket();
             WebSocketProtect();
             CheckPosition();
