@@ -16,7 +16,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
     /// 期对期
     /// 要求 A价<B价，并且A限价开仓
     /// </summary>
-    public class Perpetual2Futures
+    public class P2FAdvance
     {
         private IExchangeAPI mExchangeAAPI;
         private IExchangeAPI mExchangeBAPI;
@@ -72,7 +72,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private bool mOrderBookBwsConnect = false;
         private bool mOnTrade = false;//是否在交易中
         private bool mOnConnecting = false;
-        public Perpetual2Futures(Options config, int id = -1)
+        public P2FAdvance(Options config, int id = -1)
         {
             mId = id;
             mDBKey = string.Format("INTERTEMPORAL:CONFIG:{0}:{1}:{2}:{3}:{4}", config.ExchangeNameA, config.ExchangeNameB, config.SymbolA, config.SymbolB, id);
