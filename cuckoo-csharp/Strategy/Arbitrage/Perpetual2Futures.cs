@@ -667,33 +667,40 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         public async Task UpdateAvgDiffAsync()
         {
-            string url = $"{"http://150.109.52.225:8888/diff?symbol="}{mData.Symbol}{"&exchangeB="}{mData.ExchangeNameB.ToLowerInvariant()}{"&exchangeA="}{mData.ExchangeNameA.ToLowerInvariant()}";
+            string dataUrl = $"{"http://150.109.52.225:8006/arbitrage/process?programID="}{mId}{"&symbol="}{mData.Symbol}{"&exchangeB="}{mData.ExchangeNameB.ToLowerInvariant()}{"&exchangeA="}{mData.ExchangeNameA.ToLowerInvariant()}";
             while (true)
             {
                 if (mData.AutoCalcProfitRange)
                 {
                     try
                     {
-                        JObject jsonResult = await Utils.GetHttpReponseAsync(url);
-                        if (jsonResult["status"].ConvertInvariant<int>() == 1)
+                        JObject jsonResult = await Utils.GetHttpReponseAsync(dataUrl);
+                        mData.DeltaDiff = jsonResult["deltaDiff"].ConvertInvariant<decimal>();
+                        mData.Leverage = jsonResult["leverage"].ConvertInvariant<decimal>();
+                        mData.OpenPositionBuyA = jsonResult["openPositionBuyA"].ConvertInvariant<int>() == 0 ? false : true;
+                        mData.OpenPositionSellA = jsonResult["openPositionSellA"].ConvertInvariant<int>() == 0 ? false : true;
+                        var rangeList = JArray.Parse(jsonResult["profitRange"].ToStringInvariant());
+                        decimal avgDiff = jsonResult["maAvg"].ConvertInvariant<decimal>();
+                        avgDiff = Math.Round(avgDiff, 4);//强行转换
+                        for (int i = 0; i < rangeList.Count; i++)
                         {
-                            decimal avgDiff = jsonResult["data"]["value"].ConvertInvariant<decimal>();
-                            avgDiff = Math.Round(avgDiff, 4);//强行转换
-                            foreach (var diff in mData.DiffGrid)
+                            if (i < mData.DiffGrid.Count)
                             {
+                                var diff = mData.DiffGrid[i];
+                                diff.ProfitRange = rangeList[i].ConvertInvariant<decimal>();
                                 diff.A2BDiff = avgDiff - diff.ProfitRange + mData.DeltaDiff;
                                 diff.B2ADiff = avgDiff + diff.ProfitRange + mData.DeltaDiff;
                                 mData.SaveToDB(mDBKey);
                             }
-                            Logger.Debug(Utils.Str2Json(" UpdateAvgDiffAsync avgDiff" , avgDiff));
                         }
+                        Logger.Debug(Utils.Str2Json(" UpdateAvgDiffAsync avgDiff", avgDiff));
                     }
                     catch (Exception ex)
                     {
                         Logger.Debug(" UpdateAvgDiffAsync avgDiff:" + ex.ToString());
                     }
                 }
-                await Task.Delay(600 * 1000);
+                await Task.Delay(60 * 1000);
             }
         }
         private void PrintInfo(decimal bidA, decimal askA, decimal bidB, decimal askB, decimal a2bDiff, decimal b2aDiff, decimal A2BDiff, decimal B2ADiff, decimal buyAmount, 
