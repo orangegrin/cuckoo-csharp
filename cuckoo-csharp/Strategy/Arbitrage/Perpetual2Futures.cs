@@ -793,7 +793,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mOnTrade = false;
                 }
                 Logger.Error(Utils.Str2Json("ex", ex));
-                if (ex.ToString().Contains("overloaded"))
+                if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("Bad Gateway"))
                     await Task.Delay(5000);
                 if (ex.ToString().Contains("RateLimitError"))
                     await Task.Delay(30000);
@@ -1021,7 +1021,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                     catch (System.Exception ex)
                     {
-                        if (ex.ToString().Contains("overloaded"))
+                        if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("Bad Gateway"))
                         {
                             await Task.Delay(2000);
                         }
@@ -1062,7 +1062,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 catch (Exception ex)
                 {
-                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden"))
+                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Bad Gateway"))
                     {
                         Logger.Error(Utils.Str2Json( "req", req.ToStringInvariant(), "ex", ex));
                         await Task.Delay(2000);
