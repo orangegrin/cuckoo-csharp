@@ -238,10 +238,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(5 * 1000);
                     continue;
                 }
-                if (mCurOrderA != null)
+                if (mCurOrderA != null || mOnTrade || mExchangePending == true)//交易正在进行或者，准备开单。检查数量会出现问题
+                {
+                    await Task.Delay(200);
                     continue;
-                if (mOnTrade)
-                    continue;
+                }
                 mExchangePending = true;
                 Logger.Debug("-----------------------CheckPosition-----------------------------------");
                 ExchangeMarginPositionResult posA ;
@@ -257,6 +258,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 {
                     Logger.Error(Utils.Str2Json("GetOpenPositionAsync ex", ex.ToString()));
                     mExchangePending = false;
+                    await Task.Delay(1000);
                     continue;
                 }
                 decimal realAmount = posA.Amount;
@@ -341,6 +343,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         Logger.Error(Utils.Str2Json("GetOpenOrderDetailsAsync ex", ex.ToString()));
                         mExchangePending = false;
+                        await Task.Delay(1000);
                         continue;
                     }
                     async Task<ExchangeOrderResult> doProfitAsync(ExchangeOrderRequest request, ExchangeOrderResult lastResult)
