@@ -24,8 +24,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private IWebSocket mOrderBookAws;
         private IWebSocket mOrderBookBws;
 
-        private int mOrderBookAwsCounter=0;
-        private int mOrderBookBwsCounter=0;
+        private int mOrderBookAwsCounter = 0;
+        private int mOrderBookBwsCounter = 0;
         private int mOrderDetailsAwsCounter = 0;
         private int mId;
         /// <summary>
@@ -102,10 +102,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private async Task ClosePosition()
         {
             double deltaTime = (mData.CloseDate - DateTime.Now).TotalSeconds;
-            Logger.Debug(Utils.Str2Json("deltaTime",deltaTime));
+            Logger.Debug(Utils.Str2Json("deltaTime", deltaTime));
             await Task.Delay((int)(deltaTime * 1000));
             Logger.Debug("关闭策略只平仓不开仓");
-            lock(mData)
+            lock (mData)
             {
                 foreach (var diff in mData.DiffGrid)
                 {
@@ -115,7 +115,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mData.SaveToDB(mDBKey);
             }
         }
-#region Connect
+        #region Connect
         private void SubWebSocket()
         {
             mOnConnecting = true;
@@ -159,13 +159,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mOrderBookAwsCounter = 0;
                 mOrderBookBwsCounter = 0;
                 mOrderDetailsAwsCounter = 0;
-                await Task.Delay( 1000 * delayTime);
-                Logger.Debug(Utils.Str2Json("mOrderBookAwsCounter" , mOrderBookAwsCounter , "mOrderBookBwsCounter" , mOrderBookBwsCounter, "mOrderDetailsAwsCounter" ,mOrderDetailsAwsCounter));
+                await Task.Delay(1000 * delayTime);
+                Logger.Debug(Utils.Str2Json("mOrderBookAwsCounter", mOrderBookAwsCounter, "mOrderBookBwsCounter", mOrderBookBwsCounter, "mOrderDetailsAwsCounter", mOrderDetailsAwsCounter));
                 bool detailConnect = true;
-                if(mOrderDetailsAwsCounter==0)
+                if (mOrderDetailsAwsCounter == 0)
                     detailConnect = await IsConnectAsync();
-                Logger.Debug(Utils.Str2Json("mOrderDetailsAwsCounter",mOrderDetailsAwsCounter));
-                if (mOrderBookAwsCounter< 1 || mOrderBookBwsCounter< 1 || (!detailConnect))
+                Logger.Debug(Utils.Str2Json("mOrderDetailsAwsCounter", mOrderDetailsAwsCounter));
+                if (mOrderBookAwsCounter < 1 || mOrderBookBwsCounter < 1 || (!detailConnect))
                 {
                     Logger.Error(new Exception("ws 没有收到推送消息"));
                     if (mCurOrderA != null)
@@ -208,6 +208,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mOnConnecting = false;
             return connect;
         }
+        
         private async Task WSDisConnectAsync(string tag)
         {
             if (mCurOrderA != null)
@@ -472,8 +473,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         lastPosition += allPosition * diff.Rate;
                         lastPosition = Math.Round(lastPosition / mData.PerTrans) * mData.PerTrans;
-                        diff.MaxAmount = mData.OpenPositionBuyA ? lastPosition : 0;
-                        diff.InitialExchangeBAmount = mData.OpenPositionSellA ? lastPosition : 0;
+                        diff.MaxAmount = mData.OpenPositionSellA ? lastPosition : 0;
+                        diff.InitialExchangeBAmount = mData.OpenPositionBuyA ? lastPosition : 0;
                     }
                     mData.SaveToDB(mDBKey);
                     Logger.Debug(Utils.Str2Json("noUseBtc", noUseBtc, "allPosition", allPosition));
@@ -677,6 +678,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 {
                     try
                     {
+                        bool lastOpenPositionBuyA = mData.OpenPositionBuyA;
+                        bool lastOpenPositionSellA = mData.OpenPositionSellA;
                         JObject jsonResult = await Utils.GetHttpReponseAsync(dataUrl);
                         mData.DeltaDiff = jsonResult["deltaDiff"].ConvertInvariant<decimal>();
                         mData.Leverage = jsonResult["leverage"].ConvertInvariant<decimal>();
@@ -696,6 +699,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                                 mData.SaveToDB(mDBKey);
                             }
                         }
+                        if (lastOpenPositionBuyA != mData.OpenPositionBuyA || lastOpenPositionSellA != mData.OpenPositionSellA)//仓位修改立即刷新
+                            CountDiffGridMaxCount();
                         Logger.Debug(Utils.Str2Json(" UpdateAvgDiffAsync avgDiff", avgDiff));
                     }
                     catch (Exception ex)
