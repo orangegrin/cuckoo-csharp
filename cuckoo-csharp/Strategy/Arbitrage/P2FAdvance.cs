@@ -52,6 +52,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         private ExchangeOrderResult mCurOrderA;
         /// <summary>
+        /// 当前订单成交后，反向开仓数量A1
+        /// </summary>
+        private decimal mChangeAmountA1;
+        /// <summary>
         /// 当前订单成交后，反向开仓数量A2
         /// </summary>
         private decimal mChangeAmountA2;
@@ -647,6 +651,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         mChangeAmountA2 = NormalizationMinUnit(((buyAmount * sellPriceA1) * sellPriceA2), mData.MinPriceUnitA2);
                         mChangeAmountB = NormalizationMinUnit(((buyAmount * sellPriceA1) * 2 / (sellPriceB * mData.FactorA2)), mData.MinPriceUnitB);
                     }
+                    mChangeAmountA1 = buyAmount;
                     Logger.Debug(Utils.Str2Json("buyAmount", buyAmount, "mChangeAmountA2", mChangeAmountA2, "mChangeAmountB", mChangeAmountB));
                     mRunningTask = B2AExchange(sellPriceA1, buyAmount);
                 }
@@ -673,10 +678,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         mChangeAmountA2 = NormalizationMinUnit(((buyAmount * buyPriceA1) * buyPriceA2), mData.MinPriceUnitA2);
                         mChangeAmountB = NormalizationMinUnit(((buyAmount * buyPriceA1) * 2 / (buyPriceB * mData.FactorA2)), mData.MinPriceUnitB);
                     }
+                    mChangeAmountA1 = buyAmount;
                     Logger.Debug(Utils.Str2Json("buyAmount", buyAmount, "mChangeAmountA2", mChangeAmountA2, "mChangeAmountB", mChangeAmountB));
                     mRunningTask = A2BExchange(buyPriceA1, buyAmount);
-                   
-                    
                 }
                 else if (mCurOrderA != null && b2aDiff >= diff.B2ADiff && a2bDiff <= diff.A2BDiff)//如果在波动区间中，那么取消挂单
                 {
@@ -904,14 +908,17 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             async void fun()
             {
                 mExchangePending = true;
-                ExchangeOrderResult backResult1 = await ReverseOpenMarketOrder(order, order.IsBuy,mData.SymbolA2,mChangeAmountA2, mData.MinPriceUnitA2,mData.FactorA2);
-                ExchangeOrderResult backResult2 = await ReverseOpenMarketOrder(order, !order.IsBuy, mData.SymbolB, mChangeAmountB,mData.MinPriceUnitB,mData.FactorB);
-                var transAmount = GetParTrans(order);
-                Logger.Debug(Utils.Str2Json("1111:", "1111"));
+                bool isFilled = false;
+                decimal transAmount;
+                decimal curAmountA2;
+                decimal curAmountB;
+                GetParTrans(order, out transAmount, out curAmountA2, out curAmountB, out isFilled);
+                ExchangeOrderResult backResult1 = await ReverseOpenMarketOrder(order, order.IsBuy,mData.SymbolA2, curAmountA2, mData.MinPriceUnitA2,mData.FactorA2);
+                ExchangeOrderResult backResult2 = await ReverseOpenMarketOrder(order, !order.IsBuy, mData.SymbolB, curAmountB, mData.MinPriceUnitB,mData.FactorB);
                 mCurA1Amount += order.IsBuy ? transAmount : -transAmount;
-                mCurA2Amount += order.IsBuy ? mChangeAmountA2 : -mChangeAmountA2;
-                mCurBAmount += order.IsBuy ? -mChangeAmountB : mChangeAmountB;
-                Logger.Debug(Utils.Str2Json("mCurA1Amount:", mCurA1Amount, "mCurA2Amount:", mCurA2Amount, "mCurBAmount:", mCurBAmount));
+                mCurA2Amount += order.IsBuy ? curAmountA2 : -curAmountA2;
+                mCurBAmount += order.IsBuy ? -curAmountB : curAmountB;
+                Logger.Debug(Utils.Str2Json("mCurA1Amount:", transAmount, "curAmountA2:", curAmountA2, "curAmountB:", curAmountB));
                 mExchangePending = false;
                 // 如果 当前挂单和订单相同那么删除
                 if (mCurOrderA != null && mCurOrderA.OrderId == order.OrderId)
@@ -940,16 +947,25 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <param name="order"></param>
         private async Task OnFilledPartiallyAsync(ExchangeOrderResult order)
         {
-            throw new Exception("已经关闭部分成交不可能出现部分成交！！！！！"+order.OrderId);
-            return;
             if (order.Amount == order.AmountFilled)
                 return;
             Logger.Debug("-------------------- Order Filed Partially---------------------------");
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
-//             ExchangeOrderResult backResult1 = await ReverseOpenMarketOrder(order, mData.SymbolA2, mData.MinPriceUnitA2, mData.FactorA2);
-//             ExchangeOrderResult backResult2 = await ReverseOpenMarketOrder(order, mData.SymbolB, mData.MinPriceUnitB, mData.FactorB);
-/*            PrintFilledOrder(order, backResult2);*/
+            mExchangePending = true;
+            bool isFilled = false;
+            decimal transAmount;
+            decimal curAmountA2;
+            decimal curAmountB;
+            GetParTrans(order,out transAmount,out curAmountA2,out curAmountB ,out isFilled);
+            ExchangeOrderResult backResult1 = await ReverseOpenMarketOrder(order, order.IsBuy, mData.SymbolA2, curAmountA2, mData.MinPriceUnitA2, mData.FactorA2);
+            ExchangeOrderResult backResult2 = await ReverseOpenMarketOrder(order, !order.IsBuy, mData.SymbolB, curAmountB, mData.MinPriceUnitB, mData.FactorB);
+            mCurA1Amount += order.IsBuy ? transAmount : -transAmount;
+            mCurA2Amount += order.IsBuy ? curAmountA2 : -curAmountA2;
+            mCurBAmount += order.IsBuy ? -curAmountB : curAmountB;
+            Logger.Debug(Utils.Str2Json("mCurA1Amount:", transAmount, "curAmountA2:", curAmountA2, "curAmountB:", curAmountB));
+            mExchangePending = false;
+            PrintFilledOrder(order, backResult2);
         }
         private void PrintFilledOrder(ExchangeOrderResult order, ExchangeOrderResult backOrder)
         {
@@ -1063,39 +1079,44 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         /// <param name="order"></param>
         /// <returns></returns>
-        private decimal GetParTrans(ExchangeOrderResult order)
+        private void GetParTrans(ExchangeOrderResult order , out decimal changeAmountA1, out decimal changeAmountA2, out decimal changeAmountB,out bool isFilled)
         {
             Logger.Debug("-------------------- GetParTrans ---------------------------");
             decimal filledAmount = 0;
+            changeAmountA1 = 0;
+            isFilled = false;
             mFilledPartiallyDic.TryGetValue(order.OrderId, out filledAmount);
             Logger.Debug(" filledAmount: " + filledAmount.ToStringInvariant());
             if (order.Result == ExchangeAPIOrderResult.FilledPartially && filledAmount == 0)
             {
                 mFilledPartiallyDic[order.OrderId] = order.AmountFilled;
-                return order.AmountFilled;
+                changeAmountA1 = order.AmountFilled;
             }
-            if (order.Result == ExchangeAPIOrderResult.FilledPartially && filledAmount != 0)
+            else if (order.Result == ExchangeAPIOrderResult.FilledPartially && filledAmount != 0)
             {
                 if (filledAmount < order.AmountFilled)
                 {
                     mFilledPartiallyDic[order.OrderId] = order.AmountFilled;
-                    return order.AmountFilled - filledAmount;
+                    changeAmountA1 = order.AmountFilled - filledAmount;
                 }
                 else
-                    return 0;
+                    changeAmountA1 = 0;
             }
-
-            if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount == 0)
+            else if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount == 0)
             {
-                return order.Amount;
+                isFilled = true;
+                changeAmountA1 = order.Amount;
             }
-
-            if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount != 0)
+            else if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount != 0)
             {
+                isFilled = true;
                 mFilledPartiallyDic.Remove(order.OrderId);
-                return order.Amount - filledAmount;
+                changeAmountA1 = order.Amount - filledAmount;
             }
-            return 0;
+            decimal rate = changeAmountA1 / mChangeAmountA1;
+            changeAmountA2 = Math.Floor(rate * mChangeAmountA2);
+            changeAmountB = Math.Floor(rate * mChangeAmountB);
+
         }
         /// <summary>
         /// 反向市价开仓
