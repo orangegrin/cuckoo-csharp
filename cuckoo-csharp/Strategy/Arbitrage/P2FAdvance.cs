@@ -760,29 +760,21 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 {
                     try
                     {
-                        //JObject jsonResult = await Utils.GetHttpReponseAsync(url);
-                        //if (jsonResult["status"].ConvertInvariant<int>() == 1)
-                        //{
-                        //    decimal avgDiff = jsonResult["data"]["value"].ConvertInvariant<decimal>();
-                        //    avgDiff = Math.Round(avgDiff, 4);//强行转换
-                        //    foreach (var diff in mData.DiffGrid)
-                        //    {
-                        //        diff.A2BDiff = avgDiff - diff.ProfitRange + mData.DeltaDiff;
-                        //        diff.B2ADiff = avgDiff + diff.ProfitRange + mData.DeltaDiff;
-                        //        mData.SaveToDB(mDBKey);
-                        //    }
-                        //    Logger.Debug(Utils.Str2Json(" UpdateAvgDiffAsync avgDiff", avgDiff));
-                        //}
+                        decimal avgDiff;
+                        JObject jsonResult = await Utils.GetHttpReponseAsync(url);
 
-                        decimal avgDiff = 0;
-                        avgDiff = Math.Round(avgDiff, 4);//强行转换
-                        foreach (var diff in mData.DiffGrid)
+                        if (jsonResult["status"].ConvertInvariant<int>() == 1)
                         {
-                            diff.A2BDiff = avgDiff + diff.ProfitRange + mData.DeltaDiff;
-                            diff.B2ADiff = avgDiff - diff.ProfitRange + mData.DeltaDiff;
-                            mData.SaveToDB(mDBKey);
+                            avgDiff = jsonResult["data"]["value"].ConvertInvariant<decimal>();
+                            avgDiff = Math.Round(avgDiff, 4);//强行转换
+                            foreach (var diff in mData.DiffGrid)
+                            {
+                                diff.A2BDiff = avgDiff + diff.ProfitRange + mData.DeltaDiff;
+                                diff.B2ADiff = avgDiff - diff.ProfitRange + mData.DeltaDiff;
+                                mData.SaveToDB(mDBKey);
+                            }
+                            Logger.Debug(Utils.Str2Json(" UpdateAvgDiffAsync avgDiff", avgDiff));
                         }
-                        Logger.Debug(Utils.Str2Json(" UpdateAvgDiffAsync avgDiff", avgDiff));
                     }
                     catch (Exception ex)
                     {
