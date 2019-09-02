@@ -653,7 +653,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                     mChangeAmountA1 = buyAmount;
                     Logger.Debug(Utils.Str2Json("buyAmount", buyAmount, "mChangeAmountA2", mChangeAmountA2, "mChangeAmountB", mChangeAmountB));
-                    mRunningTask = B2AExchange(sellPriceA1, buyAmount);
+                    if (b2aDiff < (diff.B2ADiff - 0.0015m))
+                       mRunningTask = B2AExchange(sellPriceA1, buyAmount,false);
+                    else
+                       mRunningTask = B2AExchange(sellPriceA1, buyAmount,true);
+
                 }
                 else if (a2bDiff > diff.A2BDiff && mCurA1Amount < diff.MaxA1BuyAmount ) //满足差价并且没达到最大数量
                 {
@@ -680,7 +684,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                     mChangeAmountA1 = buyAmount;
                     Logger.Debug(Utils.Str2Json("buyAmount", buyAmount, "mChangeAmountA2", mChangeAmountA2, "mChangeAmountB", mChangeAmountB));
-                    mRunningTask = A2BExchange(buyPriceA1, buyAmount);
+                    if (a2bDiff > (diff.A2BDiff + 0.0015m))
+                        mRunningTask = A2BExchange(buyPriceA1, buyAmount, false);
+                    else
+                        mRunningTask = A2BExchange(buyPriceA1, buyAmount, true);
+
                 }
                 else if (mCurOrderA != null && b2aDiff >= diff.B2ADiff && a2bDiff <= diff.A2BDiff)//如果在波动区间中，那么取消挂单
                 {
@@ -798,20 +806,20 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 当curAmount 小于 0的时候就是平仓
         /// A买B卖
         /// </summary>
-        private async Task A2BExchange(decimal buyPrice, decimal buyAmount)
+        private async Task A2BExchange(decimal buyPrice, decimal buyAmount, bool isLimit = true)
         {
-            await AddOrder2Exchange(true, mData.SymbolA1, buyPrice, buyAmount);
+            await AddOrder2Exchange(true, mData.SymbolA1, buyPrice, buyAmount, isLimit);
         }
         /// <summary>
         /// 当curAmount大于0的时候就是开仓
         /// B买A卖
         /// </summary>
         /// <param name="exchangeAmount"></param>
-        private async Task B2AExchange(decimal sellPrice, decimal buyAmount)
+        private async Task B2AExchange(decimal sellPrice, decimal buyAmount,bool isLimit = true)
         {
-            await AddOrder2Exchange(false, mData.SymbolA1, sellPrice, buyAmount);
+            await AddOrder2Exchange(false, mData.SymbolA1, sellPrice, buyAmount,  isLimit);
         }
-        private async Task AddOrder2Exchange(bool isBuy, string symbol, decimal buyPrice, decimal buyAmount)
+        private async Task AddOrder2Exchange(bool isBuy, string symbol, decimal buyPrice, decimal buyAmount,bool isLimit = true)
         {
             //A限价买
             ExchangeOrderRequest requestA = new ExchangeOrderRequest()
@@ -822,8 +830,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             requestA.Amount = buyAmount;
             requestA.MarketSymbol = symbol;
             requestA.IsBuy = isBuy;
-            requestA.OrderType = OrderType.Limit;
-            requestA.Price = NormalizationMinUnit(buyPrice, mData.MinPriceUnitA1);
+            if (isLimit)
+            {
+                requestA.OrderType = OrderType.Limit;
+                requestA.Price = NormalizationMinUnit(buyPrice, mData.MinPriceUnitA1);
+            }
+            else
+            {
+                requestA.OrderType = OrderType.Market;
+            }
             bool isAddNew = true;
             try
             {
