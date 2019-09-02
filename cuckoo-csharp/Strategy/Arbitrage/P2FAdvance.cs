@@ -146,7 +146,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
              UpdateAvgDiffAsync();
              SubWebSocket();
-//             WebSocketProtect();
+             WebSocketProtect();
             //CheckPosition();
             //ChangeMaxCount();
         }
@@ -509,7 +509,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     decimal noUseBtc = await GetAmountsAvailableToTradeAsync(mExchangeAAPI, "XBt") / 100000000;
                     decimal allBtc = noUseBtc;
                     //总仓位 = 总btc数量*（z19+u19）/2 *3倍杠杆/2种合约 
-                    decimal allPosition = allBtc * (mOrderBookA1.Bids.FirstOrDefault().Value.Price + mOrderBookB.Asks.FirstOrDefault().Value.Price) / 2 * mData.Leverage / 2;
+                    decimal allPosition = allBtc * mData.Leverage / (mOrderBookA1.Bids.FirstOrDefault().Value.Price*3) ;
                     allPosition = Math.Round(allPosition / mData.PerTrans) * mData.PerTrans;
                     decimal lastPosition = 0;
                     foreach (Diff diff in mData.DiffGrid)
@@ -649,7 +649,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         buyAmount = buyAmount;
                         mChangeAmountA2 = NormalizationMinUnit(((buyAmount * sellPriceA1) * sellPriceA2), mData.MinPriceUnitA2);
-                        mChangeAmountB = NormalizationMinUnit(((buyAmount * sellPriceA1) * 2 / (sellPriceB * mData.FactorA2)), mData.MinPriceUnitB);
+                        mChangeAmountB = NormalizationMinUnit(((buyAmount * sellPriceA1) / (sellPriceB * mData.FactorA2)), mData.MinPriceUnitB);
                     }
                     mChangeAmountA1 = buyAmount;
                     Logger.Debug(Utils.Str2Json("buyAmount", buyAmount, "mChangeAmountA2", mChangeAmountA2, "mChangeAmountB", mChangeAmountB));
@@ -676,7 +676,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         buyAmount = buyAmount;
                         mChangeAmountA2 = NormalizationMinUnit(((buyAmount * buyPriceA1) * buyPriceA2), mData.MinPriceUnitA2);
-                        mChangeAmountB = NormalizationMinUnit(((buyAmount * buyPriceA1) * 2 / (buyPriceB * mData.FactorA2)), mData.MinPriceUnitB);
+                        mChangeAmountB = NormalizationMinUnit(((buyAmount * buyPriceA1) / (buyPriceB * mData.FactorA2)), mData.MinPriceUnitB);
                     }
                     mChangeAmountA1 = buyAmount;
                     Logger.Debug(Utils.Str2Json("buyAmount", buyAmount, "mChangeAmountA2", mChangeAmountA2, "mChangeAmountB", mChangeAmountB));
