@@ -822,11 +822,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private async Task AddOrder2Exchange(bool isBuy, string symbol, decimal buyPrice, decimal buyAmount,bool isLimit = true)
         {
             //A限价买
-            ExchangeOrderRequest requestA = new ExchangeOrderRequest()
-            {
-                ExtraParameters = { { "execInst", "ParticipateDoNotInitiate" } }
-                //ExtraParameters = { { "displayQty", 0 }, { "execInst", "ParticipateDoNotInitiate,AllOrNone" } }
-            };
+            ExchangeOrderRequest requestA = new ExchangeOrderRequest();
             requestA.Amount = buyAmount;
             requestA.MarketSymbol = symbol;
             requestA.IsBuy = isBuy;
@@ -835,6 +831,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 requestA.OrderType = OrderType.Limit;
                 requestA.Price = NormalizationMinUnit(buyPrice, mData.MinPriceUnitA1);
+                requestA.ExtraParameters.Add ( "execInst", "ParticipateDoNotInitiate") ;
+                //ExtraParameters = { { "displayQty", 0 }, { "execInst", "ParticipateDoNotInitiate,AllOrNone" } }
             }
             else
             {
