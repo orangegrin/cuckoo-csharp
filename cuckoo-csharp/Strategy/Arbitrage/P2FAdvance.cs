@@ -653,7 +653,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                     mChangeAmountA1 = buyAmount;
                     Logger.Debug(Utils.Str2Json("buyAmount", buyAmount, "mChangeAmountA2", mChangeAmountA2, "mChangeAmountB", mChangeAmountB));
-                    if (b2aDiff < (diff.B2ADiff - 0.0015m))
+                    if (b2aDiff < (diff.B2ADiff - 0.001m))
                        mRunningTask = B2AExchange(sellPriceA1, buyAmount,false);
                     else
                        mRunningTask = B2AExchange(sellPriceA1, buyAmount,true);
@@ -684,7 +684,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                     mChangeAmountA1 = buyAmount;
                     Logger.Debug(Utils.Str2Json("buyAmount", buyAmount, "mChangeAmountA2", mChangeAmountA2, "mChangeAmountB", mChangeAmountB));
-                    if (a2bDiff > (diff.A2BDiff + 0.0015m))
+                    if (a2bDiff > (diff.A2BDiff + 0.001m))
                         mRunningTask = A2BExchange(buyPriceA1, buyAmount, false);
                     else
                         mRunningTask = A2BExchange(buyPriceA1, buyAmount, true);
@@ -830,6 +830,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             requestA.Amount = buyAmount;
             requestA.MarketSymbol = symbol;
             requestA.IsBuy = isBuy;
+
             if (isLimit)
             {
                 requestA.OrderType = OrderType.Limit;
@@ -844,8 +845,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 if (mCurOrderA != null)
                 {
-                    //方向相同，并且达到修改条件
-                    if (mCurOrderA.IsBuy == requestA.IsBuy)
+                    //如果新单是市价单那么取消上次挂单
+                    if (requestA.OrderType == OrderType.Market)
+                    {
+                        await CancelCurOrderA();
+                    }
+                    else if (mCurOrderA.IsBuy == requestA.IsBuy)//方向相同，并且达到修改条件
                     {
                         isAddNew = false;
                         requestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
