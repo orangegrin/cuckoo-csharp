@@ -51,6 +51,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 当前挂出去的订单空方向
         /// </summary>
         private ExchangeOrderResult mCurOrderA;
+
+        private OrderType mCurOrderType;
         /// <summary>
         /// 当前订单成交后，反向开仓数量A1
         /// </summary>
@@ -67,6 +69,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// A交易所的历史订单ID
         /// </summary>
         private List<string> mOrderIds = new List<string>();
+
+        private List<string> mOrderIdsFiled = new List<string>();
         /// <summary>
         /// 部分填充
         /// </summary>
@@ -170,9 +174,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mOrderBookA1wsConnect = false;
                 WSDisConnectAsync("GetFullOrderBookWebSocket A1 连接断开");
             };
-            mOrderBookA1ws = mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookA2Handler, 20, mData.SymbolA2);
-            mOrderBookA1ws.Connected += async (socket) => { mOrderBookA2wsConnect = true; Logger.Debug("GetFullOrderBookWebSocket A2 连接"); OnConnect(); };
-            mOrderBookA1ws.Disconnected += async (socket) =>
+            mOrderBookA2ws = mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookA2Handler, 20, mData.SymbolA2);
+            mOrderBookA2ws.Connected += async (socket) => { mOrderBookA2wsConnect = true; Logger.Debug("GetFullOrderBookWebSocket A2 连接"); OnConnect(); };
+            mOrderBookA2ws.Disconnected += async (socket) =>
             {
                 mOrderBookA2wsConnect = false;
                 WSDisConnectAsync("GetFullOrderBookWebSocket A2 连接断开");
@@ -583,6 +587,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         private async Task Execute()
         {
+            mRunningTask = Task.Delay(500);//多线程可能在 mRunningTask 赋值之前就产生并发
             decimal buyPriceA, sellPriceA;
             decimal buyPriceA1, sellPriceA1;
             decimal buyPriceA2, sellPriceA2;
@@ -653,11 +658,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                     mChangeAmountA1 = buyAmount;
                     Logger.Debug(Utils.Str2Json("buyAmount", buyAmount, "mChangeAmountA2", mChangeAmountA2, "mChangeAmountB", mChangeAmountB));
+                    
                     if (b2aDiff < (diff.B2ADiff - 0.001m))
-                       mRunningTask = B2AExchange(sellPriceA1, buyAmount,false);
+                    {
+                        mRunningTask = B2AExchange(sellPriceA1, buyAmount, false);
+                        Logger.Debug(Utils.Str2Json("idea", "Price", "sellPriceA1", sellPriceA1, "sellPriceA2", sellPriceA2, "sellPriceB", sellPriceB, "b2aDiff", b2aDiff));
+                    }
                     else
                        mRunningTask = B2AExchange(sellPriceA1, buyAmount,true);
-
+                    
                 }
                 else if (a2bDiff > diff.A2BDiff && mCurA1Amount < diff.MaxA1BuyAmount ) //满足差价并且没达到最大数量
                 {
@@ -685,10 +694,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mChangeAmountA1 = buyAmount;
                     Logger.Debug(Utils.Str2Json("buyAmount", buyAmount, "mChangeAmountA2", mChangeAmountA2, "mChangeAmountB", mChangeAmountB));
                     if (a2bDiff > (diff.A2BDiff + 0.001m))
+                    {
                         mRunningTask = A2BExchange(buyPriceA1, buyAmount, false);
+                        Logger.Debug(Utils.Str2Json("idea", "Price", "buyPriceA1", buyPriceA1, "buyPriceA2", buyPriceA2, "buyPriceB", buyPriceB, "a2bDiff", a2bDiff));
+                    }
                     else
                         mRunningTask = A2BExchange(buyPriceA1, buyAmount, true);
-
                 }
                 else if (mCurOrderA != null && b2aDiff >= diff.B2ADiff && a2bDiff <= diff.A2BDiff)//如果在波动区间中，那么取消挂单
                 {
@@ -843,8 +854,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 if (mCurOrderA != null)
                 {
-                    //如果新单是市价单那么取消上次挂单
-                    if (requestA.OrderType == OrderType.Market)
+                    //如果已经挂单 市价那么不提交订单
+                    if (mCurOrderType == OrderType.Market)
+                    {
+                        return;
+                    }
+                    else if (requestA.OrderType == OrderType.Market)//如果新单是市价并且有挂单，那么取消挂单
                     {
                         await CancelCurOrderA();
                     }
@@ -873,6 +888,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 };
                 var v = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 mCurOrderA = v[0];
+                mCurOrderType = requestA.OrderType;
                 mOrderIds.Add(mCurOrderA.OrderId);
                 Logger.Debug(Utils.Str2Json("requestA", requestA.ToString()));
                 Logger.Debug(Utils.Str2Json("Add mCurrentLimitOrder", mCurOrderA.ToExcleString(), "CurAmount", mCurA1Amount));
@@ -882,6 +898,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mOnTrade = false;
                     await Task.Delay(2000);
                 }
+                else if (requestA.OrderType == OrderType.Market)
+                {
+                    if (mCurOrderA.Result == ExchangeAPIOrderResult.Filled)
+                    {
+                        OnOrderFilled(mCurOrderA);
+                    }
+                    await Task.Delay(5000);
+                }
+                
                 await Task.Delay(100);
             }
             catch (Exception ex)
@@ -915,6 +940,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug("-------------------- Order Filed ---------------------------");
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
+            //如果有重复成交订单不执行
+            if (mOrderIdsFiled.Contains(order.OrderId))
+            {
+                Logger.Debug("-------------------- 有重复提交订单！！！！！！ ---------------------------"+order.OrderId);
+                return;
+            }
+            mOrderIdsFiled.Add(order.OrderId);
+
             async void fun()
             {
                 mExchangePending = true;
@@ -1142,7 +1175,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             req.IsBuy = isBuy;
             req.OrderType = OrderType.Market;
             req.MarketSymbol = symbol;
-            Logger.Debug("----------------------------ReverseOpenMarketOrder---------------------------");
+            Logger.Debug("----------------------------ReverseOpenMarketOrder---------------------------"+ symbol);
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
             Logger.Debug(req.ToStringInvariant());
