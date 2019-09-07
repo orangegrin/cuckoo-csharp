@@ -26,6 +26,13 @@ namespace cuckoo_csharp
         }
         static void Main(string[] args)
         {
+            //getAsync();
+            //while (true)
+            //{
+            //    Thread.Sleep(1 * 1000);
+            //}
+
+            //return;
             AppDomain.CurrentDomain.UnhandledException += new UnhandledExceptionEventHandler(UnhandledExceptionHundle);
             if (args.Length > 0)
             {
@@ -74,6 +81,41 @@ namespace cuckoo_csharp
         static private void UnhandledExceptionHundle(object sender, UnhandledExceptionEventArgs e)
         {
             Logger.Error((Exception)e.ExceptionObject);
+        }
+
+
+        private static async Task getAsync()
+        {             //List<string> symoblList = new List<string>() { "ETHU19", "ETHUSD", "XBTUSD" };
+            List<string> symoblList = new List<string>() { "ETHUSD", "XBTUSD" };
+            FileStream toStream = null;
+            foreach (string symobl in symoblList)
+            {
+                StringBuilder sb = new StringBuilder();
+                List<string> pathList = null;
+                pathList = new List<string>(Directory.GetFiles(@"C:\Users\87474\Pictures\河洛\qute", "*.csv"));
+                string fileInfo = pathList[0];
+                
+                if (!Directory.Exists(Path.GetDirectoryName(fileInfo) + @"\Advance\"))
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(fileInfo) + @"\Advance\");
+                }
+                string toPath = Path.GetDirectoryName(fileInfo) + @"\Advance\" + symobl + Path.GetExtension(fileInfo);
+                foreach (string fi in pathList)
+                {
+                    
+                    await Utils.GetExchangeOrderBook(fi, toPath, symobl,sb);
+                    //Thread.Sleep(2 * 1000);
+
+                }
+                toStream = new FileStream(toPath, FileMode.OpenOrCreate, FileAccess.Write);
+                StreamWriter streamWriter = new StreamWriter(toStream);
+                await streamWriter.WriteAsync(sb.ToString());
+
+                await streamWriter.FlushAsync();
+                await toStream.FlushAsync();
+                streamWriter.Close();
+                toStream.Close();
+            }
         }
     }
 }

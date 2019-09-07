@@ -360,20 +360,31 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 else if (realAmount != 0)
                 {
                     Logger.Debug(Utils.Str2Json("挂止盈单", realAmount));
-                    List<ExchangeOrderResult> profitA;
+                    List<ExchangeOrderResult> profitA1;
+                    List<ExchangeOrderResult> profitA2;
                     List<ExchangeOrderResult> profitB;
-                    ExchangeOrderResult profitOrderA = null;
+                    ExchangeOrderResult profitOrderA1 = null;
+                    ExchangeOrderResult profitOrderA2 = null;
                     ExchangeOrderResult profitOrderB = null;
                     //下拉最新的值 ，来重新计算 改开多少止盈订单
                     try
                     {
-                        profitA = new List<ExchangeOrderResult>(await mExchangeAAPI.GetOpenProfitOrderDetailsAsync(mData.SymbolA1));
+                        profitA1 = new List<ExchangeOrderResult>(await mExchangeAAPI.GetOpenProfitOrderDetailsAsync(mData.SymbolA1));
+                        profitA2 = new List<ExchangeOrderResult>(await mExchangeAAPI.GetOpenProfitOrderDetailsAsync(mData.SymbolA2));
                         profitB = new List<ExchangeOrderResult>(await mExchangeAAPI.GetOpenProfitOrderDetailsAsync(mData.SymbolB));
-                        foreach (ExchangeOrderResult re in profitA)
+                        foreach (ExchangeOrderResult re in profitA1)
                         {
                             if (re.Result == ExchangeAPIOrderResult.Pending)
                             {
-                                profitOrderA = re;
+                                profitOrderA1 = re;
+                                break;
+                            }
+                        }
+                        foreach (ExchangeOrderResult re in profitA2)
+                        {
+                            if (re.Result == ExchangeAPIOrderResult.Pending)
+                            {
+                                profitOrderA2 = re;
                                 break;
                             }
                         }
@@ -439,9 +450,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             }
                         }
                     }
-
+                    //eth永续 bid1/(ethu19 bid1 * xbtusd ask1)-1   （A买B卖）
                     bool aBuy = posA.Amount > 0;
-                    ExchangeOrderRequest orderA = new ExchangeOrderRequest()
+                    ExchangeOrderRequest orderA1 = new ExchangeOrderRequest()
                     {
                         MarketSymbol = mData.SymbolA1,
                         IsBuy = !aBuy,
@@ -449,7 +460,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         StopPrice = posB.LiquidationPrice + (aBuy == false ? 500 : -500),
                         OrderType = OrderType.MarketIfTouched,
                     };
-                    profitOrderA = await doProfitAsync(orderA, profitOrderA);
+                    profitOrderA1 = await doProfitAsync(orderA1, profitOrderA1);
+                    ExchangeOrderRequest orderA2 = new ExchangeOrderRequest()
+                    {
+                        MarketSymbol = mData.SymbolA2,
+                        IsBuy = !aBuy,
+                        Amount = Math.Abs(realAmount),
+                        StopPrice = posB.LiquidationPrice + (aBuy == true ? 500 : -500),
+                        OrderType = OrderType.MarketIfTouched,
+                    };
+                    profitOrderA2 = await doProfitAsync(orderA2, profitOrderA2);
                     ExchangeOrderRequest orderB = new ExchangeOrderRequest()
                     {
                         MarketSymbol = mData.SymbolB,
@@ -1194,7 +1214,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 catch (Exception ex)
                 {
-                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden"))
+                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden")|| ex.ToString().Contains("Bad Gateway"))
                     {
                         Logger.Error(Utils.Str2Json("req", req.ToStringInvariant(), "ex", ex));
                         await Task.Delay(1000);

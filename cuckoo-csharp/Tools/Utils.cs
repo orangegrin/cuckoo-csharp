@@ -173,6 +173,59 @@ namespace cuckoo_csharp.Tools
             return jsStr.ToString();
         }
 
+ 
+        public async static Task GetExchangeOrderBook(string path,string toPath,string symoblo ,StringBuilder sb)
+        {
+            Logger.Debug(path);
+            if (string.Equals (@"C:\Users\87474\Pictures\河洛\qute\quote_20190901.csv",path))
+            {
+                Logger.Debug(path);
+            }
+
+            //FileStream toStream = new FileStream(toPath, FileMode.OpenOrCreate);
+            FileStream fileStream = new FileStream(path, FileMode.Open);
+            StreamReader streamReader = new StreamReader(fileStream);
+            bool writeStart = false;
+            async Task EndFunAsync()
+            {
+                //streamReader.
+                await  fileStream.FlushAsync();
+                streamReader.Close();
+                fileStream.Close();
+
+            }
+
+            while (true)
+            {
+                if (!streamReader.EndOfStream)
+                {
+                    string line = await streamReader.ReadLineAsync();
+                    string lineSymoble = line.Split(",")[1];
+                    if (lineSymoble.Equals(symoblo))
+                    {
+                        writeStart = true;
+                        sb.AppendLine(line);
+                        
+                    }
+                    else
+                    {
+                        if (writeStart)
+                        {
+                            await EndFunAsync();
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    await EndFunAsync();
+                    break; ;
+                }
+                    
+            }
+
+        }
+
     }
 
 
