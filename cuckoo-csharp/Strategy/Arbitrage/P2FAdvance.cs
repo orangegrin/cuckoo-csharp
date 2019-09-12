@@ -50,8 +50,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <summary>
         /// 当前挂出去的订单空方向
         /// </summary>
-        private ExchangeOrderResult mCurOrderA;
-
+        private ExchangeOrderResult mCurOrderAResult;
         private OrderType mCurOrderType;
         /// <summary>
         /// 当前订单成交后，反向开仓数量A1
@@ -215,7 +214,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (mOrderBookA1wsCounter < 1 || mOrderBookA2wsCounter < 1 || mOrderBookBwsCounter < 1 || (!detailConnect))
                 {
                     Logger.Error(new Exception("ws 没有收到推送消息"));
-                    if (mCurOrderA != null)
+                    if (mCurOrderAResult != null)
                     {
                         CancelCurOrderA();
                     }
@@ -259,7 +258,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         private async Task WSDisConnectAsync(string tag)
         {
-            if (mCurOrderA != null)
+            if (mCurOrderAResult != null)
             {
                 CancelCurOrderA();
             }
@@ -287,7 +286,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(5 * 1000);
                     continue;
                 }
-                if (mCurOrderA != null)
+                if (mCurOrderAResult != null)
                     continue;
                 if (mOnTrade)
                     continue;
@@ -489,7 +488,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             Logger.Debug("------------------------ OnProcessExit ---------------------------");
             mExchangePending = true;
-            if (mCurOrderA != null)
+            if (mCurOrderAResult != null)
             {
                 CancelCurOrderA();
                 Thread.Sleep(5 * 1000);
@@ -577,7 +576,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mExchangePending = true;
                 Options temp = Options.LoadFromDB<Options>(mDBKey);
                 Options last_mData = mData;
-                if (mCurOrderA == null)//避免多线程读写错误
+                if (mCurOrderAResult == null)//避免多线程读写错误
                     mData = temp;
                 else
                 {
@@ -721,14 +720,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     else
                         mRunningTask = A2BExchange(buyPriceA1, buyAmount, true);
                 }
-                else if (mCurOrderA != null && b2aDiff >= diff.B2ADiff && a2bDiff <= diff.A2BDiff)//如果在波动区间中，那么取消挂单
+                else if (mCurOrderAResult != null && b2aDiff >= diff.B2ADiff && a2bDiff <= diff.A2BDiff)//如果在波动区间中，那么取消挂单
                 {
-                    Logger.Debug(Utils.Str2Json("在波动区间中取消订单", a2bDiff.ToString(), "cancleID", mCurOrderA.OrderId));
+                    Logger.Debug(Utils.Str2Json("在波动区间中取消订单", a2bDiff.ToString(), "cancleID", mCurOrderAResult.OrderId));
                     ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
-                    cancleRequestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
+                    cancleRequestA.ExtraParameters.Add("orderID", mCurOrderAResult.OrderId);
                     try
                     {
-                        mRunningTask = mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA1);
+                        mRunningTask = mExchangeAAPI.CancelOrderAsync(mCurOrderAResult.OrderId, mData.SymbolA1);
                         await Task.Delay(3500);
                     }
                     catch (Exception ex)
@@ -748,7 +747,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         Logger.Error(Utils.Str2Json("mRunningTask ex", ex));
                         if (ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found"))
-                            mCurOrderA = null;
+                            mCurOrderAResult = null;
                         mRunningTask = null;
                     }
                 }
@@ -870,9 +869,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 requestA.OrderType = OrderType.Market;
             }
             bool isAddNew = true;
+            bool hadCancelOrder = false;
             try
             {
-                if (mCurOrderA != null)
+                if (mCurOrderAResult != null)
                 {
                     //如果已经挂单 市价那么不提交订单
                     if (mCurOrderType == OrderType.Market)
@@ -882,14 +882,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     else if (requestA.OrderType == OrderType.Market)//如果新单是市价并且有挂单，那么取消挂单
                     {
                         await CancelCurOrderA();
+                        hadCancelOrder = true;
                     }
-                    else if (mCurOrderA.IsBuy == requestA.IsBuy)//方向相同，并且达到修改条件
+                    else if (mCurOrderAResult.IsBuy == requestA.IsBuy)//方向相同，并且达到修改条件
                     {
                         isAddNew = false;
-                        requestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
+                        requestA.ExtraParameters.Add("orderID", mCurOrderAResult.OrderId);
                         //检查是否有改动必要
                         //做多涨价则判断
-                        if (requestA.Price == mCurOrderA.Price)
+                        if (requestA.Price == mCurOrderAResult.Price)
                         {
                             return;
                         }
@@ -897,32 +898,36 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     else
                     {//如果方向相反那么直接取消
                         await CancelCurOrderA();
+                        hadCancelOrder = true;
                     }
                     //如果已出现部分成交并且需要修改价格，则取消部分成交并重新创建新的订单
-                    if (mFilledPartiallyDic.Keys.Contains(mCurOrderA.OrderId))
+                    if (!hadCancelOrder)//如果上面已经撤销订单，就不用继续撤销，否则可能mCurOrderAResult =null 抛错
                     {
-                        await CancelCurOrderA();
-                        if (requestA.ExtraParameters.Keys.Contains("orderID"))
-                            requestA.ExtraParameters.Remove("orderID");
+                        if (mFilledPartiallyDic.Keys.Contains(mCurOrderAResult.OrderId))
+                        {
+                            await CancelCurOrderA();
+                            if (requestA.ExtraParameters.Keys.Contains("orderID"))
+                                requestA.ExtraParameters.Remove("orderID");
+                        }
                     }
                 };
                 var v = await mExchangeAAPI.PlaceOrdersAsync(requestA);
-                mCurOrderA = v[0];
+                mCurOrderAResult = v[0];
                 mCurOrderType = requestA.OrderType;
-                mOrderIds.Add(mCurOrderA.OrderId);
+                mOrderIds.Add(mCurOrderAResult.OrderId);
                 Logger.Debug(Utils.Str2Json("requestA", requestA.ToString()));
-                Logger.Debug(Utils.Str2Json("Add mCurrentLimitOrder", mCurOrderA.ToExcleString(), "CurAmount", mCurA1Amount));
-                if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
+                Logger.Debug(Utils.Str2Json("Add mCurrentLimitOrder", mCurOrderAResult.ToExcleString(), "CurAmount", mCurA1Amount));
+                if (mCurOrderAResult.Result == ExchangeAPIOrderResult.Canceled)
                 {
-                    mCurOrderA = null;
+                    mCurOrderAResult = null;
                     mOnTrade = false;
                     await Task.Delay(2000);
                 }
                 else if (requestA.OrderType == OrderType.Market)
                 {
-                    if (mCurOrderA.Result == ExchangeAPIOrderResult.Filled)
+                    if (mCurOrderAResult.Result == ExchangeAPIOrderResult.Filled)
                     {
-                        OnOrderFilled(mCurOrderA);
+                        OnOrderFilled(mCurOrderAResult);
                     }
                     await Task.Delay(5000);
                 }
@@ -934,7 +939,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 //如果是添加新单那么设置为null 
                 if (isAddNew || ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found"))
                 {
-                    mCurOrderA = null;
+                    mCurOrderAResult = null;
                     mOnTrade = false;
                 }
                 Logger.Error(Utils.Str2Json("ex", ex));
@@ -947,9 +952,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private async Task CancelCurOrderA()
         {
             ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
-            cancleRequestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
+            cancleRequestA.ExtraParameters.Add("orderID", mCurOrderAResult.OrderId);
             //在onOrderCancle的时候处理
-            await mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA1);
+            await mExchangeAAPI.CancelOrderAsync(mCurOrderAResult.OrderId, mData.SymbolA1);
         }
         /// <summary>
         /// 订单成交 ，修改当前仓位和删除当前订单
@@ -976,24 +981,24 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 decimal curAmountA2;
                 decimal curAmountB;
                 GetParTrans(order, out transAmount, out curAmountA2, out curAmountB, out isFilled);
-                ExchangeOrderResult backResult1 = await ReverseOpenMarketOrder(order, order.IsBuy,mData.SymbolA2, curAmountA2, mData.MinPriceUnitA2,mData.FactorA2);
-                ExchangeOrderResult backResult2 = await ReverseOpenMarketOrder(order, !order.IsBuy, mData.SymbolB, curAmountB, mData.MinPriceUnitB,mData.FactorB);
+                ExchangeOrderResult backResultA2 = await ReverseOpenMarketOrder(order, order.IsBuy,mData.SymbolA2, curAmountA2, mData.MinPriceUnitA2,mData.FactorA2);
+                ExchangeOrderResult backResultB = await ReverseOpenMarketOrder(order, !order.IsBuy, mData.SymbolB, curAmountB, mData.MinPriceUnitB,mData.FactorB);
                 mCurA1Amount += order.IsBuy ? transAmount : -transAmount;
                 mCurA2Amount += order.IsBuy ? curAmountA2 : -curAmountA2;
                 mCurBAmount += order.IsBuy ? -curAmountB : curAmountB;
                 Logger.Debug(Utils.Str2Json("mCurA1Amount:", transAmount, "curAmountA2:", curAmountA2, "curAmountB:", curAmountB));
                 mExchangePending = false;
                 // 如果 当前挂单和订单相同那么删除
-                if (mCurOrderA != null && mCurOrderA.OrderId == order.OrderId)
+                if (mCurOrderAResult != null && mCurOrderAResult.OrderId == order.OrderId)
                 {
-                    mCurOrderA = null;
+                    mCurOrderAResult = null;
                     mOnTrade = false;
                 }
-                PrintFilledOrder(order, backResult2);
+                PrintFilledOrder(order, backResultA2,backResultB);
             }
-            if (mCurOrderA != null)//可能为null ，locknull报错
+            if (mCurOrderAResult != null)//可能为null ，locknull报错
             {
-                lock (mCurOrderA)
+                lock (mCurOrderAResult)
                 {
                     fun();
                 }
@@ -1021,39 +1026,40 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             decimal curAmountA2;
             decimal curAmountB;
             GetParTrans(order,out transAmount,out curAmountA2,out curAmountB ,out isFilled);
-            ExchangeOrderResult backResult1 = await ReverseOpenMarketOrder(order, order.IsBuy, mData.SymbolA2, curAmountA2, mData.MinPriceUnitA2, mData.FactorA2);
-            ExchangeOrderResult backResult2 = await ReverseOpenMarketOrder(order, !order.IsBuy, mData.SymbolB, curAmountB, mData.MinPriceUnitB, mData.FactorB);
+            ExchangeOrderResult backResultA2 = await ReverseOpenMarketOrder(order, order.IsBuy, mData.SymbolA2, curAmountA2, mData.MinPriceUnitA2, mData.FactorA2);
+            ExchangeOrderResult backResultB = await ReverseOpenMarketOrder(order, !order.IsBuy, mData.SymbolB, curAmountB, mData.MinPriceUnitB, mData.FactorB);
             mCurA1Amount += order.IsBuy ? transAmount : -transAmount;
             mCurA2Amount += order.IsBuy ? curAmountA2 : -curAmountA2;
             mCurBAmount += order.IsBuy ? -curAmountB : curAmountB;
             Logger.Debug(Utils.Str2Json("mCurA1Amount:", transAmount, "curAmountA2:", curAmountA2, "curAmountB:", curAmountB));
             mExchangePending = false;
-            PrintFilledOrder(order, backResult2);
+            PrintFilledOrder(order, backResultA2,backResultB);
         }
-        private void PrintFilledOrder(ExchangeOrderResult order, ExchangeOrderResult backOrder)
+        private void PrintFilledOrder(ExchangeOrderResult orderA, ExchangeOrderResult backOrderA2, ExchangeOrderResult backOrderB)
         {
-            if (order == null)
+            if (orderA == null)
                 return;
-            if (backOrder == null)
+            if (backOrderB == null)
                 return;
             try
             {
                 Logger.Debug("--------------PrintFilledOrder--------------");
-                Logger.Debug(Utils.Str2Json("filledTime", Utils.GetGMTimeTicks(order.OrderDate).ToString(),
-                    "direction", order.IsBuy ? "buy" : "sell",
-                    "orderData", order.ToExcleString()));
+                Logger.Debug(Utils.Str2Json("filledTime", Utils.GetGMTimeTicks(orderA.OrderDate).ToString(),
+                    "direction", orderA.IsBuy ? "buy" : "sell",
+                    "orderData", orderA.ToExcleString()));
                 //如果是平仓打印日志记录 时间  ，diff，数量
-                decimal lastAmount = mCurA1Amount + (order.IsBuy ? -backOrder.Amount : backOrder.Amount);
-                if ((lastAmount > 0 && !order.IsBuy) ||//正仓位，卖
-                    (lastAmount < 0) && order.IsBuy)//负的仓位，买
-                {
-                    DateTime dt = backOrder.OrderDate.AddHours(8);
+//                 decimal lastAmount = mCurA1Amount + (orderA.IsBuy ? -backOrderB.Amount : backOrderB.Amount);
+//                 if ((lastAmount > 0 && !orderA.IsBuy) ||//正仓位，卖
+//                     (lastAmount < 0) && orderA.IsBuy)//负的仓位，买
+//                 {
+                    DateTime dt = backOrderB.OrderDate.AddHours(8);
                     List<string> strList = new List<string>()
                     {
-                        dt.ToShortDateString()+"/"+dt.ToLongTimeString(),order.IsBuy ? "buy" : "sell",backOrder.Amount.ToString(), (order.AveragePrice/backOrder.AveragePrice-1).ToString()
+                        //eth永续 bid1/(ethu19 bid1 * xbtusd ask1)-1
+                        dt.ToShortDateString()+"/"+dt.ToLongTimeString(),orderA.IsBuy ? "buy" : "sell",orderA.Amount.ToString(), (backOrderB.AveragePrice/(orderA.AveragePrice*backOrderA2.AveragePrice)-1).ToString()
                     };
                     Utils.AppendCSV(new List<List<string>>() { strList }, Path.Combine(Directory.GetCurrentDirectory(), "ClosePosition.csv"), false);
-                }
+               // }
             }
             catch (Exception ex)
             {
@@ -1068,9 +1074,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             Logger.Debug("-------------------- Order Canceled ---------------------------");
             Logger.Debug("Canceled  " + order.ToExcleString() + "CurAmount" + mCurA1Amount);
-            if (mCurOrderA != null && mCurOrderA.OrderId == order.OrderId)
+            if (mCurOrderAResult != null && mCurOrderAResult.OrderId == order.OrderId)
             {
-                mCurOrderA = null;
+                mCurOrderAResult = null;
                 mOnTrade = false;
             }
         }
@@ -1107,7 +1113,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug(order.ToExcleString());
                     break;
                 case ExchangeAPIOrderResult.Filled:
-                    OnOrderFilled(order);
+                    if (mCurOrderType == OrderType.Limit)//市价已经直接处理
+                        OnOrderFilled(order);
                     break;
                 case ExchangeAPIOrderResult.FilledPartially:
                     OnFilledPartiallyAsync(order);
@@ -1179,7 +1186,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             decimal rate = changeAmountA1 / mChangeAmountA1;
             changeAmountA2 = Math.Floor(rate * mChangeAmountA2);
             changeAmountB = Math.Floor(rate * mChangeAmountB);
-
+            Logger.Error(Utils.Str2Json("changeAmountA1", changeAmountA1, "changeAmountA2", changeAmountA2, "changeAmountB", changeAmountB));
         }
         /// <summary>
         /// 反向市价开仓
@@ -1187,7 +1194,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private async Task<ExchangeOrderResult> ReverseOpenMarketOrder(ExchangeOrderResult order,bool isBuy,string symbol,decimal changeAmount,decimal minUnit,decimal factor)
         {
             if (changeAmount <= 0)//部分成交返回两次一样的数据，导致第二次transAmount=0
+            {   
+                Logger.Debug("----------------------------ReverseOpenMarketOrder---------------------------" + symbol+ "changeAmount:"+ changeAmount);
                 return null;
+            } 
             ExchangeOrderResult backResult = null;
             //只有在成交后才修改订单数量
             var req = new ExchangeOrderRequest();
