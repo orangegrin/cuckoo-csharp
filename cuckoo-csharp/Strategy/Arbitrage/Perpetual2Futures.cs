@@ -254,6 +254,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(10* 1000);
                     posA = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolA);
                     posB = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolB);
+                    if (posA==null ||posB==null)
+                    {
+                        mExchangePending = false;
+                        await Task.Delay(5 * 60 * 1000);
+                        continue;
+                    }
                 }
                 catch (System.Exception ex)
                 {
@@ -672,6 +678,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         public async Task UpdateAvgDiffAsync()
         {
             string dataUrl = $"{"http://150.109.52.225:8006/arbitrage/process?programID="}{mId}{"&symbol="}{mData.Symbol}{"&exchangeB="}{mData.ExchangeNameB.ToLowerInvariant()}{"&exchangeA="}{mData.ExchangeNameA.ToLowerInvariant()}";
+            //先写死地址
+            dataUrl = "http://150.109.52.225:8006/arbitrage/process?programID=1008&symbol=BTCUZ&exchangeB=bitmex&exchangeA=bitmex";
             while (true)
             {
                 if (mData.AutoCalcProfitRange)
