@@ -45,6 +45,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         private List<string> mOrderIds = new List<string>();
         /// <summary>
+        /// A交易所的历史成交订单ID
+        /// </summary>
+        private List<string> mOrderFiledIds = new List<string>();
+        /// <summary>
         /// 部分填充
         /// </summary>
         private Dictionary<string, decimal> mFilledPartiallyDic = new Dictionary<string, decimal>();
@@ -282,9 +286,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         ExchangeOrderRequest requestA = new ExchangeOrderRequest();
                         requestA.Amount = Math.Abs(count);
                         requestA.MarketSymbol = mData.SymbolA;
-                        bool bigerA = Math.Abs(posA.Amount) > Math.Abs(posB.Amount);//如果A数量多，A平仓，否则相反
-                        bool isABuy = posA.Amount > 0;
-                        requestA.IsBuy = bigerA ? (!isABuy) : isABuy;//如果A数量多，平仓，那么和当前方向反向操作
+                        if (count>0)//表示需要A卖count张 ，之和就==0
+                        {
+                            requestA.IsBuy = false;
+                        }
+                        else//表示需要A买count张 ，之和就==0
+                        {
+                            requestA.IsBuy = true;
+                        }
                         requestA.OrderType = OrderType.Market;
                         try
                         {
@@ -828,32 +837,41 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <param name="order"></param>
         private void OnOrderFilled(ExchangeOrderResult order)
         {
-            Logger.Debug( "-------------------- Order Filed ---------------------------");
-            Logger.Debug(order.ToString());
-            Logger.Debug(order.ToExcleString());
-            async void fun()
+            lock (mOrderFiledIds)//避免多线程
             {
-                mExchangePending = true;
-                ExchangeOrderResult backResult = await ReverseOpenMarketOrder(order);
-                mExchangePending = false;
-                // 如果 当前挂单和订单相同那么删除
-                if (mCurOrderA != null && mCurOrderA.OrderId == order.OrderId)
+                Logger.Debug("-------------------- Order Filed ---------------------------");
+                if (mOrderFiledIds.Contains(order.OrderId))//可能重复提交同样的订单
                 {
-                    mCurOrderA = null;
-                    mOnTrade = false;
+                    Logger.Error(Utils.Str2Json("重复提交订单号", order.OrderId));
+                    return;
                 }
-                PrintFilledOrder(order,backResult);
-            }
-            if (mCurOrderA !=null)//可能为null ，locknull报错
-            {
-                lock (mCurOrderA)
+                mOrderFiledIds.Add(order.OrderId);
+                Logger.Debug(order.ToString());
+                Logger.Debug(order.ToExcleString());
+                async void fun()
+                {
+                    mExchangePending = true;
+                    ExchangeOrderResult backResult = await ReverseOpenMarketOrder(order);
+                    mExchangePending = false;
+                    // 如果 当前挂单和订单相同那么删除
+                    if (mCurOrderA != null && mCurOrderA.OrderId == order.OrderId)
+                    {
+                        mCurOrderA = null;
+                        mOnTrade = false;
+                    }
+                    PrintFilledOrder(order, backResult);
+                }
+                if (mCurOrderA != null)//可能为null ，locknull报错
+                {
+                    lock (mCurOrderA)
+                    {
+                        fun();
+                    }
+                }
+                else
                 {
                     fun();
                 }
-            }
-            else
-            {
-                fun();
             }
         }
         /// <summary>
