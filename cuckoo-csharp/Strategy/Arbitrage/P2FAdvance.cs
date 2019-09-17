@@ -292,13 +292,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     continue;
                 mExchangePending = true;
                 Logger.Debug("-----------------------CheckPosition-----------------------------------");
-                ExchangeMarginPositionResult posA;
+                ExchangeMarginPositionResult posA1;
+                ExchangeMarginPositionResult posA2;
                 ExchangeMarginPositionResult posB;
                 try
                 {
                     //等待10秒 避免ws虽然推送数据刷新，但是rest 还没有刷新数据
                     await Task.Delay(10 * 1000);
-                    posA = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolA1);
+                    posA1 = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolA1);
+                    posA2 = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolA2);
                     posB = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolB);
                 }
                 catch (System.Exception ex)
@@ -307,22 +309,24 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mExchangePending = false;
                     continue;
                 }
-                decimal realAmount = posA.Amount;
-                if ((posA.Amount + posB.Amount) != 0)//如果没有对齐停止交易，市价单到对齐
+                //屏蔽计算仓位
+                /*
+                decimal realAmount = posA1.Amount;
+                if ((posA1.Amount + posB.Amount) != 0)//如果没有对齐停止交易，市价单到对齐
                 {
-                    if (Math.Abs(posA.Amount + posB.Amount) > mData.PerTrans * 10)
+                    if (Math.Abs(posA1.Amount + posB.Amount) > mData.PerTrans * 10)
                     {
                         Logger.Error(Utils.Str2Json("CheckPosition ex", "A,B交易所相差过大 程序关闭，请手动处理"));
                         throw new Exception("A,B交易所相差过大 程序关闭，请手动处理");
                     }
                     for (int i = 0; ;)
                     {
-                        decimal count = posA.Amount + posB.Amount;
+                        decimal count = posA1.Amount + posB.Amount;
                         ExchangeOrderRequest requestA = new ExchangeOrderRequest();
                         requestA.Amount = Math.Abs(count);
                         requestA.MarketSymbol = mData.SymbolA1;
-                        bool bigerA = Math.Abs(posA.Amount) > Math.Abs(posB.Amount);//如果A数量多，A平仓，否则相反
-                        bool isABuy = posA.Amount > 0;
+                        bool bigerA = Math.Abs(posA1.Amount) > Math.Abs(posB.Amount);//如果A数量多，A平仓，否则相反
+                        bool isABuy = posA1.Amount > 0;
                         requestA.IsBuy = bigerA ? (!isABuy) : isABuy;//如果A数量多，平仓，那么和当前方向反向操作
                         requestA.OrderType = OrderType.Market;
                         try
@@ -354,11 +358,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mCurA1Amount = realAmount;
                 }
                 //==================挂止盈单==================如果止盈点价格>三倍当前价格那么不挂止盈单
-                //一单为空，那么挂止盈多单，止盈价格为另一单的强平价格（另一单多+500，空-500）
+                //一单为空，那么挂止盈多单，止盈价格为另一单的强平价格（另一单多+当前价格百分之20，空-当前价格百分之20）
                 //一单为多 相反
-                else if (realAmount != 0)
+                else if (realAmount != 0)*/
                 {
-                    Logger.Debug(Utils.Str2Json("挂止盈单", realAmount));
+                    decimal realAmountA1= mData.CurA1Amount;
+                    decimal realAmountA2 =mData.CurA2Amount;
+                    decimal realAmountB = mData.CurBAmount;
+                    Logger.Debug(Utils.Str2Json("挂止盈单", "盈单", "realAmountA1", realAmountA1, "realAmountA2", realAmountA2, "realAmountB", realAmountB));
                     List<ExchangeOrderResult> profitA1;
                     List<ExchangeOrderResult> profitA2;
                     List<ExchangeOrderResult> profitB;
@@ -450,13 +457,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         }
                     }
                     //eth永续 bid1/(ethu19 bid1 * xbtusd ask1)-1   （A买B卖）
-                    bool aBuy = posA.Amount > 0;
+                    bool aBuy = posA1.Amount > 0;
                     ExchangeOrderRequest orderA1 = new ExchangeOrderRequest()
                     {
                         MarketSymbol = mData.SymbolA1,
                         IsBuy = !aBuy,
-                        Amount = Math.Abs(realAmount),
-                        StopPrice = posB.LiquidationPrice + (aBuy == false ? 500 : -500),
+                        Amount = Math.Abs(realAmountA1),
+                        StopPrice = posB.LiquidationPrice + (aBuy == false ? posB.LiquidationPrice*0.2m : -posB.LiquidationPrice * 0.2m),
                         OrderType = OrderType.MarketIfTouched,
                     };
                     profitOrderA1 = await doProfitAsync(orderA1, profitOrderA1);
@@ -464,7 +471,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         MarketSymbol = mData.SymbolA2,
                         IsBuy = !aBuy,
-                        Amount = Math.Abs(realAmount),
+                        Amount = Math.Abs(realAmountA2),
                         StopPrice = posB.LiquidationPrice + (aBuy == true ? 500 : -500),
                         OrderType = OrderType.MarketIfTouched,
                     };
@@ -473,8 +480,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         MarketSymbol = mData.SymbolB,
                         IsBuy = aBuy,
-                        Amount = Math.Abs(realAmount),
-                        StopPrice = posA.LiquidationPrice + (aBuy == true ? 500 : -500),
+                        Amount = Math.Abs(realAmountB),
+                        StopPrice = posA1.LiquidationPrice + (aBuy == true ? 500 : -500),
                         OrderType = OrderType.MarketIfTouched,
                     };
                     profitOrderB = await doProfitAsync(orderB, profitOrderB);
@@ -927,8 +934,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 {
                     if (mCurOrderAResult.Result == ExchangeAPIOrderResult.Filled)
                     {
-                        OnOrderFilled(mCurOrderAResult);
+                        Logger.Debug(Utils.Str2Json("market Filled", "已经市价成交"));
                     }
+                    OrderFiledDo(mCurOrderAResult, mChangeAmountA1, mChangeAmountA2, mChangeAmountB);
                     await Task.Delay(5000);
                 }
                 
@@ -960,29 +968,38 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 订单成交 ，修改当前仓位和删除当前订单
         /// </summary>
         /// <param name="order"></param>
-        private void OnOrderFilled(ExchangeOrderResult order)
+        private void OnOrderFilled(ExchangeOrderResult order,bool must = false)
         {
-            Logger.Debug("-------------------- Order Filed ---------------------------");
-            Logger.Debug(order.ToString());
-            Logger.Debug(order.ToExcleString());
-            //如果有重复成交订单不执行
-            if (mOrderIdsFiled.Contains(order.OrderId))
+            lock (order)//先收到 order filed 在之后收到 pending 。因为order是同一个这时候会成交0张
             {
-                Logger.Debug("-------------------- 有重复提交订单！！！！！！ ---------------------------"+order.OrderId);
-                return;
-            }
-            mOrderIdsFiled.Add(order.OrderId);
 
-            async void fun()
-            {
-                mExchangePending = true;
+                Logger.Debug("-------------------- Order Filed ---------------------------");
+                Logger.Debug(order.ToString());
+                Logger.Debug(order.ToExcleString());
+                //如果有重复成交订单不执行
+                if (mOrderIdsFiled.Contains(order.OrderId))
+                {
+                    Logger.Debug("-------------------- 有重复提交订单！！！！！！ ---------------------------" + order.OrderId);
+                    return;
+                }
                 bool isFilled = false;
                 decimal transAmount;
                 decimal curAmountA2;
                 decimal curAmountB;
                 GetParTrans(order, out transAmount, out curAmountA2, out curAmountB, out isFilled);
-                ExchangeOrderResult backResultA2 = await ReverseOpenMarketOrder(order, order.IsBuy,mData.SymbolA2, curAmountA2, mData.MinPriceUnitA2,mData.FactorA2);
-                ExchangeOrderResult backResultB = await ReverseOpenMarketOrder(order, !order.IsBuy, mData.SymbolB, curAmountB, mData.MinPriceUnitB,mData.FactorB);
+                OrderFiledDo(order, transAmount, curAmountA2, curAmountB);
+            }
+        }
+
+        private void OrderFiledDo(ExchangeOrderResult order, decimal transAmount, decimal curAmountA2, decimal curAmountB)
+        {
+            mOrderIdsFiled.Add(order.OrderId);
+            async void fun()
+            {
+                mExchangePending = true;
+
+                ExchangeOrderResult backResultA2 = await ReverseOpenMarketOrder(order, order.IsBuy, mData.SymbolA2, curAmountA2, mData.MinPriceUnitA2, mData.FactorA2);
+                ExchangeOrderResult backResultB = await ReverseOpenMarketOrder(order, !order.IsBuy, mData.SymbolB, curAmountB, mData.MinPriceUnitB, mData.FactorB);
                 mCurA1Amount += order.IsBuy ? transAmount : -transAmount;
                 mCurA2Amount += order.IsBuy ? curAmountA2 : -curAmountA2;
                 mCurBAmount += order.IsBuy ? -curAmountB : curAmountB;
@@ -994,7 +1011,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mCurOrderAResult = null;
                     mOnTrade = false;
                 }
-                PrintFilledOrder(order, backResultA2,backResultB);
+                PrintFilledOrder(order, backResultA2, backResultB);
             }
             if (mCurOrderAResult != null)//可能为null ，locknull报错
             {
