@@ -159,7 +159,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(5 * 1000);
                     continue;
                 }
-                int delayTime = 20;//保证次数至少要3s一次，否则重启
+                int delayTime = 30;//保证次数至少要3s一次，否则重启
                 mOrderBookAwsCounter = 0;
                 mOrderBookBwsCounter = 0;
                 mOrderDetailsAwsCounter = 0;
@@ -219,16 +219,18 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 CancelCurOrderA();
             }
-            await Task.Delay(30 * 1000);
             Logger.Error(tag + " 连接断开");
-            if (OnConnect()==false)
-            {
-                if (!mOnConnecting)//如果当前正在连接中那么不连接否则开始重连
-                {
-                    await CloseWS();
-                    SubWebSocket();
-                }
-            }
+            //删除避免重复 重连
+//             await Task.Delay(30 * 1000);
+//             
+//             if (OnConnect()==false)
+//             {
+//                 if (!mOnConnecting)//如果当前正在连接中那么不连接否则开始重连
+//                 {
+//                     await CloseWS();
+//                     SubWebSocket();
+//                 }
+//             }
         }
         /// <summary>
         /// 检查仓位是否对齐
