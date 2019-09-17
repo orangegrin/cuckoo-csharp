@@ -219,18 +219,18 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 CancelCurOrderA();
             }
-            Logger.Error(tag + " 连接断开");
+            
             //删除避免重复 重连
-//             await Task.Delay(30 * 1000);
-//             
-//             if (OnConnect()==false)
-//             {
-//                 if (!mOnConnecting)//如果当前正在连接中那么不连接否则开始重连
-//                 {
-//                     await CloseWS();
-//                     SubWebSocket();
-//                 }
-//             }
+            await Task.Delay(40 * 1000);
+            Logger.Error(tag + " 连接断开");
+            if (OnConnect() == false)
+            {
+                if (!mOnConnecting)//如果当前正在连接中那么不连接否则开始重连
+                {
+                    await CloseWS();
+                    SubWebSocket();
+                }
+            }
         }
         /// <summary>
         /// 检查仓位是否对齐
@@ -1005,36 +1005,37 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private decimal GetParTrans(ExchangeOrderResult order)
         {
             Logger.Debug("-------------------- GetParTrans ---------------------------");
-            decimal filledAmount = 0;
-            mFilledPartiallyDic.TryGetValue(order.OrderId, out filledAmount);
-            Logger.Debug(  " filledAmount: " + filledAmount.ToStringInvariant());
-            if (order.Result == ExchangeAPIOrderResult.FilledPartially && filledAmount == 0)
+            lock (mFilledPartiallyDic)//防止多线程并发
             {
-                mFilledPartiallyDic[order.OrderId] = order.AmountFilled;
-                return order.AmountFilled;
-            }
-            if (order.Result == ExchangeAPIOrderResult.FilledPartially && filledAmount != 0)
-            {
-                if(filledAmount< order.AmountFilled)
+                decimal filledAmount = 0;
+                mFilledPartiallyDic.TryGetValue(order.OrderId, out filledAmount);
+                Logger.Debug(" filledAmount: " + filledAmount.ToStringInvariant());
+                if (order.Result == ExchangeAPIOrderResult.FilledPartially && filledAmount == 0)
                 {
                     mFilledPartiallyDic[order.OrderId] = order.AmountFilled;
-                    return order.AmountFilled - filledAmount;
+                    return order.AmountFilled;
                 }
-                else
-                    return 0;
+                else if (order.Result == ExchangeAPIOrderResult.FilledPartially && filledAmount != 0)
+                {
+                    if (filledAmount < order.AmountFilled)
+                    {
+                        mFilledPartiallyDic[order.OrderId] = order.AmountFilled;
+                        return order.AmountFilled - filledAmount;
+                    }
+                    else
+                        return 0;
+                }
+                else if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount == 0)
+                {
+                    return order.Amount;
+                }
+                else if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount != 0)
+                {
+                    mFilledPartiallyDic.Remove(order.OrderId);
+                    return order.Amount - filledAmount;
+                }
+                return 0;
             }
-
-            if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount == 0)
-            {
-                return order.Amount;
-            }
-
-            if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount != 0)
-            {
-                mFilledPartiallyDic.Remove(order.OrderId);
-                return order.Amount - filledAmount;
-            }
-            return 0;
         }
         /// <summary>
         /// 反向市价开仓
