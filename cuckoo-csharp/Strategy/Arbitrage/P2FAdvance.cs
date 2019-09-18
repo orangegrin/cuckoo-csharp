@@ -690,8 +690,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         mRunningTask = B2AExchange(sellPriceA1, buyAmount, false);
                         Logger.Debug(Utils.Str2Json("idea", "Price", "sellPriceA1", sellPriceA1, "sellPriceA2", sellPriceA2, "sellPriceB", sellPriceB, "b2aDiff", b2aDiff));
                     }
-                    else
-                       mRunningTask = B2AExchange(sellPriceA1, buyAmount,true);
+//                     else
+//                        mRunningTask = B2AExchange(sellPriceA1, buyAmount,true);
                     
                 }
                 else if (a2bDiff > diff.A2BDiff && mCurA1Amount < diff.MaxA1BuyAmount ) //满足差价并且没达到最大数量
@@ -724,8 +724,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         mRunningTask = A2BExchange(buyPriceA1, buyAmount, false);
                         Logger.Debug(Utils.Str2Json("idea", "Price", "buyPriceA1", buyPriceA1, "buyPriceA2", buyPriceA2, "buyPriceB", buyPriceB, "a2bDiff", a2bDiff));
                     }
-                    else
-                        mRunningTask = A2BExchange(buyPriceA1, buyAmount, true);
+//                     else
+//                         mRunningTask = A2BExchange(buyPriceA1, buyAmount, true);
                 }
                 else if (mCurOrderAResult != null && b2aDiff >= diff.B2ADiff && a2bDiff <= diff.A2BDiff)//如果在波动区间中，那么取消挂单
                 {
@@ -863,7 +863,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             requestA.Amount = buyAmount;
             requestA.MarketSymbol = symbol;
             requestA.IsBuy = isBuy;
-
             if (isLimit)
             {
                 requestA.OrderType = OrderType.Limit;
@@ -918,43 +917,58 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         }
                     }
                 };
-                var v = await mExchangeAAPI.PlaceOrdersAsync(requestA);
-                mCurOrderAResult = v[0];
+                async Task<ExchangeOrderResult>doMart()
+                {
+                    for (int i = 1; ; i++)//当B交易所也是bitmex， 防止bitmex overload一直提交到成功
+                    {
+                        try
+                        {
+                            var result = await mExchangeBAPI.PlaceOrderAsync(requestA);
+                            Logger.Debug("--------------------------------AddOrder2Exchange Result-------------------------------------");
+                            Logger.Debug(result.ToString());
+                            return result;
+                        }
+                        catch (Exception ex)
+                        {
+                            if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Bad Gateway"))
+                            {
+                                Logger.Error(Utils.Str2Json("requestA", requestA.ToStringInvariant(), "ex", ex));
+                                await Task.Delay(1000);
+                            }
+                            else
+                            {
+                                Logger.Error(Utils.Str2Json("AddOrder2Exchange抛错", ex.ToString()));
+                                throw ex;
+                            }
+                        }
+                    }
+                }
+                Task reverseOrderTask = OrderFiledDo(mCurOrderAResult, mChangeAmountA1, mChangeAmountA2, mChangeAmountB);
+                Task<ExchangeOrderResult> orderATask = doMart();
+                Task.WaitAll(orderATask, reverseOrderTask);
+                mCurOrderAResult = orderATask.Result;
                 mCurOrderType = requestA.OrderType;
                 mOrderIds.Add(mCurOrderAResult.OrderId);
                 Logger.Debug(Utils.Str2Json("requestA", requestA.ToString()));
                 Logger.Debug(Utils.Str2Json("Add mCurrentLimitOrder", mCurOrderAResult.ToExcleString(), "CurAmount", mCurA1Amount));
-                if (mCurOrderAResult.Result == ExchangeAPIOrderResult.Canceled)
-                {
-                    mCurOrderAResult = null;
-                    mOnTrade = false;
-                    await Task.Delay(2000);
-                }
-                else if (requestA.OrderType == OrderType.Market)
-                {
-                    if (mCurOrderAResult.Result == ExchangeAPIOrderResult.Filled)
-                    {
-                        Logger.Debug(Utils.Str2Json("market Filled", "已经市价成交"));
-                    }
-                    OrderFiledDo(mCurOrderAResult, mChangeAmountA1, mChangeAmountA2, mChangeAmountB);
-                    await Task.Delay(5000);
-                }
-                
-                await Task.Delay(100);
+                Logger.Debug(Utils.Str2Json("market Filled", "已经市价成交"));
+                await Task.Delay(5000);
             }
             catch (Exception ex)
             {
+                Logger.Error(Utils.Str2Json("ex", ex));
                 //如果是添加新单那么设置为null 
                 if (isAddNew || ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found"))
                 {
                     mCurOrderAResult = null;
                     mOnTrade = false;
                 }
-                Logger.Error(Utils.Str2Json("ex", ex));
-                if (ex.ToString().Contains("overloaded"))
+                else if (ex.ToString().Contains("overloaded"))
                     await Task.Delay(5000);
-                if (ex.ToString().Contains("RateLimitError"))
+                else if (ex.ToString().Contains("RateLimitError"))
                     await Task.Delay(30000);
+                else
+                    throw ex;
             }
         }
         private async Task CancelCurOrderA()
@@ -991,15 +1005,19 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
         }
 
-        private void OrderFiledDo(ExchangeOrderResult order, decimal transAmount, decimal curAmountA2, decimal curAmountB)
+        private async Task OrderFiledDo(ExchangeOrderResult order, decimal transAmount, decimal curAmountA2, decimal curAmountB)
         {
             mOrderIdsFiled.Add(order.OrderId);
-            async void fun()
+            async Task fun()
             {
                 mExchangePending = true;
-
-                ExchangeOrderResult backResultA2 = await ReverseOpenMarketOrder(order, order.IsBuy, mData.SymbolA2, curAmountA2, mData.MinPriceUnitA2, mData.FactorA2);
-                ExchangeOrderResult backResultB = await ReverseOpenMarketOrder(order, !order.IsBuy, mData.SymbolB, curAmountB, mData.MinPriceUnitB, mData.FactorB);
+                ExchangeOrderResult backResultA2 = null;
+                ExchangeOrderResult backResultB = null;
+                Task<ExchangeOrderResult> backResultA2Task = ReverseOpenMarketOrder(order, order.IsBuy, mData.SymbolA2, curAmountA2, mData.MinPriceUnitA2, mData.FactorA2);
+                Task<ExchangeOrderResult> backResultBTask = ReverseOpenMarketOrder(order, !order.IsBuy, mData.SymbolB, curAmountB, mData.MinPriceUnitB, mData.FactorB);
+                Task.WaitAll(backResultA2Task, backResultBTask);
+                backResultA2 = backResultA2Task.Result;
+                backResultB = backResultBTask.Result;
                 mCurA1Amount += order.IsBuy ? transAmount : -transAmount;
                 mCurA2Amount += order.IsBuy ? curAmountA2 : -curAmountA2;
                 mCurBAmount += order.IsBuy ? -curAmountB : curAmountB;
@@ -1013,17 +1031,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 PrintFilledOrder(order, backResultA2, backResultB);
             }
-            if (mCurOrderAResult != null)//可能为null ，locknull报错
-            {
-                lock (mCurOrderAResult)
-                {
-                    fun();
-                }
-            }
-            else
-            {
-                fun();
-            }
+            await fun();
         }
         /// <summary>
         /// 订单部分成交
