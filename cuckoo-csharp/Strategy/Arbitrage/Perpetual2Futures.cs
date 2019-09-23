@@ -159,7 +159,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(5 * 1000);
                     continue;
                 }
-                int delayTime = 30;//保证次数至少要3s一次，否则重启
+                int delayTime = 60;//保证次数至少要3s一次，否则重启
                 mOrderBookAwsCounter = 0;
                 mOrderBookBwsCounter = 0;
                 mOrderDetailsAwsCounter = 0;
@@ -689,8 +689,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         public async Task UpdateAvgDiffAsync()
         {
             string dataUrl = $"{"http://150.109.52.225:8006/arbitrage/process?programID="}{mId}{"&symbol="}{mData.Symbol}{"&exchangeB="}{mData.ExchangeNameB.ToLowerInvariant()}{"&exchangeA="}{mData.ExchangeNameA.ToLowerInvariant()}";
-            //先写死地址
-            dataUrl = "http://150.109.52.225:8006/arbitrage/process?programID=1008&symbol=BTCUZ&exchangeB=bitmex&exchangeA=bitmex";
             while (true)
             {
                 if (mData.AutoCalcProfitRange)
