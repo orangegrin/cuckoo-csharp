@@ -304,6 +304,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     posA1 = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolA1);
                     posA2 = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolA2);
                     posB = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolB);
+                    if (posA1==null || posA2==null || posB==null)
+                    {
+                        mExchangePending = false;
+                        await Task.Delay(5 * 60 * 1000);
+                        continue;
+                    }
                 }
                 catch (System.Exception ex)
                 {
@@ -643,8 +649,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             decimal buyAmount = mData.PerTrans;
             if (Precondition())
             {
-                await mRunningTask;
-                mRunningTask = null;
+//                 await mRunningTask;
+//                 mRunningTask = null;
                 return;
             }
 //             if (mRunningTask != null)
