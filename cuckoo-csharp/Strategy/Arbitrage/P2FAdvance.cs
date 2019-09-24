@@ -986,14 +986,19 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                 }
                 Task<ExchangeOrderResult> orderATask = doMart();
-                Task.WaitAll(orderATask);
+                Task<List<ExchangeOrderResult>> reverseOrderTask = OrderFiledDo(requestA.IsBuy, mChangeAmountA1, mChangeAmountA2, mChangeAmountB);
+                Task.WaitAll( reverseOrderTask, orderATask);
                 mCurOrderAResult = orderATask.Result;
                 ExchangeOrderResult exchangeOrderResultBack = orderATask.Result;
-                Task reverseOrderTask = OrderFiledDo(mCurOrderAResult, mChangeAmountA1, mChangeAmountA2, mChangeAmountB);
-                Task.WaitAll( reverseOrderTask);
 
+                Logger.Debug(orderATask.Result.ToExcleString());
+                Logger.Debug(reverseOrderTask.Result[0].ToExcleString());
+                Logger.Debug(reverseOrderTask.Result[1].ToExcleString());
+                PrintFilledOrder(orderATask.Result, reverseOrderTask.Result[0], reverseOrderTask.Result[1]);
                 mCurOrderType = requestA.OrderType;
                 mOrderIds.Add(exchangeOrderResultBack.OrderId);
+                mCurOrderAResult = null;
+                mOnTrade = false;
                 Logger.Debug(Utils.Str2Json("requestA", requestA.ToString()));
                 Logger.Debug(Utils.Str2Json("Add mCurrentLimitOrder", exchangeOrderResultBack.ToExcleString(), "CurAmount", mCurA1Amount));
                 Logger.Debug(Utils.Str2Json("market Filled", "已经市价成交"));
@@ -1044,42 +1049,43 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug("-------------------- 有重复提交订单！！！！！！ ---------------------------" + order.OrderId);
                     return;
                 }
+                mOrderIdsFiled.Add(order.OrderId);
                 bool isFilled = false;
                 decimal transAmount;
                 decimal curAmountA2;
                 decimal curAmountB;
                 GetParTrans(order, out transAmount, out curAmountA2, out curAmountB, out isFilled);
-                OrderFiledDo(order, transAmount, curAmountA2, curAmountB);
-            }
-        }
-
-        private async Task OrderFiledDo(ExchangeOrderResult order, decimal transAmount, decimal curAmountA2, decimal curAmountB)
-        {
-            mOrderIdsFiled.Add(order.OrderId);
-            async Task fun()
-            {
-                //mExchangePending = true;
-                ExchangeOrderResult backResultA2 = null;
-                ExchangeOrderResult backResultB = null;
-                Task<ExchangeOrderResult> backResultA2Task = ReverseOpenMarketOrder(order, order.IsBuy, mData.SymbolA2, curAmountA2);
-                Task<ExchangeOrderResult> backResultBTask = ReverseOpenMarketOrder(order, !order.IsBuy, mData.SymbolB, curAmountB);
-                Task.WaitAll(backResultA2Task, backResultBTask);
-                backResultA2 = backResultA2Task.Result;
-                backResultB = backResultBTask.Result;
-                mCurA1Amount += order.IsBuy ? transAmount : -transAmount;
-                mCurA2Amount += order.IsBuy ? curAmountA2 : -curAmountA2;
-                mCurBAmount += order.IsBuy ? -curAmountB : curAmountB;
-                Logger.Debug(Utils.Str2Json("mCurA1Amount:", transAmount, "curAmountA2:", curAmountA2, "curAmountB:", curAmountB));
-                //mExchangePending = false;
+                OrderFiledDo(order.IsBuy, transAmount, curAmountA2, curAmountB,order.OrderId);
                 // 如果 当前挂单和订单相同那么删除
-                if (mCurOrderAResult != null && mCurOrderAResult.OrderId == order.OrderId)
+                if (mCurOrderAResult != null && (mCurOrderAResult.OrderId == order.OrderId))
                 {
                     mCurOrderAResult = null;
                     mOnTrade = false;
                 }
-                PrintFilledOrder(order, backResultA2, backResultB);
+            }
+        }
+
+        private async Task<List<ExchangeOrderResult>> OrderFiledDo(bool orderIsBuy, decimal transAmount, decimal curAmountA2, decimal curAmountB,string orderId = "")
+        {
+            List<ExchangeOrderResult> returnList = new List<ExchangeOrderResult>();
+            async Task fun()
+            {
+                ExchangeOrderResult backResultA2 = null;
+                ExchangeOrderResult backResultB = null;
+                Task<ExchangeOrderResult> backResultA2Task = ReverseOpenMarketOrder(orderIsBuy, mData.SymbolA2, curAmountA2);
+                Task<ExchangeOrderResult> backResultBTask = ReverseOpenMarketOrder(!orderIsBuy, mData.SymbolB, curAmountB);
+                Task.WaitAll(backResultA2Task, backResultBTask);
+                backResultA2 = backResultA2Task.Result;
+                backResultB = backResultBTask.Result;
+                mCurA1Amount += orderIsBuy ? transAmount : -transAmount;
+                mCurA2Amount += orderIsBuy ? curAmountA2 : -curAmountA2;
+                mCurBAmount += orderIsBuy ? -curAmountB : curAmountB;
+                Logger.Debug(Utils.Str2Json("mCurA1Amount:", transAmount, "curAmountA2:", curAmountA2, "curAmountB:", curAmountB));
+                returnList.Add(backResultA2);
+                returnList.Add( backResultB);
             }
             await fun();
+            return returnList;
         }
         /// <summary>
         /// 订单部分成交
@@ -1099,8 +1105,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             decimal curAmountA2;
             decimal curAmountB;
             GetParTrans(order,out transAmount,out curAmountA2,out curAmountB ,out isFilled);
-            ExchangeOrderResult backResultA2 = await ReverseOpenMarketOrder(order, order.IsBuy, mData.SymbolA2, curAmountA2);
-            ExchangeOrderResult backResultB = await ReverseOpenMarketOrder(order, !order.IsBuy, mData.SymbolB, curAmountB);
+            ExchangeOrderResult backResultA2 = await ReverseOpenMarketOrder( order.IsBuy, mData.SymbolA2, curAmountA2);
+            ExchangeOrderResult backResultB = await ReverseOpenMarketOrder( !order.IsBuy, mData.SymbolB, curAmountB);
             mCurA1Amount += order.IsBuy ? transAmount : -transAmount;
             mCurA2Amount += order.IsBuy ? curAmountA2 : -curAmountA2;
             mCurBAmount += order.IsBuy ? -curAmountB : curAmountB;
@@ -1177,17 +1183,17 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     List<Task<ExchangeOrderResult>> ary = new List<Task<ExchangeOrderResult>>();
                     if (order.MarketSymbol != mData.SymbolA1)
                     {
-                        t1 = ReverseOpenMarketOrder(or, mCurA1Amount<0, mData.SymbolA1, Math.Abs(mCurA1Amount));
+                        t1 = ReverseOpenMarketOrder( mCurA1Amount<0, mData.SymbolA1, Math.Abs(mCurA1Amount));
                         ary.Add(t1);
                     }
                     if(order.MarketSymbol != mData.SymbolA2)
                     {
-                        t2 = ReverseOpenMarketOrder(or, mCurA2Amount < 0, mData.SymbolA2, Math.Abs(mCurA2Amount));
+                        t2 = ReverseOpenMarketOrder( mCurA2Amount < 0, mData.SymbolA2, Math.Abs(mCurA2Amount));
                         ary.Add(t2);
                     }
                     if (order.MarketSymbol != mData.SymbolB)
                     {
-                        t3 = ReverseOpenMarketOrder(or, mCurBAmount < 0, mData.SymbolB, Math.Abs(mCurBAmount));
+                        t3 = ReverseOpenMarketOrder( mCurBAmount < 0, mData.SymbolB, Math.Abs(mCurBAmount));
                         ary.Add(t3);
                     }
                     Task.WaitAll(ary.ToArray());
@@ -1285,7 +1291,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <summary>
         /// 反向市价开仓
         /// </summary>
-        private async Task<ExchangeOrderResult> ReverseOpenMarketOrder(ExchangeOrderResult order,bool isBuy,string symbol,decimal changeAmount)
+        private async Task<ExchangeOrderResult> ReverseOpenMarketOrder(bool isBuy,string symbol,decimal changeAmount)
         {
             if (changeAmount <= 0)//部分成交返回两次一样的数据，导致第二次transAmount=0
             {   
@@ -1300,8 +1306,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             req.OrderType = OrderType.Market;
             req.MarketSymbol = symbol;
             Logger.Debug("----------------------------ReverseOpenMarketOrder---------------------------"+ symbol);
-            Logger.Debug(order.ToString());
-            Logger.Debug(order.ToExcleString());
             Logger.Debug(req.ToStringInvariant());
             var ticks = DateTime.Now.Ticks;
 
