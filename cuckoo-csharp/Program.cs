@@ -26,13 +26,6 @@ namespace cuckoo_csharp
         }
         static void Main(string[] args)
         {
-            //getAsync();
-            //while (true)
-            //{
-            //    Thread.Sleep(1 * 1000);
-            //}
-
-            //return;
             AppDomain.CurrentDomain.UnhandledException += new UnhandledExceptionEventHandler(UnhandledExceptionHundle);
             if (args.Length > 0)
             {

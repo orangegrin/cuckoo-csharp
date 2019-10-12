@@ -1,0 +1,41 @@
+{
+  "ExchangeNameA": "BitMEX",
+  "ExchangeNameB": "BitMEX",
+  "SymbolA1": "ETHU19",
+  "SymbolA2": "ETHUSD",
+  "SymbolB": "XBTUSD",
+  "Symbol": "ETHUU",
+  "DeltaDiff": 0.0,
+  "DiffGrid":
+    [
+      {
+        "A2BDiff": -0.0152,
+        "B2ADiff": -0.014,
+        "ProfitRange": 0.002,
+        "MaxAmount": 0.0,
+        "InitialExchangeBAmount": 0.0,
+        "Rate": 1
+      }
+    ],
+    "PerTrans": 1.0,
+    "ClosePerTrans": 1.0,
+    "MinPriceUnitA1": 0.00001,
+    "MinPriceUnitA2": 0.01,
+    "MinPriceUnitB": 0.5,
+    "MinOrderPrice": 0.0011,
+    "FactorA2": 0.000001,
+    "FactorB": 1.0,
+    "CurAmount": 0.0,
+    "IntervalMillisecond": 1000,
+    "AutoCalcProfitRange": true,
+    "AutoCalcMaxPosition": false,
+    "OpenPositionBuyA": true,
+    "OpenPositionSellA": true,
+    "Leverage": 3.5,
+    "AmountSymbol": "BTC",
+    "FeesA": -0.0005,
+    "FeesB": 0.00075,
+    "EncryptedFileA": "BitMEX",
+    "EncryptedFileB": "Binance",
+    "RedisConfig": "localhost,password=l3h2p1w0*"
+    }
