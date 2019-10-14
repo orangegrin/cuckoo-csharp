@@ -1,0 +1,43 @@
+{
+  "ExchangeNameA": "Binance",
+  "ExchangeNameB": "Binance",
+  "SymbolA1": "LTCBTC",
+  "SymbolA2": "BTCUSDT",
+  "SymbolB": "LTCUSDT",
+  "Symbol": "ETHUU",
+  "DeltaDiff": 0.0,
+  "DiffGrid": [
+    {
+      "A2BDiff": 0.003,
+      "B2ADiff": -0.003,
+      "ProfitRange": 0.001,
+      "MaxA1SellAmount": 2,
+      "MaxA1BuyAmount": 2,
+      "Rate": 1
+    }
+  ],
+  "PerTrans": 1.0,
+  "ClosePerTrans": 1.0,
+  "MinPriceUnitA1": 0.001,
+  "MinPriceUnitA2": 0.000001,
+  "MinPriceUnitB": 0.00001,
+  "MinOrderPrice": 0.0011,
+  "FactorA2": 0.000001,
+  "FactorB": 1.0,
+  "CurA1Amount": 0.0,
+  "CurA2Amount": 0.0,
+  "CurBAmount": 0.0,
+  "CurBasicCoinAmount": 0.01,
+  "IntervalMillisecond": 1000,
+  "AutoCalcProfitRange": false,
+  "AutoCalcMaxPosition": false,
+  "OpenPositionBuyA": true,
+  "OpenPositionSellA": true,
+  "Leverage": 3.5,
+  "AmountSymbol": "BTC",
+  "FeesA": -0.0005,
+  "FeesB": 0.00075,
+  "EncryptedFileA": "Binance",
+  "EncryptedFileB": "Binance",
+  "RedisConfig": "localhost,password=l3h2p1w0*"
+}

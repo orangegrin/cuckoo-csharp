@@ -694,7 +694,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Diff diff = GetDiff(a2bDiff, b2aDiff, out buyAmount);
                 Logger.Debug(Utils.Str2Json("eth永续", buyPriceB, "ethu19", buyPriceA1, "xbtusd", buyPriceA2));
                 PrintInfo( sellPriceA1, buyPriceA1,  sellPriceA2, buyPriceA2,  buyPriceB, sellPriceB,a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
-               // return;
+               //return;
                 if (b2aDiff < diff.B2ADiff ) //满足差价并且当前B空仓数量小于最大B空仓数量
                 {
                     mOnTrade = true;
