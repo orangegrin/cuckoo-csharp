@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using StackExchange.Redis;
 using Newtonsoft.Json;
+using System.Threading;
 
 namespace cuckoo_csharp.Tools
 {
@@ -11,6 +12,11 @@ namespace cuckoo_csharp.Tools
         private static ConnectionMultiplexer connection;
         private static IDatabase instance;
         private static string configStr = null;
+
+        static RedisDB()
+        {
+            ThreadPool.SetMinThreads(200, 200);
+        }
 
         public static IDatabase Instance
         {

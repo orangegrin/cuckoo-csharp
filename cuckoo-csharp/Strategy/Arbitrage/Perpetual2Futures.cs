@@ -689,6 +689,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         public async Task UpdateAvgDiffAsync()
         {
             string dataUrl = $"{"http://150.109.52.225:8006/arbitrage/process?programID="}{mId}{"&symbol="}{mData.Symbol}{"&exchangeB="}{mData.ExchangeNameB.ToLowerInvariant()}{"&exchangeA="}{mData.ExchangeNameA.ToLowerInvariant()}";
+            Logger.Debug(dataUrl);
             while (true)
             {
                 if (mData.AutoCalcProfitRange)
@@ -1097,10 +1098,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 catch (Exception ex)
                 {
-                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Bad Gateway"))
+                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Bad Gateway") )
                     {
                         Logger.Error(Utils.Str2Json( "req", req.ToStringInvariant(), "ex", ex));
                         await Task.Delay(2000);
+                    }
+                    else if (ex.ToString().Contains("RateLimitError"))
+                    {
+                        Logger.Error(Utils.Str2Json("req", req.ToStringInvariant(), "ex", ex));
+                        await Task.Delay(5000);
                     }
                     else
                     {
