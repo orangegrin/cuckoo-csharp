@@ -1049,7 +1049,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (transAmount <= 0)//部分成交返回两次一样的数据，导致第二次transAmount=0
                 return null;
             ExchangeOrderResult backResult = null;
-            decimal yu = transAmount % mData.MinOrderAmountB;
+            decimal yu = transAmount % mData.MinOrderAmount;
 
             if (yu!=0)//如果小于最小成交价格，1补全到最小成交价格的数量x，A交易所买x，B交易所卖x+transAmount
             {
@@ -1131,7 +1131,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <returns></returns>
         private async Task<decimal> SetMinOrder(ExchangeOrderResult order, decimal transAmount,decimal yu)
         {
-            decimal addAmount = mData.MinOrderAmountB - yu;
+            decimal addAmount = mData.MinOrderAmount - yu;
             //市价买
             ExchangeOrderRequest requestA = new ExchangeOrderRequest();
             requestA.Amount = addAmount;
@@ -1202,7 +1202,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// <summary>
             /// 最小订单总价格B
             /// </summary>
-            public decimal MinOrderAmountB = 100m;
+            public decimal MinOrderAmount = 100m;
             /// <summary>
             /// 最小订单总价格
             /// </summary>
