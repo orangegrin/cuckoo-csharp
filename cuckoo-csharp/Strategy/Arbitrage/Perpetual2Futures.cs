@@ -88,16 +88,19 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 config.SaveToDB(mDBKey);
             }
             mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mData.ExchangeNameA);
-            mExchangeBAPI = mExchangeAAPI;
+            mExchangeBAPI = ExchangeAPI.GetExchangeAPI(mData.ExchangeNameB);
+
+            
         }
         public void Start()
         {
             AppDomain.CurrentDomain.ProcessExit += new EventHandler(OnProcessExit);
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
+            mExchangeBAPI.LoadAPIKeys(mData.EncryptedFileB);
             UpdateAvgDiffAsync();
             SubWebSocket();
             WebSocketProtect();
-            CheckPosition();
+            //CheckPosition();
             ChangeMaxCount();
         }
         /// <summary>
@@ -1046,13 +1049,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (transAmount <= 0)//部分成交返回两次一样的数据，导致第二次transAmount=0
                 return null;
             ExchangeOrderResult backResult = null;
-            if (order.AveragePrice * transAmount < mData.MinOrderPrice)//如果小于最小成交价格，1补全到最小成交价格的数量x，A交易所买x，B交易所卖x+transAmount
+            decimal yu = transAmount % mData.MinOrderAmountB;
+
+            if (yu!=0)//如果小于最小成交价格，1补全到最小成交价格的数量x，A交易所买x，B交易所卖x+transAmount
             {
                 for (int i = 1; ; i++)//防止bitmex overload一直提交到成功
                 {
                     try
                     {
-                        transAmount = await SetMinOrder(order, transAmount);
+                        transAmount = await SetMinOrder(order, transAmount,yu);
                         break;
                     }
                     catch (System.Exception ex)
@@ -1124,9 +1129,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <param name="order"></param>
         /// <param name="transAmount"></param>
         /// <returns></returns>
-        private async Task<decimal> SetMinOrder(ExchangeOrderResult order, decimal transAmount)
+        private async Task<decimal> SetMinOrder(ExchangeOrderResult order, decimal transAmount,decimal yu)
         {
-            decimal addAmount = Math.Ceiling(mData.MinOrderPrice / order.AveragePrice) - transAmount;
+            decimal addAmount = mData.MinOrderAmountB - yu;
             //市价买
             ExchangeOrderRequest requestA = new ExchangeOrderRequest();
             requestA.Amount = addAmount;
@@ -1191,9 +1196,17 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// </summary>
             public decimal MinPriceUnit = 0.5m;
             /// <summary>
+            /// 最小订单总价格A
+            /// </summary>
+            public decimal MinOrderAmountA = 25m;
+            /// <summary>
+            /// 最小订单总价格B
+            /// </summary>
+            public decimal MinOrderAmountB = 100m;
+            /// <summary>
             /// 最小订单总价格
             /// </summary>
-            public decimal MinOrderPrice = 0.0011m;
+            public decimal ABRate = 0.01m;
             /// <summary>
             /// 当前仓位数量
             /// </summary>
