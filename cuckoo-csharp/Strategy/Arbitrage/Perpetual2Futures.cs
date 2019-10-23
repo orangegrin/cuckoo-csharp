@@ -119,8 +119,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             UpdateAvgDiffAsync();
             SubWebSocket();
             WebSocketProtect();
-            //CheckPosition();
-            ChangeMaxCount();
+            CheckPosition();
+            //ChangeMaxCount();
         }
         /// <summary>
         /// 倒计时平仓
@@ -349,7 +349,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 //==================挂止盈单==================如果止盈点价格>三倍当前价格那么不挂止盈单
                 //一单为空，那么挂止盈多单，止盈价格为另一单的强平价格（另一单多+500，空-500）
                 //一单为多 相反
-                else if(realAmount!=0)
+                /*
+                else if (realAmount!=0)
                 {
                     Logger.Debug(Utils.Str2Json("挂止盈单", realAmount));
                     List<ExchangeOrderResult> profitA;
@@ -452,7 +453,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         OrderType = OrderType.MarketIfTouched,
                     };
                     profitOrderB = await doProfitAsync(orderB, profitOrderB, mExchangeBAPI);
-                }
+                }*/
                 mExchangePending = false;
                 await Task.Delay(5 * 60 * 1000);
             }
@@ -612,7 +613,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 b2aDiff = (sellPriceA/ sellPriceB - 1);
                 Diff diff = GetDiff(a2bDiff, b2aDiff,out buyAmount);
                 PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
-                return;
+                //return;
                 //如果盘口差价超过4usdt 不进行挂单，但是可以改单（bitmex overload 推送ws不及时）
                 if (mCurOrderA == null && ((sellPriceA <= buyPriceA) || (sellPriceA - buyPriceA >= 4) || (sellPriceB <= buyPriceB) || (sellPriceB - buyPriceB >= 4)))
                 {
@@ -815,14 +816,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug(Utils.Str2Json("Ask A", askA, " Ask B", askB, "askAAmount", askAAmount, "askBAmount", askBAmount));
             Logger.Debug(Utils.Str2Json("mCurAmount", mCurAmount, " buyAmount",  buyAmount));
             // DateTime.Now.ToString("yyyyMMddHHmmss"),
-            lock(mDiffHistory)
-            {
-                if (mDiffHistory != null)
+           
+            if (mDiffHistory != null)
                 {
-                    mDiffHistory.Add(a2bDiff);
-                    if (mDiffHistory.Count > (mData.PerTime + 100))
-                        mDiffHistory.RemoveRange(0, mDiffHistory.Count - mData.PerTime);
-                }
+                    lock (mDiffHistory)
+                    {
+                        mDiffHistory.Add(a2bDiff);
+                        if (mDiffHistory.Count > (mData.PerTime + 100))
+                            mDiffHistory.RemoveRange(0, mDiffHistory.Count - mData.PerTime);
+                    }
             }
             List<string> strList = new List<string>() { a2bDiff.ToString() };
             Utils.AppendCSV(new List<List<string>>() { strList }, Path.Combine(Directory.GetCurrentDirectory(), mData.SymbolA + "_" + mData.SymbolB + ".csv"), false);
@@ -1173,6 +1175,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
             Logger.Debug(req.ToStringInvariant());
+            Logger.Debug(Utils.Str2Json("ReverseOpenMarketOrder transAmount", transAmount.ToString()));
             var ticks = DateTime.Now.Ticks;
 
             
@@ -1228,10 +1231,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 var orderResults = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 ExchangeOrderResult resultA = orderResults[0];
                 transAmount = addAmount + transAmount;
+                Logger.Debug(Utils.Str2Json("SetMinOrder transAmount" , transAmount.ToString()));
             }
             catch (System.Exception ex)
             {
-                Logger.Debug(Utils.Str2Json("SetMinOrder ex" + ex.ToString()));
+                Logger.Debug(Utils.Str2Json("SetMinOrder ex" , ex.ToString()));
                 throw ex;
             }
             return transAmount;
