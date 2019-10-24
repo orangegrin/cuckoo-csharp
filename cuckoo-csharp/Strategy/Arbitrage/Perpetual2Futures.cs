@@ -795,7 +795,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mDiffHistory = nomal.TakeLast<decimal>(mData.PerTime).ToList();
             }
             decimal avgDiff = Utils.EMA(mDiffHistory, mDiffHistory.Count)[0];
-            avgDiff = Math.Round(avgDiff, 4);//强行转换
+            Logger.Debug("SetDiffBuyMA:" + avgDiff);
+            avgDiff = Math.Round(avgDiff, 5);//强行转换
             for (int i = 0; i < mData.DiffGrid.Count; i++)
             {
                 if (i < mData.DiffGrid.Count)
@@ -989,11 +990,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 return;
             try
             {
-                Logger.Debug("--------------PrintFilledOrder--------------"+ backOrder.ToString());
+                Logger.Debug("--------------PrintFilledOrder--------------"+ backOrder.ToString()+"    "+ backOrder.OrderId);
                 Logger.Debug(Utils.Str2Json("filledTime", Utils.GetGMTimeTicks(order.OrderDate).ToString(),
                     "direction", order.IsBuy ? "buy" : "sell",
                     "orderData", order.ToExcleString()));
-                await Task.Delay(1000);
+                await Task.Delay(10000);
                 backOrder =await  mExchangeBAPI.GetOrderDetailsAsync(backOrder.OrderId, mData.SymbolB);
                 //如果是平仓打印日志记录 时间  ，diff，数量
                 decimal lastAmount = mCurAmount + (order.IsBuy? -backOrder.Amount : backOrder.Amount);
