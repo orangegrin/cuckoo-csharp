@@ -56,6 +56,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// 差价历史记录
         /// </summary>
         private List<decimal> mDiffHistory =null;
+        
         private Options mData { get; set; }
         /// <summary>
         /// 当前开仓数量
@@ -115,7 +116,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug(posB.Result.ToString());
                 }
             }
-            
+            //mExchangeBAPI.GetHistoricalTradesAsync(null, mData.SymbolB);
+            //mExchangeBAPI.GetOrderDetailsAsync("636887359303196672", mData.SymbolB);
             UpdateAvgDiffAsync();
             SubWebSocket();
             WebSocketProtect();
@@ -950,7 +952,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         mCurOrderA = null;
                         mOnTrade = false;
                     }
-                    PrintFilledOrder(order, backResult);
+                    PrintFilledOrderAsync(order, backResult);
                 }
                 if (mCurOrderA != null)//可能为null ，locknull报错
                 {
@@ -977,9 +979,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug(order.ToString());
             Logger.Debug(order.ToExcleString());
             ExchangeOrderResult backOrder = await ReverseOpenMarketOrder(order);
-            PrintFilledOrder(order, backOrder);
+            PrintFilledOrderAsync(order, backOrder);
         }
-        private void PrintFilledOrder(ExchangeOrderResult order, ExchangeOrderResult backOrder)
+        private async Task PrintFilledOrderAsync(ExchangeOrderResult order, ExchangeOrderResult backOrder)
         {
             if (order == null)
                 return;
@@ -987,10 +989,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 return;
             try
             {
-                Logger.Debug("--------------PrintFilledOrder--------------");
+                Logger.Debug("--------------PrintFilledOrder--------------"+ backOrder.ToString());
                 Logger.Debug(Utils.Str2Json("filledTime", Utils.GetGMTimeTicks(order.OrderDate).ToString(),
                     "direction", order.IsBuy ? "buy" : "sell",
                     "orderData", order.ToExcleString()));
+                await Task.Delay(1000);
+                backOrder =await  mExchangeBAPI.GetOrderDetailsAsync(backOrder.OrderId, mData.SymbolB);
                 //如果是平仓打印日志记录 时间  ，diff，数量
                 decimal lastAmount = mCurAmount + (order.IsBuy? -backOrder.Amount : backOrder.Amount);
                 if ((lastAmount >0 && !order.IsBuy) ||//正仓位，卖
