@@ -118,6 +118,17 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             //mExchangeBAPI.GetHistoricalTradesAsync(null, mData.SymbolB);
             //mExchangeBAPI.GetOrderDetailsAsync("636887359303196672", mData.SymbolB);
+            //(@"{""status"":""ok"",""data"":{""order_id"":637039332274479104,""order_id_str"":""637039332274479104""},""ts"":1571923612438}""}");
+//             ExchangeOrderRequest Request = new ExchangeOrderRequest();
+//             Request.MarketSymbol = mData.SymbolB;
+//             Request.Amount = 100;
+//             Request.IsBuy = true;
+//             Request.OrderType = OrderType.Market;
+//             var v = mExchangeBAPI.PlaceOrderAsync(Request);
+//             Task.WaitAll(v);
+//             PrintFilledOrderAsync(v.Result, v.Result);
+
+
             UpdateAvgDiffAsync();
             SubWebSocket();
             WebSocketProtect();
@@ -615,7 +626,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 b2aDiff = (sellPriceA/ sellPriceB - 1);
                 Diff diff = GetDiff(a2bDiff, b2aDiff,out buyAmount);
                 PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
-                //return;
+                return;
                 //如果盘口差价超过4usdt 不进行挂单，但是可以改单（bitmex overload 推送ws不及时）
                 if (mCurOrderA == null && ((sellPriceA <= buyPriceA) || (sellPriceA - buyPriceA >= 4) || (sellPriceB <= buyPriceB) || (sellPriceB - buyPriceB >= 4)))
                 {
@@ -821,7 +832,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             // DateTime.Now.ToString("yyyyMMddHHmmss"),
            
             if (mDiffHistory != null)
-                {
+            {
                     lock (mDiffHistory)
                     {
                         mDiffHistory.Add(a2bDiff);
