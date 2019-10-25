@@ -126,7 +126,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 //             Request.OrderType = OrderType.Market;
 //             var v = mExchangeBAPI.PlaceOrderAsync(Request);
 //             Task.WaitAll(v);
-//             PrintFilledOrderAsync(v.Result, v.Result);
+             //PrintFilledOrderAsync(new ExchangeOrderResult(), new ExchangeOrderResult());
 
 
             UpdateAvgDiffAsync();
@@ -1008,11 +1008,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 await Task.Delay(10000);
                 backOrder =await  mExchangeBAPI.GetOrderDetailsAsync(backOrder.OrderId, mData.SymbolB);
                 //如果是平仓打印日志记录 时间  ，diff，数量
-                decimal lastAmount = mCurAmount + (order.IsBuy? -backOrder.Amount : backOrder.Amount);
-                if ((lastAmount >0 && !order.IsBuy) ||//正仓位，卖
-                    (lastAmount < 0) && order.IsBuy)//负的仓位，买
+//                 decimal lastAmount = mCurAmount + (order.IsBuy? -backOrder.Amount : backOrder.Amount);
+//                 if ((lastAmount >0 && !order.IsBuy) ||//正仓位，卖
+//                     (lastAmount < 0) && order.IsBuy)//负的仓位，买
                 {
-                    DateTime dt = backOrder.OrderDate.AddHours(8);
+                    DateTime dt = order.OrderDate.AddHours(8);
                     List<string> strList = new List<string>()
                     {
                         dt.ToShortDateString()+"/"+dt.ToLongTimeString(),order.IsBuy ? "buy" : "sell",backOrder.Amount.ToString(), (order.AveragePrice/backOrder.AveragePrice-1).ToString()
