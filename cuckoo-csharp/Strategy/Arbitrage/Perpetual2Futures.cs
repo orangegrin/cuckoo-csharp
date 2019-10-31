@@ -456,9 +456,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                     Logger.Debug("PosA:" + posA.ToString());
                     Logger.Debug("PosB:" + posB.ToString());
-
                     //当价格接近强平价格：
                     //1停止挂单//2挂止盈单//3停止程序
+                    if (posA.LiquidationPrice == 0)
+                        posA.LiquidationPrice = 1;
+                    if (posB.LiquidationPrice == 0)
+                        posB.LiquidationPrice = 1;
                     decimal rateA = Math.Abs(1 - mOrderBookA.Asks.FirstOrDefault().Value.Price / posB.LiquidationPrice);
                     decimal rateB = Math.Abs(1 - mOrderBookB.Asks.FirstOrDefault().Value.Price / posA.LiquidationPrice);
                     bool aBuy = posA.Amount > 0;
