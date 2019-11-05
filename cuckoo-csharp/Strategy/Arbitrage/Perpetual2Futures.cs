@@ -692,8 +692,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug(dataUrl);
             while (true)
             {
-                if (mData.AutoCalcProfitRange)
-                {
+
                     try
                     {
                         bool lastOpenPositionBuyA = mData.OpenPositionBuyA;
@@ -705,6 +704,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         mData.OpenPositionSellA = jsonResult["openPositionSellA"].ConvertInvariant<int>() == 0 ? false : true;
                         var rangeList = JArray.Parse(jsonResult["profitRange"].ToStringInvariant());
                         decimal avgDiff = jsonResult["maAvg"].ConvertInvariant<decimal>();
+                        if (mData.AutoCalcProfitRange)
+                            avgDiff = jsonResult["maAvg"].ConvertInvariant<decimal>();
+                        else
+                            avgDiff = mData.MidDiff;
                         avgDiff = Math.Round(avgDiff, 4);//强行转换
                         for (int i = 0; i < rangeList.Count; i++)
                         {
@@ -717,15 +720,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                                 mData.SaveToDB(mDBKey);
                             }
                         }
+
                         if (lastOpenPositionBuyA != mData.OpenPositionBuyA || lastOpenPositionSellA != mData.OpenPositionSellA)//仓位修改立即刷新
-                            CountDiffGridMaxCount();
-                        Logger.Debug(Utils.Str2Json(" UpdateAvgDiffAsync avgDiff", avgDiff));
+                                    CountDiffGridMaxCount();
+                                Logger.Debug(Utils.Str2Json(" UpdateAvgDiffAsync avgDiff", avgDiff));
                     }
                     catch (Exception ex)
                     {
                         Logger.Debug(" UpdateAvgDiffAsync avgDiff:" + ex.ToString());
                     }
-                }
+                
                 await Task.Delay(60 * 1000);
             }
         }
@@ -1177,6 +1181,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             public string SymbolB;
             public string Symbol;
             public decimal DeltaDiff = 0m;
+            public decimal MidDiff = -0.01m;
             /// <summary>
             /// 开仓差
             /// </summary>
