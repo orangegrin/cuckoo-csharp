@@ -2,7 +2,7 @@
   "profiles": {
     "cuckoo-csharp": {
       "commandName": "Project",
-      "commandLineArgs": "-i 1008 -c ./BitMex_HBDM.json"
+      "commandLineArgs": "-i 1008 -c ./BitMex_Deribit.json"
     }
   }
 }

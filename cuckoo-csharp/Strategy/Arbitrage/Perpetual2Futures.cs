@@ -292,17 +292,20 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Debug("-----------------------CheckPosition-----------------------------------");
                 ExchangeMarginPositionResult posA ;
                 ExchangeMarginPositionResult posB ;
+                int waitTime = 3 * 60 * 1000;
                 try
                 {
                     //等待10秒 避免ws虽然推送数据刷新，但是rest 还没有刷新数据
                     await Task.Delay(10* 1000);
+                    mExchangePending = true;
+                    mOnCheckPosition = true;
                     posA = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolA);
                     posB = await mExchangeBAPI.GetOpenPositionAsync(mData.SymbolB);
                     if (posA==null ||posB==null)
                     {
                         mExchangePending = false;
                         mOnCheckPosition = false; 
-                        await Task.Delay(3 * 60 * 1000);
+                        await Task.Delay(waitTime);
                         continue;
                     }
                 }
@@ -509,7 +512,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }*/
                 mExchangePending = false;
                 mOnCheckPosition = false;
-                await Task.Delay(3 * 60 * 1000);
+                await Task.Delay(waitTime);
             }
         }
 #endregion
