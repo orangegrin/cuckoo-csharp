@@ -107,7 +107,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 ExchangeHBDMAPI api = mExchangeBAPI as ExchangeHBDMAPI;
                 Task<ExchangeMarginPositionResult> posB = mExchangeBAPI.GetOpenPositionAsync(mData.SymbolB);
                 Task.WaitAll(posB);
-                if (posB.Result!=null && posB.Result.Amount!=0)
+                if (posB.Result != null && posB.Result.Amount != 0)
                 {
                     ExchangeOrderResult returnResult = new ExchangeOrderResult();
                     returnResult.MarketSymbol = mData.SymbolB;
@@ -117,19 +117,21 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug(posB.Result.ToString());
                 }
             }
+
             //mExchangeBAPI.GetHistoricalTradesAsync(null, mData.SymbolB);
             //mExchangeBAPI.GetOrderDetailsAsync("636887359303196672", mData.SymbolB);
             //(@"{""status"":""ok"",""data"":{""order_id"":637039332274479104,""order_id_str"":""637039332274479104""},""ts"":1571923612438}""}");
 //             ExchangeOrderRequest Request = new ExchangeOrderRequest();
 //             Request.MarketSymbol = mData.SymbolB;
-//             Request.Amount = 100;
-//             Request.IsBuy = true;
+//             Request.Amount = 50;
+//             Request.IsBuy = false;
 //             Request.OrderType = OrderType.Market;
 //             var v = mExchangeBAPI.PlaceOrderAsync(Request);
 //             Task.WaitAll(v);
-             //PrintFilledOrderAsync(new ExchangeOrderResult(), new ExchangeOrderResult());
-
-
+//             PrintFilledOrderAsync(new ExchangeOrderResult(), v.Result);
+// 
+//             //var v = mExchangeBAPI.GetOpenPositionAsync(mData.SymbolB);
+//             Task.WaitAll(v);
             UpdateAvgDiffAsync();
             SubWebSocket();
             WebSocketProtect();
@@ -195,7 +197,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(5 * 1000);
                     continue;
                 }
-                int delayTime = 60;//保证次数至少要3s一次，否则重启
+                int delayTime = 20;//保证次数至少要3s一次，否则重启
                 mOrderBookAwsCounter = 0;
                 mOrderBookBwsCounter = 0;
                 mOrderDetailsAwsCounter = 0;
@@ -366,7 +368,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 //==================挂止盈单==================如果止盈点价格>三倍当前价格那么不挂止盈单
                 //一单为空，那么挂止盈多单，止盈价格为另一单的强平价格（另一单多+500，空-500）
                 //一单为多 相反
-                //*
+                /*
                 else if (realAmount!=0)
                 {
                     Logger.Debug(Utils.Str2Json("挂止盈单", realAmount));
@@ -504,7 +506,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         Logger.Error("接近强平价格 挂止盈单并停止程序 orderA:"+ orderA.ToStopString()+ " orderB:"+ orderB.ToStopString());
                         //Environment.Exit(0);
                     }
-                }
+                }*/
                 mExchangePending = false;
                 mOnCheckPosition = false;
                 await Task.Delay(3 * 60 * 1000);
@@ -1046,8 +1048,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Debug(Utils.Str2Json("filledTime", Utils.GetGMTimeTicks(order.OrderDate).ToString(),
                     "direction", order.IsBuy ? "buy" : "sell",
                     "orderData", order.ToExcleString()));
-                await Task.Delay(10000);
-                backOrder =await  mExchangeBAPI.GetOrderDetailsAsync(backOrder.OrderId, mData.SymbolB);
+                if (mExchangeBAPI is ExchangeHBDMAPI)
+                {
+                    await Task.Delay(10000);
+                    backOrder = await mExchangeBAPI.GetOrderDetailsAsync(backOrder.OrderId, mData.SymbolB);
+                }
+                
                 //如果是平仓打印日志记录 时间  ，diff，数量
 //                 decimal lastAmount = mCurAmount + (order.IsBuy? -backOrder.Amount : backOrder.Amount);
 //                 if ((lastAmount >0 && !order.IsBuy) ||//正仓位，卖
@@ -1058,7 +1064,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         dt.ToShortDateString()+"/"+dt.ToLongTimeString(),order.IsBuy ? "buy" : "sell",backOrder.Amount.ToString(), (order.AveragePrice/backOrder.AveragePrice-1).ToString()
                     };
-                    Utils.AppendCSV(new List<List<string>>() { strList }, Path.Combine(Directory.GetCurrentDirectory(), "ClosePosition.csv"), false);
+                    Utils.AppendCSV(new List<List<string>>() { strList }, Path.Combine(Directory.GetCurrentDirectory(), "ClosePosition_"+mId+".csv"), false);
                 }
             }
             catch (Exception ex)
