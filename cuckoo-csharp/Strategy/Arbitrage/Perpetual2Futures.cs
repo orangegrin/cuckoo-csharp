@@ -197,7 +197,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(5 * 1000);
                     continue;
                 }
-                int delayTime = 20;//保证次数至少要3s一次，否则重启
+                int delayTime = 40;//保证次数至少要3s一次，否则重启
                 mOrderBookAwsCounter = 0;
                 mOrderBookBwsCounter = 0;
                 mOrderDetailsAwsCounter = 0;
@@ -240,7 +240,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private async Task<bool> IsConnectAsync()
         {
             await mOrderws.SendMessageAsync("ping");
-            await Task.Delay(5 * 1000);
+            await Task.Delay(7 * 1000);
             return mOrderDetailsAwsCounter > 0;
         }
         private bool OnConnect()
@@ -292,13 +292,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Debug("-----------------------CheckPosition-----------------------------------");
                 ExchangeMarginPositionResult posA ;
                 ExchangeMarginPositionResult posB ;
-                int waitTime = 3 * 60 * 1000;
+                int waitTime = 5 * 60 * 1000;
                 try
                 {
                     //等待10秒 避免ws虽然推送数据刷新，但是rest 还没有刷新数据
                     await Task.Delay(10* 1000);
-                    mExchangePending = true;
-                    mOnCheckPosition = true;
                     posA = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolA);
                     posB = await mExchangeBAPI.GetOpenPositionAsync(mData.SymbolB);
                     if (posA==null ||posB==null)
@@ -318,6 +316,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     continue;
                 }
                 decimal realAmount = posA.Amount;
+                //*
                 if ((posA.Amount + posB.Amount) !=0)//如果没有对齐停止交易，市价单到对齐
                 {
                     if (Math.Abs(posA.Amount + posB.Amount)>mData.PerTrans*10)
@@ -363,6 +362,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         }
                     }
                 }
+                
                 if (realAmount!=mCurAmount)
                 {
                     Logger.Debug(Utils.Str2Json("Change curAmount", realAmount));
@@ -371,23 +371,43 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 //==================挂止盈单==================如果止盈点价格>三倍当前价格那么不挂止盈单
                 //一单为空，那么挂止盈多单，止盈价格为另一单的强平价格（另一单多+500，空-500）
                 //一单为多 相反
-                /*
+                //*
                 else if (realAmount!=0)
                 {
                     Logger.Debug(Utils.Str2Json("挂止盈单", realAmount));
-                    List<ExchangeOrderResult> profitA;
+                    List<ExchangeOrderResult> profitListAWin;
+                    List<ExchangeOrderResult> profitListALost;
+                    ExchangeOrderResult profitAWin = null;
+                    ExchangeOrderResult profitALost = null;
                     List<ExchangeOrderResult> profitB;  
                     ExchangeOrderResult profitOrderA = null;
                     ExchangeOrderResult profitOrderB = null;
                     //下拉最新的值 ，来重新计算 改开多少止盈订单
                     try
                     {
-                        profitA = new List<ExchangeOrderResult>(await mExchangeAAPI.GetOpenProfitOrderDetailsAsync(mData.SymbolA));
+                        profitListAWin = new List<ExchangeOrderResult>(await mExchangeAAPI.GetOpenProfitOrderDetailsAsync(mData.SymbolA));
+                        profitListALost = new List<ExchangeOrderResult>(await mExchangeAAPI.GetOpenProfitOrderDetailsAsync(mData.SymbolA, OrderType.Stop));
                         profitB = new List<ExchangeOrderResult>(await mExchangeBAPI.GetOpenOrderDetailsAsync(mData.SymbolB));
-                        foreach (ExchangeOrderResult re in profitA)
+                        foreach (ExchangeOrderResult re in profitListAWin)
                         {
                             if (re.Result == ExchangeAPIOrderResult.Pending)
                             {
+                                if (realAmount > 0)//多仓
+                                {
+                                    profitAWin = re;
+                                }
+                                profitOrderA = re;
+                                break;
+                            }
+                        }
+                        foreach (ExchangeOrderResult re in profitListALost)
+                        {
+                            if (re.Result == ExchangeAPIOrderResult.Pending)
+                            {
+                                if (realAmount > 0)//多仓
+                                {
+                                    profitALost = re;
+                                }
                                 profitOrderA = re;
                                 break;
                             }
@@ -420,7 +440,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             }
                             else
                             {
-                                if (lastResult.Amount == request.Amount && Math.Abs(lastResult.StopPrice-request.StopPrice)<10)//数量相同并且止盈价格变动不大 ，不修改
+                                if (lastResult.Amount == request.Amount && Math.Abs(lastResult.StopPrice-request.StopPrice)<0)//数量相同并且止盈价格变动不大 ，不修改
                                     return null;
                                 request.ExtraParameters.Add("orderID", lastResult.OrderId);
                             }
@@ -432,17 +452,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             //return null;
                             request.StopPrice = Math.Round(mOrderBookA.Bids.FirstOrDefault().Value.Price * 3);
                             request.Price =  request.StopPrice;
-                            
                         }
-
-                        
+                        request.ExtraParameters.Add("execInst", "Close,LastPrice");
                         for (int i = 0; ;)
                         {
                             try
                             {
                                 Logger.Debug(Utils.Str2Json("request profit", request.ToString()));
-                                var orderResults = await api.PlaceOrderAsync(request);
-                                ExchangeOrderResult result = orderResults;
+                                var orderResults = await api.PlaceOrdersAsync(request);
+                                ExchangeOrderResult result = orderResults[0];
                                 return result;
                             }
                             catch (System.Exception ex)
@@ -469,47 +487,67 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         posB.LiquidationPrice = 1;
                     decimal rateA = Math.Abs(1 - mOrderBookA.Asks.FirstOrDefault().Value.Price / posB.LiquidationPrice);
                     decimal rateB = Math.Abs(1 - mOrderBookB.Asks.FirstOrDefault().Value.Price / posA.LiquidationPrice);
+
+                    decimal winPrice, lostPrice;
+                    decimal rate = 0.2m;//止损率
                     bool aBuy = posA.Amount > 0;
                     if (aBuy)
                     {
                         rateA = 1 - mOrderBookA.Asks.FirstOrDefault().Value.Price / posB.LiquidationPrice;
                         rateB = mOrderBookB.Asks.FirstOrDefault().Value.Price / posA.LiquidationPrice-1;
+                        winPrice = (1 - rate) * (posB.LiquidationPrice - posA.BasePrice) + posA.BasePrice;
+                        lostPrice = (rate) * (posB.BasePrice - posA.LiquidationPrice) + posA.LiquidationPrice;
+                        if (winPrice <= mOrderBookA.Asks.FirstOrDefault().Value.Price)
+                        {
+                            Logger.Error(" winPrice标记价格错误: 当前价格A" + mOrderBookA.Asks.FirstOrDefault().Value.Price + " 当前价格B:" + mOrderBookB.Asks.FirstOrDefault().Value.Price + "  当前数量：" + mCurAmount);
+                        }
+
+                        if (lostPrice >= mOrderBookA.Asks.FirstOrDefault().Value.Price)
+                        {
+                            Logger.Error(" lostPrice标记价格错误: 当前价格A" + mOrderBookA.Asks.FirstOrDefault().Value.Price + " 当前价格B:" + mOrderBookB.Asks.FirstOrDefault().Value.Price + "  当前数量：" + mCurAmount);
+                        }
                     }
                     else
                     {
                         rateA = mOrderBookA.Asks.FirstOrDefault().Value.Price / posB.LiquidationPrice -1;
                         rateB = 1-mOrderBookB.Asks.FirstOrDefault().Value.Price / posA.LiquidationPrice;
-                    }
-                    if (rateA < 0.4m || rateB < 0.4m)
-                    {
-                        ExchangeOrderRequest orderA = new ExchangeOrderRequest()
+                        winPrice = (rate) * (posB.BasePrice - posA.LiquidationPrice) + posA.LiquidationPrice;  
+                        lostPrice = (1 - rate) * (posB.LiquidationPrice - posA.BasePrice) + posA.BasePrice;
+                        if (winPrice >= mOrderBookA.Asks.FirstOrDefault().Value.Price)
                         {
-                            MarketSymbol = mData.SymbolA,
-                            IsBuy = !aBuy,
-                            Amount = Math.Floor(Math.Abs(realAmount)*mData.ClosePositionRate),
-                            StopPrice = Math.Round(posB.LiquidationPrice + (aBuy == false ? 0.05m * posB.LiquidationPrice : -0.05m * posB.LiquidationPrice)),
-                            OrderType = OrderType.MarketIfTouched,
-                        };
-                        orderA.ExtraParameters.Add("execInst", "Close,LastPrice");
-                        //profitOrderA = await doProfitAsync(orderA, profitOrderA, mExchangeAAPI, mData.SymbolA);
-                        ExchangeOrderRequest orderB = new ExchangeOrderRequest()
-                        {
-                            MarketSymbol = mData.SymbolB,
-                            IsBuy = aBuy,
-                            Amount = Math.Floor(Math.Abs(realAmount)),
-                            Price = Math.Round(posA.LiquidationPrice + (aBuy == true ? 0.05m * posA.LiquidationPrice : -0.05m * posA.LiquidationPrice)),
-                            OrderType = OrderType.Limit,
-                        };
-                        if (profitOrderB != null)
-                        {
-                            profitOrderB.StopPrice = profitOrderB.Price;
+                            Logger.Error(" winPrice标记价格错误: 当前价格A" + mOrderBookA.Asks.FirstOrDefault().Value.Price + " 当前价格B:" + mOrderBookB.Asks.FirstOrDefault().Value.Price + "  当前数量：" + mCurAmount);
                         }
-                        orderB.StopPrice = orderB.Price;
-                        //profitOrderB = await doProfitAsync(orderB, profitOrderB, mExchangeBAPI, mData.SymbolB);
-                        Logger.Error("接近强平价格 挂止盈单并停止程序 orderA:"+ orderA.ToStopString()+ " orderB:"+ orderB.ToStopString());
-                        //Environment.Exit(0);
+
+                        if (lostPrice <= mOrderBookA.Asks.FirstOrDefault().Value.Price)
+                        {
+                            Logger.Error(" lostPrice标记价格错误: 当前价格A" + mOrderBookA.Asks.FirstOrDefault().Value.Price + " 当前价格B:" + mOrderBookB.Asks.FirstOrDefault().Value.Price + "  当前数量：" + mCurAmount);
+                        }
                     }
-                }*/
+                    Logger.Error(" winPrice:" + winPrice + " lostPrice:" + lostPrice);
+
+                    ExchangeOrderRequest orderWin = new ExchangeOrderRequest()//止盈单
+                    {
+                        MarketSymbol = mData.SymbolA,
+                        IsBuy = !aBuy,
+                        Amount = Math.Floor(Math.Abs(realAmount)),
+                        StopPrice = Math.Floor(winPrice),
+                        OrderType = OrderType.MarketIfTouched,
+                    };
+                    //profitOrderA = await doProfitAsync(orderWin, profitAWin, mExchangeAAPI, mData.SymbolA);
+                    ExchangeOrderRequest orderLost = new ExchangeOrderRequest()//止损单
+                    {
+                        MarketSymbol = mData.SymbolA,
+                        IsBuy = !aBuy,
+                        Amount = Math.Floor(Math.Abs(realAmount)),
+                        StopPrice = Math.Floor(lostPrice),
+                        OrderType = OrderType.Stop,
+                    };
+                    //profitOrderB = await doProfitAsync(orderLost, profitALost, mExchangeAAPI, mData.SymbolA);
+                    Logger.Error("接近强平价格 挂止盈单并停止程序 orderA:"+ orderWin.ToStopString()+ " orderB:"+ orderLost.ToStopString());
+
+                    
+                }
+                //*/
                 mExchangePending = false;
                 mOnCheckPosition = false;
                 await Task.Delay(waitTime);
@@ -1104,9 +1142,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug("-------------------- OnOrderAHandler ---------------------------");
             if (order.Result == ExchangeAPIOrderResult.FilledPartially || order.Result == ExchangeAPIOrderResult.Filled)
             {
-                if (order.StopPrice > 0 && order.Amount > 0)
+                if (order.StopPrice > 0 && order.Amount > 0 && (order.MarketSymbol == mData.SymbolA ))
                 {
-                    Logger.Error("止盈触发停止运行程序");
+                    Task<ExchangeOrderResult> t = null;
+                    ExchangeOrderResult or = new ExchangeOrderResult();
+                    or.IsBuy = mCurAmount < 0;
+                    or.Amount = mCurAmount;
+                    t = ReverseOpenMarketOrder(or);
+                    Task.WaitAll(t);
+                    Logger.Error("止盈触发，市价成交订单并停止程序");
                     Environment.Exit(0);
                     throw new Exception("止盈触发停止运行程序");
                 }
