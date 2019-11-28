@@ -511,8 +511,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         rateA = mOrderBookA.Asks.FirstOrDefault().Value.Price / posB.LiquidationPrice -1;
                         rateB = 1-mOrderBookB.Asks.FirstOrDefault().Value.Price / posA.LiquidationPrice;
-                        winPrice = (rate) * (posB.BasePrice - posA.LiquidationPrice) + posA.LiquidationPrice;  
-                        lostPrice = (1 - rate) * (posB.LiquidationPrice - posA.BasePrice) + posA.BasePrice;
+                        winPrice = (rate) * (posA.BasePrice - posB.LiquidationPrice) + posA.LiquidationPrice;  
+                        lostPrice = (1 - rate) * (posA.LiquidationPrice - posB.BasePrice) + posA.BasePrice;
                         if (winPrice >= mOrderBookA.Asks.FirstOrDefault().Value.Price)
                         {
                             Logger.Error(" winPrice标记价格错误: 当前价格A" + mOrderBookA.Asks.FirstOrDefault().Value.Price + " 当前价格B:" + mOrderBookB.Asks.FirstOrDefault().Value.Price + "  当前数量：" + mCurAmount);
