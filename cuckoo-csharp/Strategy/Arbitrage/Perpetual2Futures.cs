@@ -481,16 +481,23 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug("PosB:" + posB.ToString());
                     //当价格接近强平价格：
                     //1停止挂单//2挂止盈单//3停止程序
+                    bool aBuy = posA.Amount > 0;
                     if (posA.LiquidationPrice == 0)
                         posA.LiquidationPrice = 1;
                     if (posB.LiquidationPrice == 0)
-                        posB.LiquidationPrice = 1;
+                    {
+                        if (aBuy)//B空
+                            posB.LiquidationPrice = mOrderBookB.Asks.FirstOrDefault().Value.Price * 2;
+                        else
+                            posB.LiquidationPrice = mOrderBookB.Asks.FirstOrDefault().Value.Price /2;
+                    }
+                        
                     decimal rateA = Math.Abs(1 - mOrderBookA.Asks.FirstOrDefault().Value.Price / posB.LiquidationPrice);
                     decimal rateB = Math.Abs(1 - mOrderBookB.Asks.FirstOrDefault().Value.Price / posA.LiquidationPrice);
 
                     decimal winPrice, lostPrice;
                     decimal rate = 0.2m;//止损率
-                    bool aBuy = posA.Amount > 0;
+                    
                     if (aBuy)
                     {
                         rateA = 1 - mOrderBookA.Asks.FirstOrDefault().Value.Price / posB.LiquidationPrice;
@@ -511,8 +518,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         rateA = mOrderBookA.Asks.FirstOrDefault().Value.Price / posB.LiquidationPrice -1;
                         rateB = 1-mOrderBookB.Asks.FirstOrDefault().Value.Price / posA.LiquidationPrice;
-                        winPrice = (rate) * (posA.BasePrice - posB.LiquidationPrice) + posA.LiquidationPrice;  
-                        lostPrice = (1 - rate) * (posA.LiquidationPrice - posB.BasePrice) + posA.BasePrice;
+                        winPrice = (rate) * (posA.BasePrice - posB.LiquidationPrice) + posB.LiquidationPrice;  
+                        lostPrice = (1 - rate) * (posA.LiquidationPrice - posB.BasePrice) + posB.BasePrice;
                         if (winPrice >= mOrderBookA.Asks.FirstOrDefault().Value.Price)
                         {
                             Logger.Error(" winPrice标记价格错误: 当前价格A" + mOrderBookA.Asks.FirstOrDefault().Value.Price + " 当前价格B:" + mOrderBookB.Asks.FirstOrDefault().Value.Price + "  当前数量：" + mCurAmount);
