@@ -388,14 +388,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         profitListAWin = new List<ExchangeOrderResult>(await mExchangeAAPI.GetOpenProfitOrderDetailsAsync(mData.SymbolA));
                         profitListALost = new List<ExchangeOrderResult>(await mExchangeAAPI.GetOpenProfitOrderDetailsAsync(mData.SymbolA, OrderType.Stop));
                         profitB = new List<ExchangeOrderResult>(await mExchangeBAPI.GetOpenOrderDetailsAsync(mData.SymbolB));
+                        int profitAWinCount = 0;
+                        int profitALostCount = 0;
                         foreach (ExchangeOrderResult re in profitListAWin)
                         {
                             if (re.Result == ExchangeAPIOrderResult.Pending)
                             {
-                                if (realAmount > 0)//多仓
-                                {
-                                    profitAWin = re;
-                                }
+
+                                profitAWin = re;
                                 profitOrderA = re;
                                 break;
                             }
@@ -404,10 +404,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         {
                             if (re.Result == ExchangeAPIOrderResult.Pending)
                             {
-                                if (realAmount > 0)//多仓
-                                {
-                                    profitALost = re;
-                                }
+
+                                profitALost = re;
                                 profitOrderA = re;
                                 break;
                             }
@@ -445,13 +443,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                                 request.ExtraParameters.Add("orderID", lastResult.OrderId);
                             }
                         }
-                        if (request.StopPrice > mOrderBookA.Bids.FirstOrDefault().Value.Price * 3)//如果止盈点价格>三倍当前价格那么不挂止盈单
+                        if (request.StopPrice > mOrderBookA.Bids.FirstOrDefault().Value.Price * 2m)//如果止盈点价格>三倍当前价格那么不挂止盈单
                         {
                             //                             if (lastResult != null)
                             //                                 await api.CancelOrderAsync(lastResult.OrderId,Symbol);
                             //return null;
-                            request.StopPrice = Math.Round(mOrderBookA.Bids.FirstOrDefault().Value.Price * 3);
-                            request.Price =  request.StopPrice;
+                            request.StopPrice = Math.Round(mOrderBookA.Bids.FirstOrDefault().Value.Price * 2m);
+                            //request.Price =  request.StopPrice;
                         }
                         request.ExtraParameters.Add("execInst", "Close,LastPrice");
                         for (int i = 0; ;)
