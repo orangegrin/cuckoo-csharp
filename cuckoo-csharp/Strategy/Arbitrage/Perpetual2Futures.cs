@@ -41,6 +41,18 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         private ExchangeOrderResult mCurOrderA;
         /// <summary>
+        /// 当前订单成交后，反向开仓数量A
+        /// </summary>
+        private decimal mChangeAmountA;
+        /// <summary>
+        /// 当前订单成交后，反向开仓数量B
+        /// </summary>
+        private decimal mChangeAmountB;
+        /// <summary>
+        /// 当前订单成交后，反向开仓数量B
+        /// </summary>
+        private decimal mLastPriceB;
+        /// <summary>
         /// A交易所的历史订单ID
         /// </summary>
         private List<string> mOrderIds = new List<string>();
@@ -73,6 +85,21 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mData.SaveToDB(mDBKey);
             }
         }
+        /// <summary>
+        /// 当前开仓数量
+        /// </summary>
+        private decimal mCurBAmount
+        {
+            get
+            {
+                return mData.CurBAmount;
+            }
+            set
+            {
+                mData.CurBAmount = value;
+                mData.SaveToDB(mDBKey);
+            }
+        }
         private string mDBKey;
         private Task mRunningTask;
         private bool mExchangePending = false;
@@ -93,6 +120,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mData = config;
                 config.SaveToDB(mDBKey);
             }
+//             for (int i = 7318; i <= 7318; i += 130)
+//             {
+//                 Logger.Debug(i.ToString());
+//                 GetAmount(i,87, 1, 0.001m, out decimal amountA, out decimal amountB);
+//             }
+//             return;
             mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mData.ExchangeNameA);
             mExchangeBAPI = ExchangeAPI.GetExchangeAPI(mData.ExchangeNameB);
         }
@@ -121,21 +154,24 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //mExchangeBAPI.GetHistoricalTradesAsync(null, mData.SymbolB);
             //mExchangeBAPI.GetOrderDetailsAsync("636887359303196672", mData.SymbolB);
             //(@"{""status"":""ok"",""data"":{""order_id"":637039332274479104,""order_id_str"":""637039332274479104""},""ts"":1571923612438}""}");
-//             ExchangeOrderRequest Request = new ExchangeOrderRequest();
-//             Request.MarketSymbol = mData.SymbolB;
-//             Request.Amount = 50;
-//             Request.IsBuy = false;
-//             Request.OrderType = OrderType.Market;
-//             var v = mExchangeBAPI.PlaceOrderAsync(Request);
-//             Task.WaitAll(v);
-//             PrintFilledOrderAsync(new ExchangeOrderResult(), v.Result);
-// 
-//             //var v = mExchangeBAPI.GetOpenPositionAsync(mData.SymbolB);
-//             Task.WaitAll(v);
+
+            //             ExchangeOrderRequest Request = new ExchangeOrderRequest();
+            //             Request.MarketSymbol = mData.SymbolB;
+            //             Request.Amount = 0.001m;
+            //             Request.IsBuy = false;
+            //             Request.OrderType = OrderType.Market;
+            //             var v = mExchangeBAPI.PlaceOrderAsync(Request);
+            //             Task.WaitAll(v);
+            //             PrintFilledOrderAsync(new ExchangeOrderResult(), v.Result);
+
+            //287895077
+//             Task<ExchangeOrderResult> backOrder = mExchangeBAPI.GetOrderDetailsAsync("18492704", mData.SymbolB);
+//             Task.WaitAll(backOrder);
+//             PrintFilledOrderAsync(new ExchangeOrderResult(), backOrder.Result);
             UpdateAvgDiffAsync();
             SubWebSocket();
             WebSocketProtect();
-            CheckPosition();
+            //CheckPosition();
             //ChangeMaxCount();
         }
         /// <summary>
@@ -395,8 +431,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             if (re.Result == ExchangeAPIOrderResult.Pending)
                             {
 
-                                profitAWin = re;
+                                //profitAWin = re;
                                 profitOrderA = re;
+                                await mExchangeAAPI.CancelOrderAsync(re.OrderId, mData.SymbolA);
                                 break;
                             }
                         }
@@ -405,8 +442,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             if (re.Result == ExchangeAPIOrderResult.Pending)
                             {
 
-                                profitALost = re;
+                                //profitALost = re;
                                 profitOrderA = re;
+                                await mExchangeAAPI.CancelOrderAsync(re.OrderId, mData.SymbolA);
                                 break;
                             }
                         }
@@ -718,6 +756,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 a2bDiff = (buyPriceA/ buyPriceB - 1);
                 b2aDiff = (sellPriceA/ sellPriceB - 1);
                 Diff diff = GetDiff(a2bDiff, b2aDiff,out buyAmount);
+                
                 PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
                 //return;
                 //如果盘口差价超过4usdt 不进行挂单，但是可以改单（bitmex overload 推送ws不及时）
@@ -730,22 +769,30 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff < diff.A2BDiff && mData.CurAmount + mData.PerTrans <= diff.InitialExchangeBAmount) //满足差价并且当前A空仓
                 {
+                    //计算真实应该交易数量
+                    decimal _price = mOrderBookB.Bids.FirstOrDefault().Value.Price ;
+                    GetAmount(_price, buyAmount, 1, 0.001m, out decimal amountA, out decimal amountB);
+                    buyAmount = amountA;
+                    mChangeAmountA = amountA;
+                    mChangeAmountB = amountB;
+                    mLastPriceB = _price;
+                    //Logger.Debug("buyAmount:" + buyAmount);
                     mOnTrade = true;
                     mRunningTask = A2BExchange(buyPriceA, buyAmount);
                 }
                 else if (b2aDiff > diff.B2ADiff && -mCurAmount < diff.MaxAmount) //满足差价并且没达到最大数量
-                {
+                {                    
+                    //计算真实应该交易数量
+                    decimal _price =  mOrderBookB.Asks.FirstOrDefault().Value.Price;
+                    GetAmount(_price, buyAmount,1, 0.001m, out decimal amountA, out decimal amountB);
+                    buyAmount = amountA;
+                    mChangeAmountA = amountA;
+                    mChangeAmountB = amountB;
+                    mLastPriceB = _price;
+                    //Logger.Debug("buyAmount:"+ buyAmount);
                     mOnTrade = true;
                     //如果只是修改订单
-                    if (mCurOrderA != null && !mCurOrderA.IsBuy)
-                    {
-                        mRunningTask = B2AExchange(sellPriceA, buyAmount);
-                    }
-                    //表示是新创建订单
-                    else //if (await SufficientBalance())
-                    {
-                        mRunningTask = B2AExchange(sellPriceA, buyAmount);
-                    }
+                    mRunningTask = B2AExchange(sellPriceA, buyAmount);
                 }
                 else if (mCurOrderA != null && diff.B2ADiff >= a2bDiff && a2bDiff >= diff.A2BDiff)//如果在波动区间中，那么取消挂单
                 {
@@ -921,7 +968,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug(Utils.Str2Json("BA价差当前百分比↓" , b2aDiff.ToString(), "BA价差百分比↓" , B2ADiff.ToString()));
             Logger.Debug(Utils.Str2Json("Bid A", bidA, " Bid B", bidB, "bidAAmount", bidAAmount, "bidBAmount", bidBAmount));
             Logger.Debug(Utils.Str2Json("Ask A", askA, " Ask B", askB, "askAAmount", askAAmount, "askBAmount", askBAmount));
-            Logger.Debug(Utils.Str2Json("mCurAmount", mCurAmount, " buyAmount",  buyAmount));
+            Logger.Debug(Utils.Str2Json("mCurAmount", mCurAmount, "mCurBmount", mCurBAmount, " buyAmount",  buyAmount));
             // DateTime.Now.ToString("yyyyMMddHHmmss"),
            
             if (mDiffHistory != null)
@@ -977,8 +1024,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         requestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
                         //检查是否有改动必要
                         //做多涨价则判断
-                        if (requestA.Price == mCurOrderA.Price)
+                        if (requestA.Price == mCurOrderA.Price && requestA.Amount == mCurOrderA.Amount)
                         {
+                            return;
+                        }
+                        if (requestA.Amount != mCurOrderA.Amount)//如果修改了数量 ，有可能filled订单修改为filledPart；后面计算数量不正确
+                        {
+                            await CancelCurOrderA();
                             return;
                         }
                     }
@@ -1098,7 +1150,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Debug(Utils.Str2Json("filledTime", Utils.GetGMTimeTicks(order.OrderDate).ToString(),
                     "direction", order.IsBuy ? "buy" : "sell",
                     "orderData", order.ToExcleString()));
-                if (mExchangeBAPI is ExchangeHBDMAPI)
+                if (mExchangeBAPI is ExchangeHBDMAPI||
+                    mExchangeBAPI is ExchangeBinanceDMAPI)
                 {
                     await Task.Delay(10000);
                     backOrder = await mExchangeBAPI.GetOrderDetailsAsync(backOrder.OrderId, mData.SymbolB);
@@ -1207,6 +1260,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         /// <summary>
         /// 计算反向开仓时应当开仓的数量（如果部分成交）
+        /// 发现一个恶心bug：eg订单数量230，部分成交208.此时取消订单。 
+        /// 系统会返回一个orderfilled：订单数量208成交数量208.
+        /// 返回第二个FilledPartially：订单数量230 部分成交208。
         /// </summary>
         /// <param name="order"></param>
         /// <returns></returns>
@@ -1216,33 +1272,41 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             lock (mFilledPartiallyDic)//防止多线程并发
             {
                 decimal filledAmount = 0;
+                decimal curFilledAmount = 0;
                 mFilledPartiallyDic.TryGetValue(order.OrderId, out filledAmount);
                 Logger.Debug(" filledAmount: " + filledAmount.ToStringInvariant());
+                if (order.OrderId.Equals(mCurOrderA.OrderId) && order.Amount != mCurOrderA.Amount)//如果订单数量和提交的订单数量不相同那么无视订单
+                {
+                    Logger.Debug(" 取消部分成交订单错误: " + order.ToExcleString());
+//                     curFilledAmount = 0;
+//                     return curFilledAmount;
+                }
                 if (order.Result == ExchangeAPIOrderResult.FilledPartially && filledAmount == 0)
                 {
                     mFilledPartiallyDic[order.OrderId] = order.AmountFilled;
-                    return order.AmountFilled;
+                    curFilledAmount = order.AmountFilled;
                 }
                 else if (order.Result == ExchangeAPIOrderResult.FilledPartially && filledAmount != 0)
                 {
                     if (filledAmount < order.AmountFilled)
                     {
                         mFilledPartiallyDic[order.OrderId] = order.AmountFilled;
-                        return order.AmountFilled - filledAmount;
+                        curFilledAmount = order.AmountFilled - filledAmount;
                     }
                     else
-                        return 0;
+                        curFilledAmount = 0;
                 }
                 else if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount == 0)
                 {
-                    return order.Amount;
+                    curFilledAmount = order.Amount;
                 }
                 else if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount != 0)
                 {
                     mFilledPartiallyDic.Remove(order.OrderId);
-                    return order.Amount - filledAmount;
+                    curFilledAmount = order.Amount - filledAmount;
                 }
-                return 0;
+
+                return curFilledAmount;
             }
         }
         /// <summary>
@@ -1255,7 +1319,20 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (transAmount <= 0)//部分成交返回两次一样的数据，导致第二次transAmount=0
                 return null;
             ExchangeOrderResult backResult = null;
-            decimal yu = transAmount % mData.MinOrderAmount;
+            
+            decimal amountA = 0;
+            decimal amountB = 0;
+            if (transAmount == mChangeAmountA)//如果全部成交
+            {
+                amountA = transAmount;
+                amountB = mChangeAmountB;
+            }
+            else
+            {
+                decimal _price = mLastPriceB;//order.IsBuy ? mOrderBookB.Bids.FirstOrDefault().Value.Price: mOrderBookB.Asks.FirstOrDefault().Value.Price;
+                GetAmount(_price, transAmount, 1, 0.001m, out amountA, out amountB);
+            }
+            decimal yu = amountA- transAmount ;//需要多提交的数量
 
             if (yu!=0)//如果小于最小成交价格，1补全到最小成交价格的数量x，A交易所买x，B交易所卖x+transAmount
             {
@@ -1263,7 +1340,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 {
                     try
                     {
-                        transAmount = await SetMinOrder(order, transAmount,yu);
+                        await SetMinOrder(order,yu);
+                        transAmount = amountA;
                         break;
                     }
                     catch (System.Exception ex)
@@ -1277,16 +1355,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             Logger.Error(Utils.Str2Json("最小成交价抛错" , ex.ToString()));
                             throw ex;
                         }
-                        
                     }
                 }
             }
             //只有在成交后才修改订单数量
             mCurAmount += order.IsBuy ? transAmount : -transAmount;
-            Logger.Debug(Utils.Str2Json(  "CurAmount:" , mData.CurAmount));
-            Logger.Debug("mId{0} {1}", mId, mCurAmount);
+            
+            
             var req = new ExchangeOrderRequest();
-            req.Amount = transAmount;
+            req.Amount = amountB;
             req.IsBuy = !order.IsBuy;
             req.OrderType = OrderType.Market;
             req.MarketSymbol = mData.SymbolB;
@@ -1327,18 +1404,20 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                 }
             }
+            mCurBAmount += order.IsBuy ? -amountB : +amountB;
+            Logger.Debug(Utils.Str2Json("CurAmount:", mData.CurAmount, "mCurBAmount:", mData.CurBAmount));
             await Task.Delay(mData.IntervalMillisecond);
             return backResult;
         }
         /// <summary>
         /// 如果overload抛出异常
+        /// 提交订单补全数量
         /// </summary>
         /// <param name="order"></param>
         /// <param name="transAmount"></param>
         /// <returns></returns>
-        private async Task<decimal> SetMinOrder(ExchangeOrderResult order, decimal transAmount,decimal yu)
+        private async Task<decimal> SetMinOrder(ExchangeOrderResult order, decimal addAmount)
         {
-            decimal addAmount = mData.MinOrderAmount - yu;
             //市价买
             ExchangeOrderRequest requestA = new ExchangeOrderRequest();
             requestA.Amount = addAmount;
@@ -1349,15 +1428,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 var orderResults = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                 ExchangeOrderResult resultA = orderResults[0];
-                transAmount = addAmount + transAmount;
-                Logger.Debug(Utils.Str2Json("SetMinOrder transAmount" , transAmount.ToString()));
+                Logger.Debug(Utils.Str2Json("SetMinOrder addAmount", addAmount.ToString()));
             }
             catch (System.Exception ex)
             {
                 Logger.Debug(Utils.Str2Json("SetMinOrder ex" , ex.ToString()));
                 throw ex;
             }
-            return transAmount;
+            return addAmount;
         }
         /// <summary>
         /// 判断是否是我的ID
@@ -1381,6 +1459,35 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             var s = 1 / mData.MinPriceUnit;
             return Math.Round(price * s) / s;
+        }/// <summary>
+         ///  求最小公约数               A 交易所btc本位，B交易所usdt本位
+         /// </summary>
+         /// <param name="priceB"></param>
+         /// <param name="minUnitA"></param>
+         /// <param name="minUnitB"></param>
+         /// <param name="amountA">单位USDT</param>
+         /// <param name="amountB">单位BTC</param>
+         /// <returns></returns>
+        void GetAmount(decimal priceB,decimal minAmountA,decimal minUnitA,decimal minUnitB,out decimal amountA,out decimal amountB)
+        {
+            var minUSDT = priceB*minUnitB;
+            amountB = 0;
+            amountA = 0;
+            decimal i = Math.Ceiling( minAmountA/ minUSDT);
+            for ( ; ; i++)
+            {
+                amountB = i * minUnitB;
+                var useUSDT = minUSDT * i;
+                decimal s = 1 / minUnitA;
+                amountA = Math.Round(useUSDT * s) / s;
+                var remainder = Math.Abs(useUSDT - amountA);
+                Logger.Debug(remainder.ToString());
+                if (useUSDT >= mData.MinOrderAmountA && remainder <= 0.1m)
+                {
+                    Logger.Debug(" remainder:"+ remainder.ToString()+ " amountA:" + amountA.ToString()+ " amountB:" + amountB.ToString()+"  rate:"+ remainder/ amountA);
+                    break;
+                }
+            }
         }
         public class Options
         {
@@ -1416,9 +1523,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// </summary>
             public decimal ABRate = 0.01m;
             /// <summary>
-            /// 当前仓位数量
+            /// 当前仓位数量A
             /// </summary>
             public decimal CurAmount = 0;
+            /// <summary>
+            /// 当前仓位数量B
+            /// </summary>
+            public decimal CurBAmount = 0;
             /// <summary>
             /// 间隔时间
             /// </summary>
