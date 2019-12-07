@@ -1163,9 +1163,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 //                     (lastAmount < 0) && order.IsBuy)//负的仓位，买
                 {
                     DateTime dt = order.OrderDate.AddHours(8);
+                    decimal buyUSDT = backOrder.Amount * backOrder.AveragePrice;
                     List<string> strList = new List<string>()
                     {
-                        dt.ToShortDateString()+"/"+dt.ToLongTimeString(),order.IsBuy ? "buy" : "sell",backOrder.Amount.ToString(), (order.AveragePrice/backOrder.AveragePrice-1).ToString()
+                        dt.ToShortDateString()+"/"+dt.ToLongTimeString(),order.IsBuy ? "buy" : "sell",backOrder.Amount.ToString(), (order.AveragePrice/backOrder.AveragePrice-1).ToString(),((buyUSDT-order.Amount)/buyUSDT-1).ToString()
                     };
                     Utils.AppendCSV(new List<List<string>>() { strList }, Path.Combine(Directory.GetCurrentDirectory(), "ClosePosition_"+mId+".csv"), false);
                 }
