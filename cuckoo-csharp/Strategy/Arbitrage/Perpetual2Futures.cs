@@ -843,18 +843,34 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Diff returnDiff = diffList[0];
             foreach (var diff in diffList)
             {
-                returnDiff = diff;
-                if (a2bDiff < diff.A2BDiff && mCurAmount + mData.PerTrans <= diff.InitialExchangeBAmount)
+                returnDiff = diff.Clone();
+                decimal MidDiff = (diff.A2BDiff + diff.B2ADiff) / 2;
+                if (a2bDiff < diff.A2BDiff && mCurAmount + mData.PerTrans <= diff.InitialExchangeBAmount)//多仓
                 {
                     if ((mCurAmount + mData.ClosePerTrans) <= 0)
                         buyAmount = mData.ClosePerTrans;
                     break;
                 }
-                else if (b2aDiff > diff.B2ADiff && -mCurAmount < diff.MaxAmount)
+                else if (b2aDiff > diff.B2ADiff && -mCurAmount < diff.MaxAmount)//空仓
                 {
                     if((mCurAmount - mData.ClosePerTrans) >= 0)
                         buyAmount = mData.ClosePerTrans;
                     break;
+                }
+                else if (mData.MidClose)
+                {
+                    if (a2bDiff < MidDiff && (mCurAmount + mData.ClosePerTrans) <= 0)//多仓平仓
+                    {
+                        buyAmount = mData.ClosePerTrans;
+                        returnDiff.A2BDiff = MidDiff;
+                        break;
+                    }
+                    else if (b2aDiff > MidDiff && (mCurAmount - mData.ClosePerTrans) >= 0)//空仓平仓
+                    {
+                        buyAmount = mData.ClosePerTrans;
+                        returnDiff.B2ADiff = MidDiff;
+                        break;
+                    }
                 }
             }
             return returnDiff;
@@ -1556,6 +1572,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// </summary>
             public bool OpenPositionSellA = true;
             /// <summary>
+            /// diff中间值平仓
+            /// </summary>
+            public bool MidClose = true;
+            /// <summary>
             /// 杠杆倍率
             /// </summary>
             public decimal Leverage = 3;
@@ -1609,11 +1629,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         public class Diff
         {
             /// <summary>
-            /// 开仓差
+            /// 多仓差
             /// </summary>
             public decimal A2BDiff;
             /// <summary>
-            /// 平仓差
+            /// 空仓差
             /// </summary>
             public decimal B2ADiff;
             /// <summary>
@@ -1631,6 +1651,19 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             public decimal InitialExchangeBAmount = 0m;
 
             public decimal Rate = 0.5m;
+
+            public Diff Clone()
+            {
+                return new Diff()
+                {
+                    A2BDiff = this.A2BDiff,
+                    B2ADiff = this.B2ADiff,
+                    ProfitRange = this.ProfitRange,
+                    MaxAmount = this.MaxAmount,
+                    InitialExchangeBAmount = this.InitialExchangeBAmount,
+                    Rate = this.Rate
+                };
+            }
         }
 
     }
