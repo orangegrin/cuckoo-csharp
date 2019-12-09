@@ -1030,8 +1030,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         }
                         if (requestA.Amount != mCurOrderA.Amount)//如果修改了数量 ，有可能filled订单修改为filledPart；后面计算数量不正确
                         {
-                            await CancelCurOrderA();
-                            return;
+                            CancelCurOrderA();//删除当前订单并且提交新订单
+                            mCurOrderA = null;
                         }
                     }
                     else
@@ -1166,7 +1166,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     decimal buyUSDT = backOrder.Amount * backOrder.AveragePrice;
                     List<string> strList = new List<string>()
                     {
-                        dt.ToShortDateString()+"/"+dt.ToLongTimeString(),order.IsBuy ? "buy" : "sell",backOrder.Amount.ToString(), (order.AveragePrice/backOrder.AveragePrice-1).ToString(),((buyUSDT-order.Amount)/buyUSDT-1).ToString()
+                        dt.ToShortDateString()+"/"+dt.ToLongTimeString(),order.IsBuy ? "buy" : "sell",backOrder.Amount.ToString(), (order.AveragePrice/backOrder.AveragePrice-1).ToString(),(order.Amount/buyUSDT-1).ToString()
                     };
                     Utils.AppendCSV(new List<List<string>>() { strList }, Path.Combine(Directory.GetCurrentDirectory(), "ClosePosition_"+mId+".csv"), false);
                 }
@@ -1276,9 +1276,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 decimal curFilledAmount = 0;
                 mFilledPartiallyDic.TryGetValue(order.OrderId, out filledAmount);
                 Logger.Debug(" filledAmount: " + filledAmount.ToStringInvariant());
-                if (order.OrderId.Equals(mCurOrderA.OrderId) && order.Amount != mCurOrderA.Amount)//如果订单数量和提交的订单数量不相同那么无视订单
+                if (mCurOrderA==null)
                 {
-                    Logger.Debug(" 取消部分成交订单错误: " + order.ToExcleString());
+                    Logger.Debug(" 1取消部分成交订单错误: " + order.ToExcleString());
+                }
+                else if (order.OrderId.Equals(mCurOrderA.OrderId) && order.Amount != mCurOrderA.Amount)//如果订单数量和提交的订单数量不相同那么无视订单
+                {
+                    Logger.Debug(" 2取消部分成交订单错误: " + order.ToExcleString());
 //                     curFilledAmount = 0;
 //                     return curFilledAmount;
                 }
