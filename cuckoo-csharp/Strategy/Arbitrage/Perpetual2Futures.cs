@@ -480,12 +480,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                                 request.ExtraParameters.Add("orderID", lastResult.OrderId);
                             }
                         }
-                        if (request.StopPrice > mOrderBookA.Bids.FirstOrDefault().Value.Price * 3)//如果止盈点价格>三倍当前价格那么不挂止盈单
+                        if (request.StopPrice > mOrderBookA.Bids.FirstOrDefault().Value.Price * 2)//如果止盈点价格>三倍当前价格那么不挂止盈单
                         {
 //                             if (lastResult != null)
 //                                 await mExchangeAAPI.CancelOrderAsync(lastResult.OrderId);
 //                             return null;
-                            request.StopPrice = Math.Floor(mOrderBookA.Bids.FirstOrDefault().Value.Price * 3);
+                            request.StopPrice = Math.Floor(mOrderBookA.Bids.FirstOrDefault().Value.Price * 2);
                         }
 
                         request.ExtraParameters.Add("execInst", "Close,LastPrice");
