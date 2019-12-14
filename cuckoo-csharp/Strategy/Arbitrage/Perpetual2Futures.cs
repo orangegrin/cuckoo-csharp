@@ -434,6 +434,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     List<ExchangeOrderResult> profitB;
                     ExchangeOrderResult profitOrderA = null;
                     ExchangeOrderResult profitOrderB = null;
+                    decimal curPriceA = 0;
+                    decimal curPriceB = 0;
+                    lock (mOrderBookA)
+                    {
+                        curPriceA = mOrderBookA.Asks.FirstOrDefault().Value.Price;
+                    }
+                    lock (mOrderBookB)
+                    {
+                        curPriceB = mOrderBookB.Asks.FirstOrDefault().Value.Price;
+                    }
                     //下拉最新的值 ，来重新计算 改开多少止盈订单
                     try
                     {
@@ -480,12 +490,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                                 request.ExtraParameters.Add("orderID", lastResult.OrderId);
                             }
                         }
-                        if (request.StopPrice > mOrderBookA.Bids.FirstOrDefault().Value.Price * 2)//如果止盈点价格>三倍当前价格那么不挂止盈单
+                        if (request.StopPrice > curPriceA * 2)//如果止盈点价格>三倍当前价格那么不挂止盈单
                         {
 //                             if (lastResult != null)
 //                                 await mExchangeAAPI.CancelOrderAsync(lastResult.OrderId);
 //                             return null;
-                            request.StopPrice = Math.Floor(mOrderBookA.Bids.FirstOrDefault().Value.Price * 2);
+                            request.StopPrice = Math.Floor(curPriceA * 2);
                         }
 
                         request.ExtraParameters.Add("execInst", "Close,LastPrice");
@@ -518,31 +528,28 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     bool isError = false;
                     if (aBuy)
                     {
-
-                        if (posB.LiquidationPrice <= mOrderBookA.Asks.FirstOrDefault().Value.Price)
+                        if (posB.LiquidationPrice <= curPriceA)
                         {
-                            Logger.Error(" winPrice标记价格错误: 当前价格A" + mOrderBookA.Asks.FirstOrDefault().Value.Price + " 当前价格B:" + mOrderBookB.Asks.FirstOrDefault().Value.Price + "  当前数量：" + mCurAmount);
+                            Logger.Error(" winPrice标记价格错误: 当前价格A" + curPriceA + " 当前价格B:" + curPriceB + "  当前数量：" + mCurAmount);
                             isError = true;
                         }
-
-                        if (posA.LiquidationPrice >= mOrderBookA.Asks.FirstOrDefault().Value.Price)
+                        if (posA.LiquidationPrice >= curPriceA)
                         {
-                            Logger.Error(" lostPrice标记价格错误: 当前价格A" + mOrderBookA.Asks.FirstOrDefault().Value.Price + " 当前价格B:" + mOrderBookB.Asks.FirstOrDefault().Value.Price + "  当前数量：" + mCurAmount);
+                            Logger.Error(" lostPrice标记价格错误: 当前价格A" + curPriceA + " 当前价格B:" + curPriceB + "  当前数量：" + mCurAmount);
                             isError = true;
                         }
                         Logger.Error(" posA.LiquidationPrice:" + posA.LiquidationPrice + " posB.LiquidationPrice:" + posB.LiquidationPrice);
                     }
                     else
                     {
-                        if (posB.LiquidationPrice >= mOrderBookA.Asks.FirstOrDefault().Value.Price)
+                        if (posB.LiquidationPrice >= curPriceA)
                         {
-                            Logger.Error(" winPrice标记价格错误: 当前价格A" + mOrderBookA.Asks.FirstOrDefault().Value.Price + " 当前价格B:" + mOrderBookB.Asks.FirstOrDefault().Value.Price + "  当前数量：" + mCurAmount);
+                            Logger.Error(" winPrice标记价格错误: 当前价格A" + curPriceA + " 当前价格B:" + curPriceB + "  当前数量：" + mCurAmount);
                             isError = true;
                         }
-
-                        if (posA.LiquidationPrice <= mOrderBookA.Asks.FirstOrDefault().Value.Price)
+                        if (posA.LiquidationPrice <= curPriceA)
                         {
-                            Logger.Error(" lostPrice标记价格错误: 当前价格A" + mOrderBookA.Asks.FirstOrDefault().Value.Price + " 当前价格B:" + mOrderBookB.Asks.FirstOrDefault().Value.Price + "  当前数量：" + mCurAmount);
+                            Logger.Error(" lostPrice标记价格错误: 当前价格A" + curPriceA + " 当前价格B:" + curPriceB + "  当前数量：" + mCurAmount);
                             isError = true;
                         }
                         Logger.Error(" posA.LiquidationPrice:" + posA.LiquidationPrice + " posB.LiquidationPrice:" + posB.LiquidationPrice);
@@ -627,7 +634,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     decimal noUseBtc = await GetAmountsAvailableToTradeAsync(mExchangeAAPI, "XBt") / 100000000;
                     decimal allBtc = noUseBtc;
                     //总仓位 = 总btc数量*（z19+u19）/2 *3倍杠杆/2种合约 
-                    decimal allPosition = allBtc * (mOrderBookA.Bids.FirstOrDefault().Value.Price + mOrderBookB.Asks.FirstOrDefault().Value.Price) / 2 * mData.Leverage / 2;
+                    decimal allPosition;
+                    lock (mOrderBookA)
+                    {
+                        lock (mOrderBookB)
+                        {
+                            allPosition = allBtc * (mOrderBookA.Bids.FirstOrDefault().Value.Price + mOrderBookB.Asks.FirstOrDefault().Value.Price) / 2 * mData.Leverage / 2;
+                        }
+                    }
                     allPosition = Math.Round(allPosition / mData.PerTrans) * mData.PerTrans;
                     decimal lastPosition = 0;
                     foreach (Diff diff in mData.DiffGrid )
@@ -750,7 +764,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (a2bDiff < diff.A2BDiff && mData.CurAmount + mData.PerTrans <= diff.InitialExchangeBAmount) //满足差价并且当前A空仓
                 {
                     //计算真实应该交易数量
-                    decimal _price = mOrderBookB.Bids.FirstOrDefault().Value.Price ;
+                    decimal _price = buyPriceB;//mOrderBookB.Bids.FirstOrDefault().Value.Price;
                     GetAmount(_price, buyAmount, 1, 0.001m, out decimal amountA, out decimal amountB);
                     buyAmount = amountA;
                     mChangeAmountA = amountA;
@@ -761,9 +775,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mRunningTask = A2BExchange(buyPriceA, buyAmount);
                 }
                 else if (b2aDiff > diff.B2ADiff && -mCurAmount < diff.MaxAmount) //满足差价并且没达到最大数量
-                {                    
+                {
                     //计算真实应该交易数量
-                    decimal _price =  mOrderBookB.Asks.FirstOrDefault().Value.Price;
+                    decimal _price = sellPriceB;//mOrderBookB.Asks.FirstOrDefault().Value.Price;
                     GetAmount(_price, buyAmount,1, 0.001m, out decimal amountA, out decimal amountB);
                     buyAmount = amountA;
                     mChangeAmountA = amountA;
