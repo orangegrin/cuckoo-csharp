@@ -81,6 +81,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             set
             {
+                mCurDiff.CurOpenAmountA += value;
                 mData.CurAmount = value;
                 mData.SaveToDB(mDBKey);
             }
@@ -96,10 +97,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             set
             {
+                mCurDiff.CurOpenAmountB += value;
                 mData.CurBAmount = value;
                 mData.SaveToDB(mDBKey);
             }
-        }
+        }       
+        private Diff mCurDiff = null;
+        /// <summary>
+        /// 当前差价梯队的数量
+        /// </summary>
         private string mDBKey;
         private Task mRunningTask;
         private bool mExchangePending = false;
@@ -409,7 +415,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                  */
                  //如果开仓价总价值usdt 比例超过百分之3 那么一定是错误的停止交易，可能是止损或数量错误引起的
-                if (Math.Abs( Math.Abs(posA.Amount) / Math.Abs(posB.Amount*posB.BasePrice) -1 ) >= 0.03m)
+                if (Math.Abs( Math.Abs(posA.Amount) / Math.Abs(posB.Amount*posB.BasePrice) -1 ) >= 0.1m)
                 {
                     Logger.Error(Utils.Str2Json("CheckPosition ex", "A,B交易所相差过大 程序关闭，请手动处理"));
                     throw new Exception("A,B交易所相差过大 程序关闭，请手动处理");
@@ -434,6 +440,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     List<ExchangeOrderResult> profitB;
                     ExchangeOrderResult profitOrderA = null;
                     ExchangeOrderResult profitOrderB = null;
+                    decimal curPriceA = 0;
+                    decimal curPriceB = 0;
+                    lock (mOrderBookA)
+                    {
+                        curPriceA = mOrderBookA.Asks.FirstOrDefault().Value.Price;
+                    }
+                    lock (mOrderBookB)
+                    {
+                        curPriceB = mOrderBookB.Asks.FirstOrDefault().Value.Price;
+                    }
                     //下拉最新的值 ，来重新计算 改开多少止盈订单
                     try
                     {
@@ -480,12 +496,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                                 request.ExtraParameters.Add("orderID", lastResult.OrderId);
                             }
                         }
-                        if (request.StopPrice > mOrderBookA.Bids.FirstOrDefault().Value.Price * 2)//如果止盈点价格>三倍当前价格那么不挂止盈单
+                        if (request.StopPrice > curPriceA * 2)//如果止盈点价格>三倍当前价格那么不挂止盈单
                         {
 //                             if (lastResult != null)
 //                                 await mExchangeAAPI.CancelOrderAsync(lastResult.OrderId);
 //                             return null;
-                            request.StopPrice = Math.Floor(mOrderBookA.Bids.FirstOrDefault().Value.Price * 2);
+                            request.StopPrice = Math.Floor(curPriceA * 2);
                         }
 
                         request.ExtraParameters.Add("execInst", "Close,LastPrice");
@@ -516,33 +532,34 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug("PosB:" + posB.ToString());
                     bool aBuy = posA.Amount > 0;
                     bool isError = false;
+
                     if (aBuy)
                     {
 
-                        if (posB.LiquidationPrice <= mOrderBookA.Asks.FirstOrDefault().Value.Price)
+                        if (posB.LiquidationPrice <= curPriceA)
                         {
-                            Logger.Error(" winPrice标记价格错误: 当前价格A" + mOrderBookA.Asks.FirstOrDefault().Value.Price + " 当前价格B:" + mOrderBookB.Asks.FirstOrDefault().Value.Price + "  当前数量：" + mCurAmount);
+                            Logger.Error(" winPrice标记价格错误: 当前价格A" + curPriceA + " 当前价格B:" + curPriceB + "  当前数量：" + mCurAmount);
                             isError = true;
                         }
 
-                        if (posA.LiquidationPrice >= mOrderBookA.Asks.FirstOrDefault().Value.Price)
+                        if (posA.LiquidationPrice >= curPriceA)
                         {
-                            Logger.Error(" lostPrice标记价格错误: 当前价格A" + mOrderBookA.Asks.FirstOrDefault().Value.Price + " 当前价格B:" + mOrderBookB.Asks.FirstOrDefault().Value.Price + "  当前数量：" + mCurAmount);
+                            Logger.Error(" lostPrice标记价格错误: 当前价格A" + curPriceA + " 当前价格B:" + curPriceB + "  当前数量：" + mCurAmount);
                             isError = true;
                         }
                         Logger.Error(" posA.LiquidationPrice:" + posA.LiquidationPrice + " posB.LiquidationPrice:" + posB.LiquidationPrice);
                     }
                     else
                     {
-                        if (posB.LiquidationPrice >= mOrderBookA.Asks.FirstOrDefault().Value.Price)
+                        if (posB.LiquidationPrice >= curPriceA)
                         {
-                            Logger.Error(" winPrice标记价格错误: 当前价格A" + mOrderBookA.Asks.FirstOrDefault().Value.Price + " 当前价格B:" + mOrderBookB.Asks.FirstOrDefault().Value.Price + "  当前数量：" + mCurAmount);
+                            Logger.Error(" winPrice标记价格错误: 当前价格A" + curPriceA + " 当前价格B:" + curPriceB + "  当前数量：" + mCurAmount);
                             isError = true;
                         }
 
-                        if (posA.LiquidationPrice <= mOrderBookA.Asks.FirstOrDefault().Value.Price)
+                        if (posA.LiquidationPrice <= curPriceA)
                         {
-                            Logger.Error(" lostPrice标记价格错误: 当前价格A" + mOrderBookA.Asks.FirstOrDefault().Value.Price + " 当前价格B:" + mOrderBookB.Asks.FirstOrDefault().Value.Price + "  当前数量：" + mCurAmount);
+                            Logger.Error(" lostPrice标记价格错误: 当前价格A" + curPriceA + " 当前价格B:" + curPriceB + "  当前数量：" + mCurAmount);
                             isError = true;
                         }
                         Logger.Error(" posA.LiquidationPrice:" + posA.LiquidationPrice + " posB.LiquidationPrice:" + posB.LiquidationPrice);
@@ -627,7 +644,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     decimal noUseBtc = await GetAmountsAvailableToTradeAsync(mExchangeAAPI, "XBt") / 100000000;
                     decimal allBtc = noUseBtc;
                     //总仓位 = 总btc数量*（z19+u19）/2 *3倍杠杆/2种合约 
-                    decimal allPosition = allBtc * (mOrderBookA.Bids.FirstOrDefault().Value.Price + mOrderBookB.Asks.FirstOrDefault().Value.Price) / 2 * mData.Leverage / 2;
+                    decimal allPosition;
+                    lock(mOrderBookA)
+                    {
+                        lock(mOrderBookB)
+                        {
+                            allPosition = allBtc * (mOrderBookA.Bids.FirstOrDefault().Value.Price + mOrderBookB.Asks.FirstOrDefault().Value.Price) / 2 * mData.Leverage / 2;
+                        }
+                    }
                     allPosition = Math.Round(allPosition / mData.PerTrans) * mData.PerTrans;
                     decimal lastPosition = 0;
                     foreach (Diff diff in mData.DiffGrid )
@@ -736,7 +760,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 a2bDiff = (buyPriceA/ buyPriceB - 1);
                 b2aDiff = (sellPriceA/ sellPriceB - 1);
                 Diff diff = GetDiff(a2bDiff, b2aDiff,out buyAmount);
-                
                 PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
                 //return;
                 //如果盘口差价超过4usdt 不进行挂单，但是可以改单（bitmex overload 推送ws不及时）
@@ -750,7 +773,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (a2bDiff < diff.A2BDiff && mData.CurAmount + mData.PerTrans <= diff.InitialExchangeBAmount) //满足差价并且当前A空仓
                 {
                     //计算真实应该交易数量
-                    decimal _price = mOrderBookB.Bids.FirstOrDefault().Value.Price ;
+                    decimal _price = buyPriceB;//mOrderBookB.Bids.FirstOrDefault().Value.Price;
                     GetAmount(_price, buyAmount, 1, 0.001m, out decimal amountA, out decimal amountB);
                     buyAmount = amountA;
                     mChangeAmountA = amountA;
@@ -761,9 +784,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mRunningTask = A2BExchange(buyPriceA, buyAmount);
                 }
                 else if (b2aDiff > diff.B2ADiff && -mCurAmount < diff.MaxAmount) //满足差价并且没达到最大数量
-                {                    
+                {
                     //计算真实应该交易数量
-                    decimal _price =  mOrderBookB.Asks.FirstOrDefault().Value.Price;
+                    decimal _price = sellPriceB;//mOrderBookB.Asks.FirstOrDefault().Value.Price;
                     GetAmount(_price, buyAmount,1, 0.001m, out decimal amountA, out decimal amountB);
                     buyAmount = amountA;
                     mChangeAmountA = amountA;
@@ -820,41 +843,60 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 diffList = new List<Diff>(mData.DiffGrid);
             }
-            Diff returnDiff = diffList[0];
-            foreach (var diff in diffList)
+            bool canClose = false;
+            Diff returnDiff = null;
+            for (int i = diffList.Count - 1; i >= 0; i--)//优先检查是否能平仓
             {
-                returnDiff = diff.Clone();
-                decimal MidDiff = (diff.A2BDiff + diff.B2ADiff) / 2;
-                if (a2bDiff < diff.A2BDiff && mCurAmount + mData.PerTrans <= diff.InitialExchangeBAmount)//多仓
+                mCurDiff = diffList[i];
+                returnDiff = diffList[i].Clone();
+                decimal realCloseDiff = (returnDiff.A2BDiff + returnDiff.B2ADiff) / 2;//实际平仓线
+                if ((returnDiff.CurOpenAmountA + mData.ClosePerTrans) <= 0)//空仓平仓
                 {
-                    if ((mCurAmount + mData.ClosePerTrans) <= 0)
-                        buyAmount = mData.ClosePerTrans;
-                    break;
-                }
-                else if (b2aDiff > diff.B2ADiff && -mCurAmount < diff.MaxAmount)//空仓
-                {
-                    if((mCurAmount - mData.ClosePerTrans) >= 0)
-                        buyAmount = mData.ClosePerTrans;
-                    break;
-                }
-                else if (mData.MidClose)
-                {
-                    if (a2bDiff < MidDiff && (mCurAmount + mData.ClosePerTrans) <= 0)//多仓平仓
+                    realCloseDiff = returnDiff.B2ADiff - returnDiff.ProfitRange;//用开仓+利润范围
+                    if (a2bDiff < realCloseDiff )//做多
                     {
-                        buyAmount = mData.ClosePerTrans;
-                        returnDiff.A2BDiff = MidDiff;
+                        returnDiff.A2BDiff = realCloseDiff;
+                        canClose = true;
+                        break; 
+                    }
+                }
+                else if ((returnDiff.CurOpenAmountA - mData.ClosePerTrans)>=0)//多仓平仓
+                {
+                    realCloseDiff = returnDiff.A2BDiff + returnDiff.ProfitRange;//用开仓+利润范围
+                    if (b2aDiff > realCloseDiff)//做空
+                    {
+                        returnDiff.B2ADiff = realCloseDiff;
+                        canClose = true;
                         break;
                     }
-                    else if (b2aDiff > MidDiff && (mCurAmount - mData.ClosePerTrans) >= 0)//空仓平仓
+                }
+            }
+            if (!canClose)//不能平仓，那么检查是否能开仓
+            {
+                returnDiff = diffList[0];
+                mCurDiff = diffList[0];
+                foreach (var diff in diffList)
+                {
+                    mCurDiff = diff;
+                    returnDiff = diff.Clone();
+                    if (a2bDiff < diff.A2BDiff && mCurAmount + mData.PerTrans <= diff.InitialExchangeBAmount)//多仓
                     {
-                        buyAmount = mData.ClosePerTrans;
-                        returnDiff.B2ADiff = MidDiff;
+                        if ((mCurAmount + mData.ClosePerTrans) <= 0)
+                            buyAmount = mData.ClosePerTrans;
+                        break;
+                    }
+                    else if (b2aDiff > diff.B2ADiff && -mCurAmount < diff.MaxAmount)//空仓
+                    {
+                        if ((mCurAmount - mData.ClosePerTrans) >= 0)
+                            buyAmount = mData.ClosePerTrans;
                         break;
                     }
                 }
             }
             return returnDiff;
         }
+           
+
 
         /// <summary>
         /// 刷新差价
@@ -949,8 +991,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (i < mData.DiffGrid.Count)
                 {
                     var diff = mData.DiffGrid[i];
-                    diff.A2BDiff = avgDiff - diff.ProfitRange + mData.DeltaDiff;
-                    diff.B2ADiff = avgDiff + diff.ProfitRange + mData.DeltaDiff;
+                    diff.A2BDiff = avgDiff - diff.DiffRange + mData.DeltaDiff;
+                    diff.B2ADiff = avgDiff + diff.DiffRange + mData.DeltaDiff;
                     mData.SaveToDB(mDBKey);
                 }
             }
@@ -1552,10 +1594,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// </summary>
             public bool OpenPositionSellA = true;
             /// <summary>
-            /// diff中间值平仓
-            /// </summary>
-            public bool MidClose = true;
-            /// <summary>
             /// 杠杆倍率
             /// </summary>
             public decimal Leverage = 3;
@@ -1617,19 +1655,30 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// </summary>
             public decimal B2ADiff;
             /// <summary>
-            /// 利润范围
+            /// 开仓范围，
             /// 当AutoCalcProfitRange 开启时有效
+            /// </summary>
+            public decimal DiffRange = 0.003m;
+            /// <summary>
+            /// 利润范围，平仓时使用，实际平仓利润
             /// </summary>
             public decimal ProfitRange = 0.003m;
             /// <summary>
-            /// 最大数量
+            /// A交易所可以卖的数量
             /// </summary>
             public decimal MaxAmount;
             /// <summary>
-            /// 开始交易时候的初始火币数量
+            /// A交易所可以买的数量
             /// </summary>
             public decimal InitialExchangeBAmount = 0m;
-
+            /// <summary>
+            /// 本梯队当前开仓数量A
+            /// </summary>
+            public decimal CurOpenAmountA = 0m;
+            /// <summary>
+            /// 本梯队当前开仓数量B
+            /// </summary>
+            public decimal CurOpenAmountB = 0m;
             public decimal Rate = 0.5m;
 
             public Diff Clone()
@@ -1638,9 +1687,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 {
                     A2BDiff = this.A2BDiff,
                     B2ADiff = this.B2ADiff,
+                    DiffRange = this.DiffRange,
                     ProfitRange = this.ProfitRange,
                     MaxAmount = this.MaxAmount,
                     InitialExchangeBAmount = this.InitialExchangeBAmount,
+                    CurOpenAmountA = this.CurOpenAmountA,
+                    CurOpenAmountB = this.CurOpenAmountB,
                     Rate = this.Rate
                 };
             }
