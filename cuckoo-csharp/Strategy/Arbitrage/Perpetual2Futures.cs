@@ -1034,7 +1034,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 else if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount != 0)
                 {
-                    mFilledPartiallyDic.Remove(order.OrderId);
+                    //mFilledPartiallyDic.Remove(order.OrderId);//修复部分成交多次重复推送 引起的bug
                     return order.Amount - filledAmount;
                 }
                 return 0;
