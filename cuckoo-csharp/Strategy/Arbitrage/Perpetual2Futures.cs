@@ -409,7 +409,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                  */
                  //如果开仓价总价值usdt 比例超过百分之3 那么一定是错误的停止交易，可能是止损或数量错误引起的
-                if (Math.Abs( Math.Abs(posA.Amount) / Math.Abs(posB.Amount*posB.BasePrice) -1 ) >= 0.03m)
+                if (Math.Abs( Math.Abs(posA.Amount) / Math.Abs(posB.Amount*posB.BasePrice) -1 ) >= 0.1m)
                 {
                     Logger.Error(Utils.Str2Json("CheckPosition ex", "A,B交易所相差过大 程序关闭，请手动处理"));
                     throw new Exception("A,B交易所相差过大 程序关闭，请手动处理");
@@ -1317,7 +1317,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 else if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount != 0)
                 {
-                    mFilledPartiallyDic.Remove(order.OrderId);
+                    //mFilledPartiallyDic.Remove(order.OrderId);
                     curFilledAmount = order.Amount - filledAmount;
                 }
 
