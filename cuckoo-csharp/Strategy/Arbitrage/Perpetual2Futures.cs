@@ -509,7 +509,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         {
                             try
                             {
-                                Logger.Debug(Utils.Str2Json("request profit", request.ToString()));
+                                Logger.Debug(Utils.Str2Json("request profit", request.ToString()," stop price",request.StopPrice.ToString()));
                                 var orderResults = await api.PlaceOrdersAsync(request);
                                 ExchangeOrderResult result = orderResults[0];
                                 return result;
@@ -574,7 +574,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             MarketSymbol = mData.SymbolA,
                             IsBuy = !aBuy,
                             Amount = Math.Abs(realAmountA),
-                            StopPrice = posB.LiquidationPrice + (aBuy == false ? 500 : -500),
+                            StopPrice = Math.Floor(posB.LiquidationPrice + (aBuy == false ? 500 : -500)),
                             OrderType = OrderType.MarketIfTouched,
                         };
                         profitOrderA = await doProfitAsync(orderA, profitOrderA, mExchangeAAPI);
@@ -583,7 +583,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             MarketSymbol = mData.SymbolB,
                             IsBuy = aBuy,
                             Amount = Math.Abs(mCurBAmount),
-                            StopPrice = posA.LiquidationPrice + (aBuy == true ? 500 : -500),
+                            StopPrice = Math.Floor(posA.LiquidationPrice + (aBuy == true ? 500 : -500)),
                             OrderType = OrderType.MarketIfTouched,
                         };
                         profitOrderB = await doProfitAsync(orderB, profitOrderB, mExchangeBAPI);
@@ -1075,6 +1075,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     else
                     {//如果方向相反那么直接取消
                         await CancelCurOrderA();
+                        return;
                     }
                     //如果已出现部分成交并且需要修改价格，则取消部分成交并重新创建新的订单
                     if (mFilledPartiallyDic.Keys.Contains(mCurOrderA.OrderId))
@@ -1345,7 +1346,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 else if (order.Result == ExchangeAPIOrderResult.Filled && filledAmount != 0)
                 {
-                    mFilledPartiallyDic.Remove(order.OrderId);
+                    //mFilledPartiallyDic.Remove(order.OrderId);
                     curFilledAmount = order.Amount - filledAmount;
                 }
 
