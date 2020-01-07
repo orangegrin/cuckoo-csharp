@@ -45,6 +45,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         private List<string> mOrderIds = new List<string>();
         /// <summary>
+        /// A交易所止损止盈订单ID
+        /// </summary>
+        private List<string> mProfitOrderIds = new List<string>();
+        /// <summary>
         /// A交易所的历史成交订单ID
         /// </summary>
         private List<string> mOrderFiledIds = new List<string>();
@@ -358,6 +362,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                                 //break;
                             }
                         }
+                        mProfitOrderIds.Clear();
                     }
                     catch (System.Exception ex)
                     {
@@ -414,7 +419,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             }
                         }
                     }
-                    
                     bool aBuy = posA.Amount > 0;
                     decimal curPriceA = 0;
                     decimal curPriceB = 0;
@@ -480,6 +484,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             orderA.Price = posB.LiquidationPrice + (aBuy == false ? initPrice : -initPrice);
                             orderA.ExtraParameters.Clear();
                             profitOrderA = await doProfitAsync(orderA, null);
+                            if(profitOrderA!=null)
+                                mProfitOrderIds.Add(profitOrderA.OrderId);
                         }
                         ExchangeOrderRequest orderB = new ExchangeOrderRequest()
                         {
@@ -504,6 +510,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             orderB.Price = posA.LiquidationPrice + (aBuy == true ? initPrice : -initPrice);
                             orderB.ExtraParameters.Clear();
                             profitOrderB = await doProfitAsync(orderB, null);
+                            if(profitOrderB!=null)
+                                mProfitOrderIds.Add(profitOrderB.OrderId);
                         }
                     }
                 }
@@ -1028,7 +1036,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug("-------------------- OnOrderAHandler ---------------------------");
             if (order.Result == ExchangeAPIOrderResult.FilledPartially || order.Result == ExchangeAPIOrderResult.Filled)
             {
-                if (order.StopPrice > 0 && order.Amount > 0)
+                if ((order.StopPrice > 0 && order.Amount > 0) || mProfitOrderIds.Contains(order.OrderId))
                 {
                     Logger.Error("止盈触发停止运行程序");
                     Environment.Exit(0);
