@@ -39,7 +39,7 @@ namespace cuckoo_csharp
 
         private static void OnParsedHandler(Options op)
         {
-            Perpetual2Futures.Options config = null;
+            ShortLine.Options config = null;
             if (File.Exists(op.ConfigPath))
             {
                 string text;
@@ -49,7 +49,7 @@ namespace cuckoo_csharp
                 }
                 if (!string.IsNullOrEmpty(text))
                 {
-                    config = JsonConvert.DeserializeObject<Perpetual2Futures.Options>(text);
+                    config = JsonConvert.DeserializeObject<ShortLine.Options>(text);
                 }
                 else
                 {
@@ -58,7 +58,7 @@ namespace cuckoo_csharp
             }
             if (config != null)
             {
-                Perpetual2Futures it = new Perpetual2Futures(config, op.ID);
+                ShortLine it = new ShortLine(config, op.ID);
                 it.Start();
                 while (true)
                 {

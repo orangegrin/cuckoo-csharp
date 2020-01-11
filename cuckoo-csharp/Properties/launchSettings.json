@@ -2,7 +2,7 @@
   "profiles": {
     "cuckoo-csharp": {
       "commandName": "Project",
-      "commandLineArgs": "-i 1110 -c ./bitmexusd-1110.json"
+      "commandLineArgs": "-i 2000 -c ./ShortLine_BitMex.json"
     }
   }
 }
