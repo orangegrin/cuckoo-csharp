@@ -116,6 +116,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     api.currentPostionDic.Add(returnResult.MarketSymbol, returnResult);
                     Logger.Debug(posB.Result.ToString());
                 }
+
+                
+//                 var openRrderResultsT =  mExchangeBAPI.GetOpenOrderDetailsAsync(mData.SymbolB);
+//                 Task.WaitAll(openRrderResultsT);
+//                 Logger.Debug(openRrderResultsT.Result.ToString());
+//                 mExchangeBAPI.CancelOrderAsync(openRrderResultsT.Result.ToArray()[0].OrderId, mData.SymbolB);
             }
 
             //mExchangeBAPI.GetHistoricalTradesAsync(null, mData.SymbolB);
@@ -343,6 +349,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         {
                             Logger.Debug(Utils.Str2Json("差数量" , count));
                             Logger.Debug(Utils.Str2Json("requestA", requestA.ToString()));
+                            //删除所有的限价订单防止二次数量错误
+                            var openRrderResults = await mExchangeBAPI.GetOpenOrderDetailsAsync(mData.SymbolB);
+                            foreach (var order in openRrderResults)
+                            {
+                                    await mExchangeBAPI.CancelOrderAsync(order.OrderId, order.MarketSymbol);
+                                    Logger.Debug(Utils.Str2Json("取消了订单：", order.ToString()));
+                            }
                             var orderResults = await mExchangeAAPI.PlaceOrdersAsync(requestA);
                             ExchangeOrderResult resultA = orderResults[0];
                             realAmount += requestA.IsBuy ? requestA.Amount : -requestA.Amount;
@@ -395,8 +408,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             if (re.Result == ExchangeAPIOrderResult.Pending)
                             {
 
-                                profitAWin = re;
+                                //profitAWin = re;
                                 profitOrderA = re;
+                                await mExchangeAAPI.CancelOrderAsync(re.OrderId, mData.SymbolA);
                                 break;
                             }
                         }
@@ -405,8 +419,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             if (re.Result == ExchangeAPIOrderResult.Pending)
                             {
 
-                                profitALost = re;
+                                //profitALost = re;
                                 profitOrderA = re;
+                                await mExchangeAAPI.CancelOrderAsync(re.OrderId, mData.SymbolA);
                                 break;
                             }
                         }
