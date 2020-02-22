@@ -9,13 +9,14 @@ using cuckoo_csharp.Tools;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.IO;
+using System.Diagnostics;
 
 namespace cuckoo_csharp.Strategy.Arbitrage
 {
-    // eth永续= B ，(ethu19  * xbtusd ) =A  
-    //eth永续 bid1/(ethu19 bid1 * xbtusd ask1)-1   （A买B卖）
-    //eth永续 ask1/(ethu19 ask1 * xbtusd bid1)-1   （A卖B买）
-    //买卖数量计算：  eth永续多仓价值=ethu19空仓价值+xbtusd空仓价值   （单位eth）
+    // eth永续= B ，(ethu20  * xbtusd ) =A  
+    //eth永续 bid1/(ethu20 bid1 * xbtusd ask1)-1   （A买B卖）
+    //eth永续 ask1/(ethu20 ask1 * xbtusd bid1)-1   （A卖B买）
+    //买卖数量计算：  eth永续多仓价值=ethu20空仓价值+xbtusd空仓价值   （单位eth）
     /// <summary>
     /// 期对期
     /// 要求 A价<B价，并且A限价开仓
@@ -133,6 +134,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private bool mOnConnecting = false;
         public P2FAdvance(Options config, int id = -1)
         {
+            
             mId = id;
             mDBKey = string.Format("INTERTEMPORAL:CONFIG:{0}:{1}:{2}:{3}:{4}", config.ExchangeNameA, config.ExchangeNameB, config.SymbolA1+config.SymbolA2, config.SymbolB, id);
             RedisDB.Init(config.RedisConfig);
@@ -152,7 +154,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
              UpdateAvgDiffAsync();
              SubWebSocket();
              WebSocketProtect();
-             CheckPosition();
+             //CheckPosition();
             //ChangeMaxCount();
         }
         #region Connect
@@ -467,7 +469,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             }
                         }
                     }
-                    //eth永续 bid1/(ethu19 bid1 * xbtusd ask1)-1   （A买B卖）
+                    //eth永续 bid1/(ethu20 bid1 * xbtusd ask1)-1   （A买B卖）
                     bool aBuy = posA1.Amount > 0;
                     decimal curPriceA1 = posA1.BasePrice;
                     decimal curPriceA2 = posA2.BasePrice;
@@ -674,8 +676,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 //             }
             lock (mOrderBookA1)//现在A也是市价
             {
-                buyPriceA1 = mOrderBookA1.Asks.FirstOrDefault().Value.Price;
-                sellPriceA1 = mOrderBookA1.Bids.FirstOrDefault().Value.Price;
+                buyPriceA1 = mOrderBookA1.Bids.FirstOrDefault().Value.Price;
+                sellPriceA1 = mOrderBookA1.Asks.FirstOrDefault().Value.Price;
                 bidAAmount = mOrderBookA1.Bids.FirstOrDefault().Value.Amount;
                 askAAmount = mOrderBookA1.Asks.FirstOrDefault().Value.Amount;
             }
@@ -694,11 +696,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
             //有可能orderbook bids或者 asks没有改变
             if (buyPriceA1 != 0 && sellPriceA1 != 0 && buyPriceA2 != 0 && sellPriceA2 != 0 && sellPriceB != 0 && buyPriceB != 0 && buyAmount != 0)
-            {    // eth永续= B ，(ethu19  * xbtusd ) =A  
-                a2bDiff = buyPriceB / (buyPriceA1 * buyPriceA2 ) - 1;//eth永续 bid1/(ethu19 bid1 * xbtusd ask1)-1   （A买B卖）
-                b2aDiff = sellPriceB /(sellPriceA1 * sellPriceA2)  - 1;//eth永续 ask1/(ethu19 ask1 * xbtusd bid1)-1   （A卖B买）
+            {    // eth永续= B ，(ethu20  * xbtusd ) =A  
+                a2bDiff = buyPriceB / (buyPriceA1 * buyPriceA2 ) - 1;//eth永续 bid1/(ethu20 bid1 * xbtusd ask1)-1   （A买B卖）
+                b2aDiff = sellPriceB /(sellPriceA1 * sellPriceA2)  - 1;//eth永续 ask1/(ethu20 ask1 * xbtusd bid1)-1   （A卖B买）
                 Diff diff = GetDiff(a2bDiff, b2aDiff, out buyAmount);
-                Logger.Debug(Utils.Str2Json("eth永续", buyPriceB, "ethu19", buyPriceA1, "xbtusd", buyPriceA2));
+                Logger.Debug(Utils.Str2Json("eth永续", buyPriceB, "ethu20", buyPriceA1, "xbtusd", buyPriceA2));
                 PrintInfo(buyPriceA1, sellPriceA1, sellPriceB, buyPriceB, a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
                 //如果盘口差价超过4usdt 不进行挂单，但是可以改单（bitmex overload 推送ws不及时）
                 //                 if (mCurOrderA == null && ((sellPriceA1 <= buyPriceA1) || (sellPriceA1 - buyPriceA1 >= 4) || (sellPriceB <= buyPriceB) || (sellPriceB - buyPriceB >= 4)))
@@ -711,7 +713,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 //                 await mRunningTask;
                 //                 mRunningTask = null;
                 //                 return;
-                //return;
+                return;
                 if (b2aDiff < diff.B2ADiff  && -mCurA1Amount < diff.MaxA1SellAmount) //满足差价并且当前B空仓数量小于最大B空仓数量
                 {
                     mOnTrade = true;
@@ -1176,7 +1178,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 decimal realDiff = (backOrderB.AveragePrice / (orderA.AveragePrice * backOrderA2.AveragePrice) - 1);
                     List<string> strList = new List<string>()
                     {
-                        //eth永续 bid1/(ethu19 bid1 * xbtusd ask1)-1
+                        //eth永续 bid1/(ethu20 bid1 * xbtusd ask1)-1
                         dt.ToShortDateString()+"/"+dt.ToLongTimeString(),orderA.IsBuy ? "buy" : "sell",orderA.Amount.ToString(), realDiff.ToString()
                     };
                     Utils.AppendCSV(new List<List<string>>() { strList }, Path.Combine(Directory.GetCurrentDirectory(), "ClosePosition.csv"), false);
