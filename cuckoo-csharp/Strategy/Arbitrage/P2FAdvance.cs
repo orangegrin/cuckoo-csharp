@@ -9,7 +9,6 @@ using cuckoo_csharp.Tools;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.IO;
-using System.Diagnostics;
 
 namespace cuckoo_csharp.Strategy.Arbitrage
 {
@@ -154,7 +153,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
              UpdateAvgDiffAsync();
              SubWebSocket();
              WebSocketProtect();
-             //CheckPosition();
+             CheckPosition();
             //ChangeMaxCount();
         }
         #region Connect
@@ -713,7 +712,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 //                 await mRunningTask;
                 //                 mRunningTask = null;
                 //                 return;
-                return;
+                //return;
                 if (b2aDiff < diff.B2ADiff  && -mCurA1Amount < diff.MaxA1SellAmount) //满足差价并且当前B空仓数量小于最大B空仓数量
                 {
                     mOnTrade = true;
@@ -903,7 +902,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug(Utils.Str2Json("BA价差当前百分比↓", b2aDiff.ToString(), "BA价差百分比↓", B2ADiff.ToString()));
             Logger.Debug(Utils.Str2Json("Bid A", bidA, " Bid B", bidB, "bidAAmount", bidAAmount, "bidBAmount", bidBAmount));
             Logger.Debug(Utils.Str2Json("Ask A", askA, " Ask B", askB, "askAAmount", askAAmount, "askBAmount", askBAmount));
-            //Logger.Debug(Utils.Str2Json("mCurA1Amount", mCurA1Amount, "mCurA2Amount", mCurA2Amount, "mCurBAmount", mCurBAmount, " buyAmount", buyAmount));
+            Logger.Debug(Utils.Str2Json("mCurA1Amount", mCurA1Amount, "mCurA2Amount", mCurA2Amount, "mCurBAmount", mCurBAmount, " buyAmount", buyAmount));
             List<string> strList = new List<string>() { a2bDiff.ToString() };
             Utils.AppendCSV(new List<List<string>>() { strList }, Path.Combine(Directory.GetCurrentDirectory(), mData.SymbolA1 + "_" +mData.SymbolA2 + "_" + mData.SymbolB + ".csv"), false);
         }
