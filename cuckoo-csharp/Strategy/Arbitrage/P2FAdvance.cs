@@ -576,23 +576,23 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         if (mBuyAState)
                             profitOrderB = await doProfitAsync(orderB, profitOrderB, curPriceB);
                         //如果 A多仓那么<=stopPrice止损
+                        bool isChange = false;
                         if (aBuy)
                         {
                             if (curPriceA1<=orderA1.StopPrice)//多仓
                             {
                                 Logger.Debug(Utils.Str2Json("A1", "多仓止损", "curPriceA1", curPriceA1, "orderA1.StopPrice", orderA1.StopPrice));
-                                ChangeBuyOrSell(false);
-
+                                isChange = true;
                             }
                             if (curPriceA2 <= orderA2.StopPrice)//多仓
                             {
                                 Logger.Debug(Utils.Str2Json("A2", "多仓止损", "curPriceA2", curPriceA2, "orderA2.StopPrice", orderA2.StopPrice));
-                                ChangeBuyOrSell(false);
+                                isChange = true;
                             }
                             if (curPriceB >= orderB.StopPrice)//空仓
                             {
                                 Logger.Debug(Utils.Str2Json("B", "空仓止损", "curPriceB", curPriceB, "orderB.StopPrice", orderB.StopPrice));
-                                ChangeBuyOrSell(false);
+                                isChange = true;
                             }
                         }//如果A空仓那么>=stopPrice止损
                         else 
@@ -600,20 +600,25 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             if (curPriceA1 >= orderA1.StopPrice)//空仓
                             {
                                 Logger.Debug(Utils.Str2Json("A1", "空仓止损", "curPriceA1", curPriceA1, "orderA1.StopPrice", orderA1.StopPrice));
-                                ChangeBuyOrSell(false);
-
+                                isChange = true;
                             }
                             if (curPriceA2 >= orderA2.StopPrice)//空仓
                             {
                                 Logger.Debug(Utils.Str2Json("A2", "空仓止损", "curPriceA2", curPriceA2, "orderA2.StopPrice", orderA2.StopPrice));
-                                ChangeBuyOrSell(false);
+                                isChange = true;
                             }
                             if (curPriceB <= orderB.StopPrice)//多仓
                             {
                                 Logger.Debug(Utils.Str2Json("B", "多仓止损", "curPriceB", curPriceB, "orderB.StopPrice", orderB.StopPrice));
-                                ChangeBuyOrSell(false);
+                                isChange = true;
                             }
                         }
+                        if (isChange)
+                        {
+                            ChangeBuyOrSell(false);
+                        }
+
+
                     }
                 }
                 //计算实际差价
@@ -640,6 +645,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             lock (mData)
             {
+                //如果状态想通不需要重新计算
+                if (isBuy == mBuyAState)
+                    return;
                 mBuyAState = isBuy;
                 if (isBuy)
                 {
@@ -655,6 +663,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 else
                 {
+                    mData.CloseToA1Amount = Math.Floor(mCurA1Amount * mData.CloseRate);//设置平仓到的数量
                     mData.OpenPositionBuyA = false;
                     mData.OpenPositionSellA = false;
                     foreach (var diff in mData.DiffGrid)
@@ -669,7 +678,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 mData.SaveToDB(mDBKey);
                 Task.WaitAll(CountDiffGridMaxCount());
-                
             }
         }
         #endregion
@@ -872,6 +880,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 //                 mRunningTask = null;
                 //                 return;
                 //return;
+
+                //检查是否达到需要平仓到的数量
+                if (!mBuyAState)//平仓状态
+                {   //1方向相同 2已经达到平仓数量
+                    if (mCurA1Amount*mData.CloseToA1Amount>0 && Math.Abs(mCurA1Amount) <= Math.Abs(mData.CloseToA1Amount))
+                        return;
+                }
+
                 if (b2aDiff < diff.B2ADiff  && -mCurA1Amount < diff.MaxA1SellAmount) //满足差价并且当前B空仓数量小于最大B空仓数量
                 {
                     mOnTrade = true;
@@ -1705,6 +1721,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// </summary>
             public decimal CurBAmount = 0;
             /// <summary>
+            /// 当前需要平仓到数量
+            /// </summary>
+            public decimal CloseToA1Amount = 0;
+            /// <summary>
             /// 上一笔订单部分成交的数量
             /// </summary>
             public decimal FillPartAmount = 0;
@@ -1764,6 +1784,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// 止损或者止盈的比例
             /// </summary>
             public decimal StopOrProftiRate = 0.5m;
+            /// <summary>
+            /// 平仓比例(平仓剩下率)
+            /// </summary>
+            public decimal CloseRate = 0.5m;
 
             public void SaveToDB(string DBKey)
             {
