@@ -345,8 +345,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     continue;
                 }
                 //屏蔽计算仓位
-                /*
+                
                 decimal realAmount = posA1.Amount;
+                /*
                 if ((posA1.Amount + posB.Amount) != 0)//如果没有对齐停止交易，市价单到对齐
                 {
                     if (Math.Abs(posA1.Amount + posB.Amount) > mData.PerTrans * 10)
@@ -386,16 +387,26 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             }
                         }
                     }
-                }
+                }*/
                 if (realAmount != mCurA1Amount)
                 {
-                    Logger.Debug(Utils.Str2Json("Change curAmount", realAmount));
+                    Logger.Debug(Utils.Str2Json("Change mCurA1Amount", realAmount));
                     mCurA1Amount = realAmount;
+                }
+                else if (posA2.Amount != mCurA2Amount)
+                {
+                    Logger.Debug(Utils.Str2Json("Change mCurA2Amount", mCurA2Amount));
+                    mCurA2Amount = posA2.Amount;
+                }
+                else if (posB.Amount != mCurBAmount)
+                {
+                    Logger.Debug(Utils.Str2Json("Change mCurBAmount", mCurBAmount));
+                    mCurBAmount = posB.Amount;
                 }
                 //==================挂止盈单==================如果止盈点价格>三倍当前价格那么不挂止盈单
                 //一单为空，那么挂止盈多单，止盈价格为另一单的强平价格（另一单多+当前价格百分之20，空-当前价格百分之20）
                 //一单为多 相反
-                else if (realAmount != 0)*/
+                else if (realAmount != 0)
                 {
                     decimal realAmountA1= mData.CurA1Amount;
                     decimal realAmountA2 =mData.CurA2Amount;
@@ -1104,7 +1115,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private void PrintInfo(decimal bidA1, decimal askA1, decimal bidA2, decimal askA2, decimal bidB, decimal askB, decimal a2bDiff, decimal b2aDiff, decimal A2BDiff, decimal B2ADiff, decimal buyAmount,
             decimal bidAAmount, decimal askAAmount, decimal bidBAmount, decimal askBAmount)
         {
-            Logger.Debug("================================================实际开仓差价："+mData.RealOpenDiff);
+            Logger.Debug("================================================实际开仓差价："+mData.RealOpenDiff+"  最大仓位:"+mData.DiffGrid[0].MaxA1BuyAmount);
             Logger.Debug(Utils.Str2Json("BA价差当前百分比↑", a2bDiff.ToString(), "BA价差开仓百分比↑", A2BDiff.ToString()));
             Logger.Debug(Utils.Str2Json("BA价差当前百分比↓", b2aDiff.ToString(), "BA价差开仓百分比↓", B2ADiff.ToString()));
             Logger.Debug(Utils.Str2Json("A1", mData.SymbolA1, "A2", mData.SymbolA2, " B", mData.SymbolB));
