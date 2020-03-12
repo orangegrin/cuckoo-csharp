@@ -344,12 +344,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     {
                         profitA = new List<ExchangeOrderResult>(await mExchangeAAPI.GetOpenProfitOrderDetailsAsync(mData.SymbolA,OrderType.Limit));
                         profitB = new List<ExchangeOrderResult>(await mExchangeAAPI.GetOpenProfitOrderDetailsAsync(mData.SymbolB, OrderType.Limit));
+                        int counter = 0;
                         foreach (ExchangeOrderResult re in profitA)
                         {
                             if (re.Result == ExchangeAPIOrderResult.Pending)
                             {
                                 //profitOrderA = re;
-                                mExchangeAAPI.CancelOrderAsync(re.OrderId, re.MarketSymbol);
+                                await mExchangeAAPI.CancelOrderAsync(re.OrderId, re.MarketSymbol);
+                                Logger.Debug("re.OrderId error:" + re.OrderId);
+                                counter++;
                                 //break;
                             }
                         }
@@ -358,9 +361,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             if (re.Result == ExchangeAPIOrderResult.Pending)
                             {
                                 //profitOrderB = re;
-                                mExchangeAAPI.CancelOrderAsync(re.OrderId, re.MarketSymbol);
+                                await mExchangeAAPI.CancelOrderAsync(re.OrderId, re.MarketSymbol);
+                                Logger.Debug("re.OrderId error:"+ re.OrderId);
+                                counter++;
                                 //break;
                             }
+                        }
+                        if (counter!=6)
+                        {
+                            Logger.Debug("GetOpenProfitOrderDetailsAsync error");
                         }
                         mProfitOrderIds.Clear();
                     }
@@ -403,6 +412,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                                 Logger.Debug(Utils.Str2Json("request profit", request.ToString()));
                                 var orderResults = await mExchangeAAPI.PlaceOrdersAsync(request);
                                 ExchangeOrderResult result = orderResults[0];
+                                Logger.Debug(Utils.Str2Json("result profit", result.ToString()));
                                 return result;
                             }
                             catch (System.Exception ex)
