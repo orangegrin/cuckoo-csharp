@@ -388,25 +388,29 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         }
                     }
                 }*/
+                bool amoutEqual = true;
                 if (realAmount != mCurA1Amount)
                 {
                     Logger.Debug(Utils.Str2Json("Change mCurA1Amount", realAmount));
                     mCurA1Amount = realAmount;
+                    amoutEqual = false;
                 }
-                else if (posA2.Amount != mCurA2Amount)
+                if (posA2.Amount != mCurA2Amount)
                 {
                     Logger.Debug(Utils.Str2Json("Change mCurA2Amount", mCurA2Amount));
                     mCurA2Amount = posA2.Amount;
+                    amoutEqual = false;
                 }
-                else if (posB.Amount != mCurBAmount)
+                if (posB.Amount != mCurBAmount)
                 {
                     Logger.Debug(Utils.Str2Json("Change mCurBAmount", mCurBAmount));
                     mCurBAmount = posB.Amount;
+                    amoutEqual = false;
                 }
                 //==================挂止盈单==================如果止盈点价格>三倍当前价格那么不挂止盈单
                 //一单为空，那么挂止盈多单，止盈价格为另一单的强平价格（另一单多+当前价格百分之20，空-当前价格百分之20）
                 //一单为多 相反
-                else if (realAmount != 0)
+                if (realAmount != 0 && amoutEqual)
                 {
                     decimal realAmountA1= mData.CurA1Amount;
                     decimal realAmountA2 =mData.CurA2Amount;

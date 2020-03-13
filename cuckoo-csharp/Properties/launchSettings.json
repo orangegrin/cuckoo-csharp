@@ -2,7 +2,7 @@
   "profiles": {
     "cuckoo-csharp": {
       "commandName": "Project",
-      //"commandLineArgs": "-i 2 -c ./Triangle.json"
+      "commandLineArgs": "-i 2 -c ./Triangle.json"
     }
   }
 }
