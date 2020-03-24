@@ -663,13 +663,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     decimal allBtc = noUseBtc;
                     //总仓位 = 总btc数量*（z19+u19）/2 *3倍杠杆/2种合约 
                     decimal allPosition = Math.Floor(noUseBtc * mData.Leverage *1.5m);
+                    decimal lastPosition = 0;
                     foreach (Diff diff in mData.DiffGrid )
                     {
-                        mData.PerTrans = allPosition;
-//                         lastPosition += allPosition;
-//                         lastPosition = Math.Round(lastPosition / mData.PerTrans) * mData.PerTrans;
-//                         diff.MaxASellAmount = mData.OpenPositionSellA ? lastPosition : 0;
-//                         diff.MaxABuyAmount = mData.OpenPositionBuyA ? lastPosition : 0;
+                        lastPosition += allPosition* diff.Rate;
+                        //lastPosition = Math.Round(lastPosition / mData.PerTrans) * mData.PerTrans;
+                        diff.MaxASellAmount = mData.OpenPositionSellA ? lastPosition : 0;
+                        diff.MaxABuyAmount = mData.OpenPositionBuyA ? lastPosition : 0;
                     }
                     mData.SaveToDB(mDBKey);
                     Logger.Debug(Utils.Str2Json("noUseBtc", noUseBtc, "allPosition", allPosition));
@@ -848,10 +848,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     else
                         avgDiff = mData.MidDiff;
                     avgDiff = Math.Round(avgDiff, 4);//强行转换
-                    var diff = mData.DiffGrid[0];
-                    diff.BuyPrice = rangeList[0].ConvertInvariant<decimal>();
-                    diff.SellPrice = rangeList[1].ConvertInvariant<decimal>();
-
+                    
+                    for (int i = 0; i < rangeList.Count; i+=2)
+                    {
+                        var diff = mData.DiffGrid[i];
+                        diff.BuyPrice = rangeList[i].ConvertInvariant<decimal>();
+                        diff.SellPrice = rangeList[rangeList.Count-1].ConvertInvariant<decimal>();
+                    }
                     if (mData.Leverage!= newLeverage || first)
                     {
                         first = false ;
