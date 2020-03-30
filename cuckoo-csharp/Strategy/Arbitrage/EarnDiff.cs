@@ -38,11 +38,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <summary>
         /// 当前挂出去的订单多仓
         /// </summary>
-        private OpenOrder mCurOrderA;
+        private OpenOrder mCurOrderA = new OpenOrder();
         /// <summary>
         /// 当前挂出去的订单空仓
         /// </summary>
-        private OpenOrder mCurOrderB;
+        private OpenOrder mCurOrderB = new OpenOrder();
         /// <summary>
         /// A交易所的历史订单ID
         /// </summary>
@@ -83,7 +83,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private bool mOnCheck = false;//是否检查仓位中
         private bool mOnConnecting = false;
         private bool mBuyAState;
-
+        decimal mAllPosition;
         public EarnDiff(Options config, int id = -1)
         {
             mId = id;
@@ -194,7 +194,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(5 * 1000);
                     continue;
                 }
-                int delayTime = 60;//保证次数至少要3s一次，否则重启
+                int delayTime = 2*60;//保证次数至少要3s一次，否则重启
                 mOrderBookAwsCounter = 0;
                 mOrderDetailsAwsCounter = 0;
                 await Task.Delay(1000 * delayTime);
@@ -342,7 +342,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 await Task.Delay(10 * 1000);
                 UpdatePosition();
                 await Task.Delay(5*1000);
-
                 mOnCheck = false;
                 await Task.Delay(5 * 60 * 1000);
             }
@@ -392,17 +391,17 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     decimal noUseBtc = await GetAmountsAvailableToTradeAsync(mExchangeAAPI,"");
                     decimal allBtc = noUseBtc;
                     //总仓位 = 总btc数量*（z19+u19）/2 *3倍杠杆/2种合约 
-                    decimal allPosition = Math.Floor(noUseBtc * mData.Leverage *1.5m);
+                    mAllPosition = Math.Floor(noUseBtc * mData.Leverage *1.5m);
                     decimal lastPosition = 0;
                     foreach (Diff diff in mData.DiffGrid )
                     {
-                        lastPosition += allPosition* diff.Rate;
+                        lastPosition += mAllPosition* diff.Rate;
                         //lastPosition = Math.Round(lastPosition / mData.PerTrans) * mData.PerTrans;
                         diff.MaxASellAmount = mData.OpenPositionSellA ? lastPosition : 0;
                         diff.MaxABuyAmount = mData.OpenPositionBuyA ? lastPosition : 0;
                     }
                     mData.SaveToDB(mDBKey);
-                    Logger.Debug(Utils.Str2Json("noUseBtc", noUseBtc, "allPosition", allPosition));
+                    Logger.Debug(Utils.Str2Json("noUseBtc", noUseBtc, "allPosition", mAllPosition));
                 }
                 catch (System.Exception ex)
                 {
@@ -525,7 +524,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             foreach (var _diff in mData.DiffGrid)
             {
                 decimal curbuyAmount = _diff.MaxABuyAmount - mData.CurAAmount;
-                if (!hadBuy && curbuyAmount > 0)//多仓挂单：多仓准备开仓数量 -  当前仓位（空仓负数）> 0
+                decimal minPer = mAllPosition * mData.NotCareRate;//最小开仓数量
+                if (!hadBuy && curbuyAmount > minPer)//多仓挂单：多仓准备开仓数量 -  当前仓位（空仓负数）> 0
                 {
                     realBuyAmount = curbuyAmount;
                     realBuyPrice = Math.Min(_diff.BuyPrice, curBuyPrice);
@@ -533,7 +533,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     hadBuy = true;
                 }
                 decimal curSellAmount = _diff.MaxASellAmount + mData.CurAAmount;
-                if (!hadSell && curSellAmount > 0)//空仓挂单：空仓准备开仓数量 +  当前仓位（空仓负数）> 0
+                if (!hadSell && curSellAmount > minPer)//空仓挂单：空仓准备开仓数量 +  当前仓位（空仓负数）> 0
                 {
                     realSellAmount = curSellAmount;
                     realSellPrice = Math.Max(_diff.SellPrice, curSellPrice);
@@ -581,11 +581,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         avgDiff = mData.MidDiff;
                     avgDiff = Math.Round(avgDiff, 4);//强行转换
                     
-                    for (int i = 0; i < rangeList.Count; i+=2)
+                    for (int i = 0; i < rangeList.Count/2; i++)
                     {
+                        int mid = rangeList.Count / 2;
                         var diff = mData.DiffGrid[i];
-                        diff.BuyPrice = rangeList[i].ConvertInvariant<decimal>();
-                        diff.SellPrice = rangeList[rangeList.Count-1].ConvertInvariant<decimal>();
+                        diff.BuyPrice = rangeList[mid-i-1].ConvertInvariant<decimal>();
+                        diff.SellPrice = rangeList[mid+i].ConvertInvariant<decimal>();
                     }
                     if (mData.Leverage!= newLeverage || first)
                     {
@@ -719,7 +720,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     return;
                 }
                 
-                if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("Bad Gateway"))
+                if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("Not logged in"))
                     await Task.Delay(5000);
                 if (ex.ToString().Contains("RateLimitError"))
                     await Task.Delay(30000);
@@ -728,11 +729,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         private void SetOrderNull(string orderId)
         {
-            if (mCurOrderA != null && mCurOrderA.MOrderResult.OrderId == orderId)
+
+            if (mCurOrderA != null && mCurOrderA.MOrderResult!=null &&mCurOrderA.MOrderResult.OrderId == orderId)
             {
                 mCurOrderA.CancelOrder();
             }
-            if (mCurOrderB != null && mCurOrderB.MOrderResult.OrderId == orderId)
+            if (mCurOrderB != null && mCurOrderB.MOrderResult!=null && mCurOrderB.MOrderResult.OrderId == orderId)
             {
                 mCurOrderB.CancelOrder();
             }
@@ -743,7 +745,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
             cancleRequestA.ExtraParameters.Add("orderID", orderId);
             //在onOrderCancle的时候处理
-            Logger.Debug("CancelCurOrderA" + orderId);
+            Logger.Trace("CancelCurOrderA" + orderId);
             await mExchangeAAPI.CancelOrderAsync(orderId, mData.SymbolA);
         }
         /// <summary>
@@ -968,7 +970,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                     catch (System.Exception ex)
                     {
-                        if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("Bad Gateway"))
+                        if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("Not logged in"))
                         {
                             await Task.Delay(2000);
                         }
@@ -1009,7 +1011,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 catch (Exception ex)
                 {
-                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Bad Gateway") )
+                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Not logged in") )
                     {
                         Logger.Error(Utils.Str2Json( "req", req.ToStringInvariant(), "ex", ex));
                         await Task.Delay(2000);
@@ -1157,7 +1159,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             public decimal CurAAmount = 0;
             /// <summary>
             /// 当前B仓位数量
-            /// </summary>
+            /// </summary>  
             public decimal CurBAmount = 0;
             /// <summary>
             /// 间隔时间
@@ -1203,6 +1205,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// 止损或者止盈的比例
             /// </summary>
             public decimal StopOrProftiRate = 0.5m;
+            /// <summary>
+            /// 无视开仓比例
+            /// </summary>
+            public decimal NotCareRate = 0.02m;
             /// <summary>
             /// redis连接数据
             /// </summary>
@@ -1268,6 +1274,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     if (value == null)
                     {
                         mOnUse = false;
+                    }
+                    else
+                    {
+                        mOnUse = true;
                     }
                     mOrderResult = value;
                 } 
