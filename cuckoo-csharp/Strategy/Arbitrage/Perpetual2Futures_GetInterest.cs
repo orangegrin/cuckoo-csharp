@@ -9,6 +9,7 @@ using cuckoo_csharp.Tools;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.IO;
+using System.Globalization;
 
 namespace cuckoo_csharp.Strategy.Arbitrage
 {
@@ -105,23 +106,23 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             AppDomain.CurrentDomain.ProcessExit += new EventHandler(OnProcessExit);
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
-            
-           // /*
+
+            // /*
             //==================================================*tset
-//             Task t = Task.Delay(1000);
-//             Task.WaitAll(t);
+            //             Task t = Task.Delay(1000);
+            //             Task.WaitAll(t);
             //添加或者修改订单
-//             var order = new ExchangeOrderRequest()
-//             {
-//                 MarketSymbol = "ETH-PERP",
-//                 Amount = 0.1m,
-//                 Price = 112,
-//                 IsBuy = true,
-//                 OrderType = OrderType.Limit,
-// 
-//             };
-//             order.ExtraParameters.Add("orderID", "1584440423629_0");
-//             mExchangeAAPI.PlaceOrderAsync(order);
+            //             var order = new ExchangeOrderRequest()
+            //             {
+            //                 MarketSymbol = "ETH-PERP",
+            //                 Amount = 0.1m,
+            //                 Price = 112,
+            //                 IsBuy = true,
+            //                 OrderType = OrderType.Limit,
+            // 
+            //             };
+            //             order.ExtraParameters.Add("orderID", "1584440423629_0");
+            //             mExchangeAAPI.PlaceOrderAsync(order);
             //删除订单
             //mExchangeAAPI.CancelOrderAsync("1584425561076_0");
 
@@ -133,9 +134,35 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //仓位
             //mExchangeAAPI.GetOpenPositionAsync("ETH-PERP");
             //==================================================
+
+            //             var t1 = mExchangeAAPI.GetCandlesAsync("ETH-PERP",60,DateTime.UtcNow.AddDays(-24), DateTime.UtcNow,35000);
+            //             var t2 = mExchangeAAPI.GetCandlesAsync("ETH-0626", 60, DateTime.UtcNow.AddDays(-24), DateTime.UtcNow, 35000);
+
+            //             var t1 = mExchangeAAPI.GetCandlesAsync("ETH-PERP", 60, DateTime.UtcNow.AddDays(-24-87), DateTime.UtcNow.AddDays(-25), 35000);
+            //             var t2 = mExchangeAAPI.GetCandlesAsync("ETH-0327", 60, DateTime.UtcNow.AddDays(-24-87), DateTime.UtcNow.AddDays(-25), 35000);
+            //             Task.WaitAll(t1,t2);
+            //             List<MarketCandle> list1 = new List<MarketCandle>( t1.Result);
+            //             List<MarketCandle> list2 = new List<MarketCandle>(t2.Result);
+            //             //list
+            //             var csvList = new List<List<string>>();
+            //             for (int i = 0; i < list1.Count; i++)
+            //             {
+            //                 
+            //                 List<string> strList = new List<string>()
+            //                     {
+            //                         //i.ToString(),
+            //                         (list1[i].HighPrice/list2[i].HighPrice-1).ToString(),
+            //                        //list1[i].Timestamp.ToString("yyyy-MM-ddThh:mm:sszzzz", DateTimeFormatInfo.InvariantInfo)
+            //                 //list1[i].Timestamp.ToString()
+            //                     };
+            //                 csvList.Add(strList);
+            //             }
+            // 
+            //             
+            //             Utils.AppendCSV(csvList, Path.Combine(Directory.GetCurrentDirectory(), "Candles"+DateTime.UtcNow.ToShortDateString()+".csv"), true);
             //*/
 
-            //UpdateAvgDiffAsync();
+            UpdateAvgDiffAsync();
             SubWebSocket();
             WebSocketProtect();
             CheckPosition();
@@ -215,7 +242,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Error(new Exception("ws 没有收到推送消息"));
                     if (mCurOrderA != null)
                     {
-                        CancelCurOrderA();
+                        await CancelCurOrderA();
                     }
                     await CloseWS();
                     Logger.Debug("开始重新连接ws");
@@ -258,7 +285,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             if (mCurOrderA != null)
             {
-                CancelCurOrderA();
+                await CancelCurOrderA();
             }
             
             //删除避免重复 重连
@@ -813,45 +840,48 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         public async Task UpdateAvgDiffAsync()
         {
             string dataUrl = $"{"http://150.109.52.225:8006/arbitrage/process?programID="}{mId}{"&symbol="}{mData.Symbol}{"&exchangeB="}{mData.ExchangeNameB.ToLowerInvariant()}{"&exchangeA="}{mData.ExchangeNameA.ToLowerInvariant()}";
+            dataUrl = "http://150.109.52.225:8006/arbitrage/process?programID=" + mId + "&symbol=BTCZH&exchangeB=bitmex&exchangeA=bitmex";
             Logger.Debug(dataUrl);
+            decimal lastLeverage = mData.Leverage;
             while (true)
             {
-                    try
+                try
+                {
+                    bool lastOpenPositionBuyA = mData.OpenPositionBuyA;
+                    bool lastOpenPositionSellA = mData.OpenPositionSellA;
+                    JObject jsonResult = await Utils.GetHttpReponseAsync(dataUrl);
+                    mData.DeltaDiff = jsonResult["deltaDiff"].ConvertInvariant<decimal>();
+                    mData.Leverage = jsonResult["leverage"].ConvertInvariant<decimal>();
+                    mData.OpenPositionBuyA = jsonResult["openPositionBuyA"].ConvertInvariant<int>() == 0 ? false : true;
+                    mData.OpenPositionSellA = jsonResult["openPositionSellA"].ConvertInvariant<int>() == 0 ? false : true;
+                    var rangeList = JArray.Parse(jsonResult["profitRange"].ToStringInvariant());
+                    decimal avgDiff = jsonResult["maAvg"].ConvertInvariant<decimal>();
+                    if (mData.AutoCalcProfitRange)
+                        avgDiff = jsonResult["maAvg"].ConvertInvariant<decimal>();
+                    else
+                        avgDiff = mData.MidDiff;
+                    avgDiff = Math.Round(avgDiff, 4);//强行转换
+                    for (int i = 0; i < rangeList.Count; i++)
                     {
-                        bool lastOpenPositionBuyA = mData.OpenPositionBuyA;
-                        bool lastOpenPositionSellA = mData.OpenPositionSellA;
-                        JObject jsonResult = await Utils.GetHttpReponseAsync(dataUrl);
-                        mData.DeltaDiff = jsonResult["deltaDiff"].ConvertInvariant<decimal>();
-                        mData.Leverage = jsonResult["leverage"].ConvertInvariant<decimal>();
-                        mData.OpenPositionBuyA = jsonResult["openPositionBuyA"].ConvertInvariant<int>() == 0 ? false : true;
-                        mData.OpenPositionSellA = jsonResult["openPositionSellA"].ConvertInvariant<int>() == 0 ? false : true;
-                        var rangeList = JArray.Parse(jsonResult["profitRange"].ToStringInvariant());
-                        decimal avgDiff = jsonResult["maAvg"].ConvertInvariant<decimal>();
-                        if (mData.AutoCalcProfitRange)
-                            avgDiff = jsonResult["maAvg"].ConvertInvariant<decimal>();
-                        else
-                            avgDiff = mData.MidDiff;
-                        avgDiff = Math.Round(avgDiff, 4);//强行转换
-                        for (int i = 0; i < rangeList.Count; i++)
+                        if (i < mData.DiffGrid.Count)
                         {
-                            if (i < mData.DiffGrid.Count)
-                            {
-                                var diff = mData.DiffGrid[i];
-                                diff.ProfitRange = rangeList[i].ConvertInvariant<decimal>();
-                                diff.A2BDiff = avgDiff - diff.ProfitRange + mData.DeltaDiff;
-                                diff.B2ADiff = avgDiff + diff.ProfitRange + mData.DeltaDiff;
-                                mData.SaveToDB(mDBKey);
-                            }
+                            var diff = mData.DiffGrid[i];
+                            diff.ProfitRange = rangeList[i].ConvertInvariant<decimal>();
+                            diff.A2BDiff = avgDiff - diff.ProfitRange + mData.DeltaDiff;
+                            diff.B2ADiff = avgDiff + diff.ProfitRange + mData.DeltaDiff;
+                            mData.SaveToDB(mDBKey);
                         }
-
-                        if (lastOpenPositionBuyA != mData.OpenPositionBuyA || lastOpenPositionSellA != mData.OpenPositionSellA)//仓位修改立即刷新
-                                    CountDiffGridMaxCount();
-                                Logger.Debug(Utils.Str2Json(" UpdateAvgDiffAsync avgDiff", avgDiff));
                     }
-                    catch (Exception ex)
+                    if (lastLeverage != lastLeverage || lastOpenPositionBuyA != mData.OpenPositionBuyA || lastOpenPositionSellA != mData.OpenPositionSellA)// 仓位修改立即刷新
                     {
-                        Logger.Debug(" UpdateAvgDiffAsync avgDiff:" + ex.ToString());
+                        CountDiffGridMaxCount();
                     }
+                    Logger.Debug(Utils.Str2Json(" UpdateAvgDiffAsync avgDiff", avgDiff));
+                }
+                catch (Exception ex)
+                {
+                    Logger.Debug(" UpdateAvgDiffAsync avgDiff:" + ex.ToString());
+                }
                 
                 await Task.Delay(60 * 1000);
             }
@@ -961,7 +991,24 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             ExchangeOrderRequest cancleRequestA = new ExchangeOrderRequest();
             cancleRequestA.ExtraParameters.Add("orderID", mCurOrderA.OrderId);
             //在onOrderCancle的时候处理
-            await mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
+            string orderIDA = mCurOrderA.OrderId;
+            try
+            {
+                await mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
+
+            }
+            catch (Exception ex)
+            {
+                Logger.Debug(ex.ToString());
+                if (ex.ToString().Contains("CancelOrderEx"))
+                {
+                    await Task.Delay(5000);
+                    await mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
+                }
+            }
+
+
+           
         }
         /// <summary>
         /// 订单成交 ，修改当前仓位和删除当前订单
