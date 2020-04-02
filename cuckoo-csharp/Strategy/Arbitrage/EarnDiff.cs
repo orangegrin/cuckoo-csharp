@@ -133,8 +133,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //*/
 
             ///*
+
             CheckPosition();
-            mExchangeAAPI.CancelOrderAsync("", mData.SymbolA);
+            mExchangeAAPI.CancelOrderAsync("all", mData.SymbolA);
             UpdateAvgDiffAsync();
             SubWebSocket();
             WebSocketProtect();
@@ -206,7 +207,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (mOrderBookAwsCounter < 1  || (!detailConnect))
                 {
                     Logger.Error(new Exception("ws 没有收到推送消息"));
-                    CancelAll();
+                    await CancelAllAsync();
                     await CloseWS();
                     Logger.Debug("开始重新连接ws");
                     SubWebSocket();
@@ -244,7 +245,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         
         private async Task WSDisConnectAsync(string tag)
         {
-            CancelAll();
+            await CancelAllAsync();
             //删除避免重复 重连
             await Task.Delay(40 * 1000);
             Logger.Error(tag + " 连接断开");
@@ -286,16 +287,46 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 if (mCurOrderA.mOnUse)
                 {
-                    await CancelCurOrderA(mCurOrderA.MOrderResult.OrderId);
-                    mCurOrderA.CancelOrder();
+                    string orderIDA = mCurOrderA.MOrderResult.OrderId;
+                    try
+                    {
+                        await CancelCurOrderA(mCurOrderA.MOrderResult.OrderId);
+                        mCurOrderA.CancelOrder();
+
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Debug(ex.ToString());
+                        if (ex.ToString().Contains("CancelOrderEx"))
+                        {
+                            await Task.Delay(5000);
+                            await CancelCurOrderA(orderIDA);
+                            mCurOrderA.CancelOrder();
+                        }
+                    }
+                   
                 }
             }
             if (mCurOrderB != null)
             {
                 if (mCurOrderB.mOnUse)
                 {
-                    await CancelCurOrderA(mCurOrderB.MOrderResult.OrderId);
-                    mCurOrderB.CancelOrder();
+                    string orderIDB = mCurOrderB.MOrderResult.OrderId;
+                    try
+                    {
+                        await CancelCurOrderA(mCurOrderB.MOrderResult.OrderId);
+                        mCurOrderB.CancelOrder();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Debug(ex.ToString());
+                        if (ex.ToString().Contains("CancelOrderEx"))
+                        {
+                            await Task.Delay(5000);
+                            await CancelCurOrderA(orderIDB);
+                            mCurOrderB.CancelOrder();
+                        }
+                    }
                 }
             }
         }
@@ -315,6 +346,19 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         Logger.Error("UpdatePosition 检查仓位发现数量不相等 mCurAAmount：" + mCurAAmount+ "  posA.Amount:"+ posA.Amount);
                     
                     mCurAAmount = posA.Amount;
+                }
+                var openOrders =new List<ExchangeOrderResult> (await mExchangeAAPI.GetOpenOrderDetailsAsync(mData.SymbolA));
+                if (openOrders.Count>0)
+                {
+                    if (openOrders.Count>2)
+                    {
+                        Logger.Error("UpdatePosition 订单数量错误:");
+                        foreach (var item in openOrders)
+                        {
+                            Logger.Debug(item.ToString());
+                        }
+                    }
+                    await mExchangeAAPI.CancelOrderAsync("all", mData.SymbolA);
                 }
             }
             catch (System.Exception ex)
