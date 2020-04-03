@@ -695,17 +695,22 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //有可能orderbook bids或者 asks没有改变
             if (buyPriceA != 0 && sellPriceA != 0 && sellPriceB != 0 && buyPriceB != 0 && buyAmount != 0)
             {
-                a2bDiff = (buyPriceA-sellPriceB);
-                b2aDiff = (sellPriceA-buyPriceB);
-                Diff diff = GetDiff(a2bDiff, b2aDiff,out buyAmount);
-                PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
+                a2bDiff = (buyPriceA- buyPriceB);
+                b2aDiff = (sellPriceA-sellPriceB);
+                Diff temp = GetDiff(a2bDiff, b2aDiff,out buyAmount);
+                var diff = temp.Clone();
+                diff.A2BDiff = -0.9m;
+                diff.B2ADiff = -0.5m;
+
+
+                PrintInfo(buyPriceA, sellPriceA,  buyPriceB, sellPriceB,a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
                 //如果盘口差价超过4usdt 不进行挂单，但是可以改单（bitmex overload 推送ws不及时）
                 if (mCurOrderA == null && ((sellPriceA <= buyPriceA) || (sellPriceA - buyPriceA >= 4) || (sellPriceB <= buyPriceB) || (sellPriceB - buyPriceB >= 4)))
                 {
                     Logger.Debug("范围更新不及时，不纳入计算");
                     return;
                 }
-                //return;
+               // return;
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff < diff.A2BDiff && mData.CurAAmount + mData.PerTrans <= diff.MaxABuyAmount) //满足差价并且当前A空仓
@@ -811,27 +816,35 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     else
                         avgDiff = mData.MidDiff;
                     avgDiff = Math.Round(avgDiff, 4);//强行转换
-                   
+                    for (int i = 0; i < rangeList.Count; i++)
+                    {
+                        if (i < mData.DiffGrid.Count)
+                        {
+                            var diff = mData.DiffGrid[i];
+                            diff.ProfitRange = rangeList[i].ConvertInvariant<decimal>();
+                            mData.SaveToDB(mDBKey);
+                        }
+                    }
                     if (mDiffHistory == null)
                     {
-                        mDiffHistory = new List<decimal>();
-                        //StreamReader reader = new StreamReader(new FileStream(mData.DiffHistoryPath, FileMode.Open));
-                        StreamReader reader = new StreamReader(new FileStream(@"D:\_Work\cuckoo-py\cuckoo-csharp_Perpetual2Futures_FTX_MA\cuckoo-csharp\bin\Debug\netcoreapp2.1//Data_8001.csv", FileMode.Open));
-                        String str = reader.ReadToEnd();
-                        reader.Dispose();
-                        reader.Close();
-                        List<decimal> nomal = new List<decimal>();
-                        string[] all = str.Split(new string[] { "\r\n" }, StringSplitOptions.None);
-                        for (int i = 0; i < all.Length; i++)
-                        {
-                            string num = all[i];//.Split(',')[1];
-                            bool can = decimal.TryParse(num, out decimal ds);
-                            if (can)
-                            {
-                                nomal.Add(ds);
-                            }
-                        }
-                        mDiffHistory = nomal;
+                        mDiffHistory = new List<decimal>() { -1};
+//                         //StreamReader reader = new StreamReader(new FileStream(mData.DiffHistoryPath, FileMode.Open));
+//                         StreamReader reader = new StreamReader(new FileStream(@"D:\_Work\cuckoo-py\cuckoo-csharp_Perpetual2Futures_FTX_MA\cuckoo-csharp\bin\Debug\netcoreapp2.1//Data_8001.csv", FileMode.Open));
+//                         String str = reader.ReadToEnd();
+//                         reader.Dispose();
+//                         reader.Close();
+//                         List<decimal> nomal = new List<decimal>();
+//                         string[] all = str.Split(new string[] { "\r\n" }, StringSplitOptions.None);
+//                         for (int i = 0; i < all.Length; i++)
+//                         {
+//                             string num = all[i];//.Split(',')[1];
+//                             bool can = decimal.TryParse(num, out decimal ds);
+//                             if (can)
+//                             {
+//                                 nomal.Add(ds);
+//                             }
+//                         }
+//                         mDiffHistory = nomal;
                     }
                     lock (mDiffHistory)
                         SetDiffBuyMA(mDiffHistory);
@@ -899,13 +912,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 (bidA-bidB).ToString(),
             };
             csvList.Add(strList);
-            Utils.AppendCSV(csvList, Path.Combine(Directory.GetCurrentDirectory(), "Data_" + mId + ".csv"), true);
+            Utils.AppendCSV(csvList, Path.Combine(Directory.GetCurrentDirectory(), "Data_" + mId + ".csv"), false);
 
             if (mDiffHistory != null)
             {
                 lock (mDiffHistory)
                 {
-                    mDiffHistory.Add(a2bDiff);
+                    //mDiffHistory.Add(a2bDiff);
+                    mDiffHistory.Add(-1);
                     if (mDiffHistory.Count > (mData.PerTime + 100))
                         mDiffHistory.RemoveRange(0, mDiffHistory.Count - mData.PerTime);
                 }
@@ -1553,7 +1567,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// </summary>
             public decimal MaxASellAmount;
 
-            public decimal Rate = 0.5m;
+            public decimal Rate = 1m;
+
+
+            public Diff Clone()
+            {
+                return (Diff)this.MemberwiseClone();
+            }
         }
 
     }
