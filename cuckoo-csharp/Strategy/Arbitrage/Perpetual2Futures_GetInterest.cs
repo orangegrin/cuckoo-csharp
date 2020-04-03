@@ -135,31 +135,32 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //mExchangeAAPI.GetOpenPositionAsync("ETH-PERP");
             //==================================================
 
-            //             var t1 = mExchangeAAPI.GetCandlesAsync("ETH-PERP",60,DateTime.UtcNow.AddDays(-24), DateTime.UtcNow,35000);
-            //             var t2 = mExchangeAAPI.GetCandlesAsync("ETH-0626", 60, DateTime.UtcNow.AddDays(-24), DateTime.UtcNow, 35000);
-
-            //             var t1 = mExchangeAAPI.GetCandlesAsync("ETH-PERP", 60, DateTime.UtcNow.AddDays(-24-87), DateTime.UtcNow.AddDays(-25), 35000);
-            //             var t2 = mExchangeAAPI.GetCandlesAsync("ETH-0327", 60, DateTime.UtcNow.AddDays(-24-87), DateTime.UtcNow.AddDays(-25), 35000);
-            //             Task.WaitAll(t1,t2);
-            //             List<MarketCandle> list1 = new List<MarketCandle>( t1.Result);
+            //             var t1 = mExchangeAAPI.GetCandlesAsync("ETH-PERP", 15, DateTime.UtcNow.AddDays(-18), DateTime.UtcNow, 3500);
+            //             var t2 = mExchangeAAPI.GetCandlesAsync("ETH-0626", 15, DateTime.UtcNow.AddDays(-18), DateTime.UtcNow, 3500);
+            // 
+            // //             var t1 = mExchangeAAPI.GetCandlesAsync("ETH-PERP", 60, DateTime.UtcNow.AddDays(-32 - 87), DateTime.UtcNow.AddDays(-32), 3500);
+            // //             var t2 = mExchangeAAPI.GetCandlesAsync("ETH-0327", 60, DateTime.UtcNow.AddDays(-32 - 87), DateTime.UtcNow.AddDays(-32), 3500);
+            //             Task.WaitAll(t1, t2);
+            //             List<MarketCandle> list1 = new List<MarketCandle>(t1.Result);
             //             List<MarketCandle> list2 = new List<MarketCandle>(t2.Result);
             //             //list
             //             var csvList = new List<List<string>>();
             //             for (int i = 0; i < list1.Count; i++)
             //             {
-            //                 
+            // 
             //                 List<string> strList = new List<string>()
-            //                     {
-            //                         //i.ToString(),
-            //                         (list1[i].HighPrice/list2[i].HighPrice-1).ToString(),
-            //                        //list1[i].Timestamp.ToString("yyyy-MM-ddThh:mm:sszzzz", DateTimeFormatInfo.InvariantInfo)
-            //                 //list1[i].Timestamp.ToString()
-            //                     };
+            //                                               {
+            //                                                   //i.ToString(),
+            //                                                   (list1[i].HighPrice-list2[i].HighPrice-1).ToString(),
+            //                                                  //list1[i].Timestamp.ToString("yyyy-MM-ddThh:mm:sszzzz", DateTimeFormatInfo.InvariantInfo)
+            //                                           //list1[i].Timestamp.ToString()
+            //                                               };
             //                 csvList.Add(strList);
             //             }
             // 
-            //             
-            //             Utils.AppendCSV(csvList, Path.Combine(Directory.GetCurrentDirectory(), "Candles"+DateTime.UtcNow.ToShortDateString()+".csv"), true);
+            // 
+            //             Utils.AppendCSV(csvList, Path.Combine(Directory.GetCurrentDirectory(), "Candles" + DateTime.UtcNow.ToShortDateString() + ".csv"), true);
+            //             Logger.Debug("ok");
             //*/
 
             UpdateAvgDiffAsync();
@@ -895,6 +896,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug(Utils.Str2Json("Bid A", bidA, " Bid B", bidB, "bidAAmount", bidAAmount, "bidBAmount", bidBAmount));
             Logger.Debug(Utils.Str2Json("Ask A", askA, " Ask B", askB, "askAAmount", askAAmount, "askBAmount", askBAmount));
             Logger.Debug(Utils.Str2Json("mCurAmount", mCurAAmount, " buyAmount",  buyAmount));
+
+
+            var csvList = new List<List<string>>();
+            List<string> strList = new List<string>()
+            {
+                (bidA-bidB).ToString(),
+            };
+            csvList.Add(strList);
+            Utils.AppendCSV(csvList, Path.Combine(Directory.GetCurrentDirectory(), "Data_" + mId + ".csv"), true);
+
         }
         /// <summary>
         /// 当curAmount 小于 0的时候就是平仓
