@@ -17,7 +17,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
     /// 期对期
     /// 要求 A价<B价，并且A限价开仓
     /// </summary>
-    public class Perpetual2Futures_GetInterest
+    public class Perpetual2Futures_GetInterestMA
     {
         private IExchangeAPI mExchangeAAPI;
         private IExchangeAPI mExchangeBAPI;
@@ -59,6 +59,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private Dictionary<string, decimal> mFilledPartiallyDic = new Dictionary<string, decimal>();
         private Options mData { get; set; }
         /// <summary>
+        /// 差价历史记录
+        /// </summary>
+        private List<decimal> mDiffHistory = null;
+        /// <summary>
         /// 当前开仓数量
         /// </summary>
         private decimal mCurAAmount
@@ -88,10 +92,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         private decimal mPerBuyAmount = 0;
 
-        public Perpetual2Futures_GetInterest(Options config, int id = -1)
+        public Perpetual2Futures_GetInterestMA(Options config, int id = -1)
         {
             mId = id;
-            mDBKey = string.Format("Perpetual2Futures_GetInterest:CONFIG:{0}:{1}:{2}:{3}:{4}", config.ExchangeNameA, config.ExchangeNameB, config.SymbolA, config.SymbolB, id);
+            mDBKey = string.Format("Perpetual2Futures_GetInterestMA:CONFIG:{0}:{1}:{2}:{3}:{4}", config.ExchangeNameA, config.ExchangeNameB, config.SymbolA, config.SymbolB, id);
             RedisDB.Init(config.RedisConfig);
             mData = Options.LoadFromDB<Options>(mDBKey);
             if (mData == null)
@@ -107,62 +111,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             AppDomain.CurrentDomain.ProcessExit += new EventHandler(OnProcessExit);
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
 
-            // /*
-            //==================================================*tset
-            //             Task t = Task.Delay(1000);
-            //             Task.WaitAll(t);
-            //添加或者修改订单
-            //             var order = new ExchangeOrderRequest()
-            //             {
-            //                 MarketSymbol = "ETH-PERP",
-            //                 Amount = 0.1m,
-            //                 Price = 112,
-            //                 IsBuy = true,
-            //                 OrderType = OrderType.Limit,
-            // 
-            //             };
-            //             order.ExtraParameters.Add("orderID", "1584440423629_0");
-            //             mExchangeAAPI.PlaceOrderAsync(order);
-            //删除订单
-            //mExchangeAAPI.CancelOrderAsync("1584425561076_0");
-
-            //             mExchangeAAPI.GetOrderDetailsWebSocket((ExchangeOrderResult order) => {
-            //                 Logger.Debug(order.ToExcleString());
-            //             });
-
-
-            //仓位
-            //mExchangeAAPI.GetOpenPositionAsync("ETH-PERP");
-            //==================================================
-
-            //             var t1 = mExchangeAAPI.GetCandlesAsync("ETH-PERP", 15, DateTime.UtcNow.AddDays(-18), DateTime.UtcNow, 3500);
-            //             var t2 = mExchangeAAPI.GetCandlesAsync("ETH-0626", 15, DateTime.UtcNow.AddDays(-18), DateTime.UtcNow, 3500);
-            // 
-            // //             var t1 = mExchangeAAPI.GetCandlesAsync("ETH-PERP", 60, DateTime.UtcNow.AddDays(-32 - 87), DateTime.UtcNow.AddDays(-32), 3500);
-            // //             var t2 = mExchangeAAPI.GetCandlesAsync("ETH-0327", 60, DateTime.UtcNow.AddDays(-32 - 87), DateTime.UtcNow.AddDays(-32), 3500);
-            //             Task.WaitAll(t1, t2);
-            //             List<MarketCandle> list1 = new List<MarketCandle>(t1.Result);
-            //             List<MarketCandle> list2 = new List<MarketCandle>(t2.Result);
-            //             //list
-            //             var csvList = new List<List<string>>();
-            //             for (int i = 0; i < list1.Count; i++)
-            //             {
-            // 
-            //                 List<string> strList = new List<string>()
-            //                                               {
-            //                                                   //i.ToString(),
-            //                                                   (list1[i].HighPrice-list2[i].HighPrice-1).ToString(),
-            //                                                  //list1[i].Timestamp.ToString("yyyy-MM-ddThh:mm:sszzzz", DateTimeFormatInfo.InvariantInfo)
-            //                                           //list1[i].Timestamp.ToString()
-            //                                               };
-            //                 csvList.Add(strList);
-            //             }
-            // 
-            // 
-            //             Utils.AppendCSV(csvList, Path.Combine(Directory.GetCurrentDirectory(), "Candles" + DateTime.UtcNow.ToShortDateString() + ".csv"), true);
-            //             Logger.Debug("ok");
-            //*/
-
+          
             UpdateAvgDiffAsync();
             SubWebSocket();
             WebSocketProtect();
@@ -746,8 +695,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //有可能orderbook bids或者 asks没有改变
             if (buyPriceA != 0 && sellPriceA != 0 && sellPriceB != 0 && buyPriceB != 0 && buyAmount != 0)
             {
-                a2bDiff = (buyPriceA/sellPriceB - 1);
-                b2aDiff = (sellPriceA/buyPriceB - 1);
+                a2bDiff = (buyPriceA-sellPriceB);
+                b2aDiff = (sellPriceA-buyPriceB);
                 Diff diff = GetDiff(a2bDiff, b2aDiff,out buyAmount);
                 PrintInfo(buyPriceA, sellPriceA, sellPriceB, buyPriceB, a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
                 //如果盘口差价超过4usdt 不进行挂单，但是可以改单（bitmex overload 推送ws不及时）
@@ -851,7 +800,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     bool lastOpenPositionBuyA = mData.OpenPositionBuyA;
                     bool lastOpenPositionSellA = mData.OpenPositionSellA;
                     JObject jsonResult = await Utils.GetHttpReponseAsync(dataUrl);
-                    mData.DeltaDiff = jsonResult["deltaDiff"].ConvertInvariant<decimal>();
+                    mData.DeltaDiff = Math.Round(100 * jsonResult["deltaDiff"].ConvertInvariant<decimal>(), 4) ;
                     mData.Leverage = jsonResult["leverage"].ConvertInvariant<decimal>();
                     mData.OpenPositionBuyA = jsonResult["openPositionBuyA"].ConvertInvariant<int>() == 0 ? false : true;
                     mData.OpenPositionSellA = jsonResult["openPositionSellA"].ConvertInvariant<int>() == 0 ? false : true;
@@ -862,17 +811,32 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     else
                         avgDiff = mData.MidDiff;
                     avgDiff = Math.Round(avgDiff, 4);//强行转换
-                    for (int i = 0; i < rangeList.Count; i++)
+                   
+                    if (mDiffHistory == null)
                     {
-                        if (i < mData.DiffGrid.Count)
+                        mDiffHistory = new List<decimal>();
+                        //StreamReader reader = new StreamReader(new FileStream(mData.DiffHistoryPath, FileMode.Open));
+                        StreamReader reader = new StreamReader(new FileStream(@"D:\_Work\cuckoo-py\cuckoo-csharp_Perpetual2Futures_FTX_MA\cuckoo-csharp\bin\Debug\netcoreapp2.1//Data_8001.csv", FileMode.Open));
+                        String str = reader.ReadToEnd();
+                        reader.Dispose();
+                        reader.Close();
+                        List<decimal> nomal = new List<decimal>();
+                        string[] all = str.Split(new string[] { "\r\n" }, StringSplitOptions.None);
+                        for (int i = 0; i < all.Length; i++)
                         {
-                            var diff = mData.DiffGrid[i];
-                            diff.ProfitRange = rangeList[i].ConvertInvariant<decimal>();
-                            diff.A2BDiff = avgDiff - diff.ProfitRange + mData.DeltaDiff;
-                            diff.B2ADiff = avgDiff + diff.ProfitRange + mData.DeltaDiff;
-                            mData.SaveToDB(mDBKey);
+                            string num = all[i];//.Split(',')[1];
+                            bool can = decimal.TryParse(num, out decimal ds);
+                            if (can)
+                            {
+                                nomal.Add(ds);
+                            }
                         }
+                        mDiffHistory = nomal;
                     }
+                    lock (mDiffHistory)
+                        SetDiffBuyMA(mDiffHistory);
+
+
                     if (lastLeverage != lastLeverage || lastOpenPositionBuyA != mData.OpenPositionBuyA || lastOpenPositionSellA != mData.OpenPositionSellA)// 仓位修改立即刷新
                     {
                         CountDiffGridMaxCount();
@@ -887,6 +851,37 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 await Task.Delay(60 * 1000);
             }
         }
+
+        /// <summary>
+        /// 通过MA设置
+        /// </summary>
+        /// <param name="nomal"></param>
+        private void SetDiffBuyMA(List<decimal> nomal)
+        {
+            if (nomal.Count < mData.PerTime)
+            {
+                mDiffHistory = new List<decimal>(nomal);
+            }
+            else
+            {
+                mDiffHistory = nomal.TakeLast<decimal>(mData.PerTime).ToList();
+            }
+            decimal avgDiff = Utils.EMA(mDiffHistory, mDiffHistory.Count)[0];
+            Logger.Debug("SetDiffBuyMA:" + avgDiff);
+            avgDiff = Math.Round(avgDiff, 5);//强行转换
+            for (int i = 0; i < mData.DiffGrid.Count; i++)
+            {
+                if (i < mData.DiffGrid.Count)
+                {
+                    var diff = mData.DiffGrid[i];
+                    diff.A2BDiff = avgDiff - diff.ProfitRange + mData.DeltaDiff;
+                    diff.B2ADiff = avgDiff + diff.ProfitRange + mData.DeltaDiff;
+                    mData.SaveToDB(mDBKey);
+                }
+            }
+        }
+
+
         private void PrintInfo(decimal bidA, decimal askA, decimal bidB, decimal askB, decimal a2bDiff, decimal b2aDiff, decimal A2BDiff, decimal B2ADiff, decimal buyAmount, 
             decimal bidAAmount, decimal askAAmount, decimal bidBAmount, decimal askBAmount )
         {
@@ -895,7 +890,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug(Utils.Str2Json("BA价差当前百分比↓" , b2aDiff.ToString(), "BA价差百分比↓" , B2ADiff.ToString()));
             Logger.Debug(Utils.Str2Json("Bid A", bidA, " Bid B", bidB, "bidAAmount", bidAAmount, "bidBAmount", bidBAmount));
             Logger.Debug(Utils.Str2Json("Ask A", askA, " Ask B", askB, "askAAmount", askAAmount, "askBAmount", askBAmount));
-            Logger.Debug(Utils.Str2Json("mCurAmount", mCurAAmount, " buyAmount",  buyAmount));
+            Logger.Debug(Utils.Str2Json("mCurAmount", mCurAAmount, " buyAmount",  buyAmount , "mData.DeltaDiff", mData.DeltaDiff));
 
 
             var csvList = new List<List<string>>();
@@ -906,6 +901,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             csvList.Add(strList);
             Utils.AppendCSV(csvList, Path.Combine(Directory.GetCurrentDirectory(), "Data_" + mId + ".csv"), true);
 
+            if (mDiffHistory != null)
+            {
+                lock (mDiffHistory)
+                {
+                    mDiffHistory.Add(a2bDiff);
+                    if (mDiffHistory.Count > (mData.PerTime + 100))
+                        mDiffHistory.RemoveRange(0, mDiffHistory.Count - mData.PerTime);
+                }
+            }
         }
         /// <summary>
         /// 当curAmount 小于 0的时候就是平仓
@@ -1501,6 +1505,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// redis连接数据
             /// </summary>
             public string RedisConfig = "localhost,password=l3h2p1w0*";
+            /// <summary>
+            /// 计算ma的时间段，单位s
+            /// </summary>
+            public int PerTime = 3600;
+            public string DiffHistoryPath = "/home/ubuntu/p2fETHcoin/XBTUSD_BTC_CW.csv";
             /// <summary>
             /// 止损或者止盈的比例
             /// </summary>

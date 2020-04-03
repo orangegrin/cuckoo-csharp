@@ -8,6 +8,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using ExchangeSharp;
+using System.Linq;
 
 namespace cuckoo_csharp.Tools
 {
@@ -172,9 +173,35 @@ namespace cuckoo_csharp.Tools
             }
             return jsStr.ToString();
         }
+        /// <summary> 
+        /// Calculates Exponential Moving Average (EMA) indicator 
+        /// </summary> 
+        /// <param name="input">Input signal</param> 
+        /// <param name="period">Number of periods</param> 
+        /// <returns>Object containing operation results</returns> 
+        public static List<decimal> EMA(IEnumerable<decimal> input, int period)
+        {
+            var returnValues = new List<decimal>();
+
+            //decimal multiplier = (2.0 / (period + 1));
+            decimal initialSMA = input.Take(period).Average();
+
+            returnValues.Add(initialSMA);
+
+            var copyInputValues = input.ToList();
+
+            for (int i = period; i < copyInputValues.Count; i++)
+            {
+                var resultValue = (returnValues[i - period] * period - copyInputValues[i - period] + copyInputValues[i]) / period;
+                //var resultValue = (copyInputValues[i] - returnValues.Last()) * multiplier + returnValues.Last();
+
+                returnValues.Add(resultValue);
+            }
+            return returnValues;
+        }
 
     }
 
 
-        
+
 }
