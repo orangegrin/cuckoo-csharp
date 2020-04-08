@@ -110,8 +110,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             AppDomain.CurrentDomain.ProcessExit += new EventHandler(OnProcessExit);
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
+            mExchangeAAPI.SubAccount = mData.SubAccount;
 
-          
+
             UpdateAvgDiffAsync();
             SubWebSocket();
             WebSocketProtect();
@@ -697,10 +698,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 a2bDiff = (buyPriceA- buyPriceB);
                 b2aDiff = (sellPriceA-sellPriceB);
-                Diff temp = GetDiff(a2bDiff, b2aDiff,out buyAmount);
-                var diff = temp.Clone();
-                diff.A2BDiff = -0.9m;
-                diff.B2ADiff = -0.5m;
+                Diff diff = GetDiff(a2bDiff, b2aDiff,out buyAmount);
+//                 var diff = temp.Clone();
+// //                 diff.A2BDiff = -2m;
+// //                 diff.B2ADiff = -0m;
+//                 diff.A2BDiff = -2m;
+//                 diff.B2ADiff = -0m;
 
 
                 PrintInfo(buyPriceA, sellPriceA,  buyPriceB, sellPriceB,a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
@@ -816,15 +819,61 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     else
                         avgDiff = mData.MidDiff;
                     avgDiff = Math.Round(avgDiff, 4);//强行转换
-                    for (int i = 0; i < rangeList.Count; i++)
+
+                    //                     for (int i = 0; i < rangeList.Count; i++)
+                    //                     {
+                    //                         if (i < mData.DiffGrid.Count)
+                    //                         {
+                    //                             var diff = mData.DiffGrid[i];
+                    //                             diff.ProfitRange = rangeList[i].ConvertInvariant<decimal>();
+                    //                             mData.SaveToDB(mDBKey);
+                    //                         }
+                    //                     }
+
+
+                    if (rangeList.Count%2==0)
                     {
-                        if (i < mData.DiffGrid.Count)
+                        for (int i = 0; i < rangeList.Count / 2; i++)
                         {
-                            var diff = mData.DiffGrid[i];
-                            diff.ProfitRange = rangeList[i].ConvertInvariant<decimal>();
+                            int mid = rangeList.Count / 2;
+                            Diff diff;
+                            if (mData.DiffGrid.Count>i)
+                            {
+                                diff = mData.DiffGrid[i];
+                            }
+                            else
+                            {
+                                diff = new Diff()
+                                {
+                                    Rate=0.3m
+                                };
+                                mData.DiffGrid.Add(diff);
+                            }
+                            diff.A2BDiff = rangeList[mid - i - 1].ConvertInvariant<decimal>();
+                            diff.B2ADiff = rangeList[mid + i].ConvertInvariant<decimal>();
                             mData.SaveToDB(mDBKey);
                         }
+                        CountDiffGridMaxCount();
                     }
+                    
+
+//                     var diff = mData.DiffGrid[0];
+//                     diff.A2BDiff = rangeList[0].ConvertInvariant<decimal>();
+//                     diff.B2ADiff = rangeList[1].ConvertInvariant<decimal>();
+//                    mData.SaveToDB(mDBKey);
+                    Logger.Debug("SetDiffBuyMA:" + avgDiff);
+//                     avgDiff = Math.Round(avgDiff, 5);//强行转换
+//                     for (int i = 0; i < mData.DiffGrid.Count; i++)
+//                     {
+//                         if (i < mData.DiffGrid.Count)
+//                         {
+//                             var diff = mData.DiffGrid[i];
+//                             diff.A2BDiff = avgDiff - diff.ProfitRange + mData.DeltaDiff;
+//                             diff.B2ADiff = avgDiff + diff.ProfitRange + mData.DeltaDiff;
+//                             mData.SaveToDB(mDBKey);
+//                         }
+//                     }
+                    /*
                     if (mDiffHistory == null)
                     {
                         mDiffHistory = new List<decimal>() { -1};
@@ -849,7 +898,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     lock (mDiffHistory)
                         SetDiffBuyMA(mDiffHistory);
 
-
+            */
                     if (lastLeverage != lastLeverage || lastOpenPositionBuyA != mData.OpenPositionBuyA || lastOpenPositionSellA != mData.OpenPositionSellA)// 仓位修改立即刷新
                     {
                         CountDiffGridMaxCount();
@@ -1116,9 +1165,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     DateTime dt = backOrder.OrderDate.AddHours(8);
                     List<string> strList = new List<string>()
                     {
-                        dt.ToShortDateString()+"/"+dt.ToLongTimeString(),order.IsBuy ? "buy" : "sell",backOrder.Amount.ToString(), (order.AveragePrice/backOrder.AveragePrice-1).ToString()
+                        dt.ToShortDateString()+"/"+dt.ToLongTimeString(),order.IsBuy ? "buy" : "sell",backOrder.Amount.ToString(), (order.AveragePrice-backOrder.AveragePrice).ToString()
                     };
-                    Utils.AppendCSV(new List<List<string>>() { strList }, Path.Combine(Directory.GetCurrentDirectory(), "ClosePosition.csv"), false);
+                    Utils.AppendCSV(new List<List<string>>() { strList }, Path.Combine(Directory.GetCurrentDirectory(), "ClosePosition"+mId+".csv"), false);
                 }
             }
             catch (Exception ex)
@@ -1532,6 +1581,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// redis连接数据
             /// </summary>
             public DateTime CloseDate = DateTime.Now.AddMinutes(1);
+            /// <summary>
+            /// 子账号标识
+            /// </summary>
+            public string SubAccount = "";
 
             public void SaveToDB(string DBKey)
             {
