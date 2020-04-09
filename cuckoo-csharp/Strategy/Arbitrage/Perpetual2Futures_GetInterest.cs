@@ -83,6 +83,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         private bool mOrderwsConnect = false;
         private bool mOrderBookAwsConnect = false;
         private bool mOrderBookBwsConnect = false;
+        private bool mOnCheck = false;
         private bool mOnTrade = false;//是否在交易中
         private bool mOnConnecting = false;
         private bool mBuyAState;
@@ -269,7 +270,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(200);
                     continue;
                 }
-                mExchangePending = true;
+                mOnCheck = true;
                 Logger.Debug("-----------------------CheckPosition-----------------------------------");
                 ExchangeMarginPositionResult posA ;
                 ExchangeMarginPositionResult posB ;
@@ -281,7 +282,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     posB = await mExchangeBAPI.GetOpenPositionAsync(mData.SymbolB);
                     if (posA==null ||posB==null)
                     {
-                        mExchangePending = false;
+                        mOnCheck = false;
                         await Task.Delay(5 * 60 * 1000);
                         continue;
                     }
@@ -289,7 +290,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 catch (System.Exception ex)
                 {
                     Logger.Error(Utils.Str2Json("GetOpenPositionAsync ex", ex.ToString()));
-                    mExchangePending = false;
+                    mOnCheck = false;
                     await Task.Delay(1000);
                     continue;
                 }
@@ -541,7 +542,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         }
                     }
                 }*/
-                mExchangePending = false;
+                mOnCheck = false;
                 await Task.Delay(5 * 60 * 1000);
             }
         }
@@ -663,6 +664,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 return false;
             if (mExchangePending)
                 return false;
+            if (mOnCheck)
+                return false;
             if (mOrderBookA.Asks.Count == 0 || mOrderBookA.Bids.Count == 0 || mOrderBookB.Bids.Count == 0 || mOrderBookB.Asks.Count == 0)
                 return false;
             return true;
@@ -713,7 +716,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug("范围更新不及时，不纳入计算");
                     return;
                 }
-               // return;
+                //return;
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff < diff.A2BDiff && mData.CurAAmount + mData.PerTrans <= diff.MaxABuyAmount) //满足差价并且当前A空仓
@@ -853,7 +856,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             diff.B2ADiff = rangeList[mid + i].ConvertInvariant<decimal>();
                             mData.SaveToDB(mDBKey);
                         }
-                        CountDiffGridMaxCount();
+                         CountDiffGridMaxCount();
                     }
                     
 
