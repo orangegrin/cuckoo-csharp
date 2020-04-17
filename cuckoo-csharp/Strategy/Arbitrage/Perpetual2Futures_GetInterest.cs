@@ -113,7 +113,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
             mExchangeAAPI.SubAccount = mData.SubAccount;
 
-
             UpdateAvgDiffAsync();
             SubWebSocket();
             WebSocketProtect();
@@ -711,7 +710,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
                 PrintInfo(buyPriceA, sellPriceA,  buyPriceB, sellPriceB,a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, bidBAmount, askBAmount);
                 //如果盘口差价超过4usdt 不进行挂单，但是可以改单（bitmex overload 推送ws不及时）
-                if (mCurOrderA == null && ((sellPriceA <= buyPriceA) || (sellPriceA - buyPriceA >= 4) || (sellPriceB <= buyPriceB) || (sellPriceB - buyPriceB >= 4)))
+                if (mCurOrderA == null && ((sellPriceA <= buyPriceA) || (sellPriceA - buyPriceA >= 10) || (sellPriceB <= buyPriceB) || (sellPriceB - buyPriceB >= 10)))
                 {
                     Logger.Debug("范围更新不及时，不纳入计算");
                     return;
