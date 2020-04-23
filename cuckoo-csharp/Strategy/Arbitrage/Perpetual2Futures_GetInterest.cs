@@ -118,6 +118,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             WebSocketProtect();
             CheckPosition();
             ChangeMaxCount();
+            CheckOrderBook();
         }
         /// <summary>
         /// 倒计时平仓
@@ -139,32 +140,41 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
         }
         #region Connect
-        private void SubWebSocket()
+        private void SubWebSocket(ConnectState state = ConnectState.All)
         {
             mOnConnecting = true;
-            mOrderws = mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
-            mOrderws.Connected += async (socket) => { mOrderwsConnect = true; Logger.Debug("GetOrderDetailsWebSocket 连接"); OnConnect(); };
-            mOrderws.Disconnected += async (socket) =>
+            if (state.HasFlag(ConnectState.Orders))
             {
-                mOrderwsConnect = false;
-                WSDisConnectAsync("GetOrderDetailsWebSocket 连接断开");
-            };
+                mOrderws = mExchangeAAPI.GetOrderDetailsWebSocket(OnOrderAHandler);
+                mOrderws.Connected += async (socket) => { mOrderwsConnect = true; Logger.Debug("GetOrderDetailsWebSocket 连接"); OnConnect(); };
+                mOrderws.Disconnected += async (socket) =>
+                {
+                    mOrderwsConnect = false;
+                    WSDisConnectAsync("GetOrderDetailsWebSocket 连接断开");
+                };
+            }
             //避免没有订阅成功就开始订单
             Thread.Sleep(3 * 1000);
-            mOrderBookAws = mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 20, mData.SymbolA);
-            mOrderBookAws.Connected += async (socket) => { mOrderBookAwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket A 连接"); OnConnect(); };
-            mOrderBookAws.Disconnected += async (socket) =>
+            if (state.HasFlag(ConnectState.A))
             {
-                mOrderBookAwsConnect = false;
-                WSDisConnectAsync("GetFullOrderBookWebSocket A 连接断开");
-            };
-            mOrderBookBws = mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 20, mData.SymbolB);
-            mOrderBookBws.Connected += async (socket) => { mOrderBookBwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket B 连接"); OnConnect(); };
-            mOrderBookBws.Disconnected += async (socket) =>
+                mOrderBookAws = mExchangeAAPI.GetFullOrderBookWebSocket(OnOrderbookAHandler, 20, mData.SymbolA);
+                mOrderBookAws.Connected += async (socket) => { mOrderBookAwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket A 连接"); OnConnect(); };
+                mOrderBookAws.Disconnected += async (socket) =>
+                {
+                    mOrderBookAwsConnect = false;
+                    WSDisConnectAsync("GetFullOrderBookWebSocket A 连接断开");
+                };
+            }
+            if (state.HasFlag(ConnectState.B))
             {
-                mOrderBookBwsConnect = false;
-                WSDisConnectAsync("GetFullOrderBookWebSocket B 连接断开");
-            };
+                mOrderBookBws = mExchangeBAPI.GetFullOrderBookWebSocket(OnOrderbookBHandler, 20, mData.SymbolB);
+                mOrderBookBws.Connected += async (socket) => { mOrderBookBwsConnect = true; Logger.Debug("GetFullOrderBookWebSocket B 连接"); OnConnect(); };
+                mOrderBookBws.Disconnected += async (socket) =>
+                {
+                    mOrderBookBwsConnect = false;
+                    WSDisConnectAsync("GetFullOrderBookWebSocket B 连接断开");
+                };
+            }
         }
         /// <summary>
         /// WS 守护线程
@@ -191,28 +201,43 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (mOrderBookAwsCounter < 1 || mOrderBookBwsCounter < 1 || (!detailConnect))
                 {
                     Logger.Error(new Exception("ws 没有收到推送消息"));
-                    if (mCurOrderA != null)
-                    {
-                        await CancelCurOrderA();
-                    }
-                    await CloseWS();
-                    Logger.Debug("开始重新连接ws");
-                    SubWebSocket();
-                    await Task.Delay(5 * 1000);
+                    await ReconnectWS();
                 }
             }
         }
 
-        private async Task CloseWS()
+        private async Task ReconnectWS(ConnectState state = ConnectState.All)
         {
-            mOrderwsConnect = false;
-            mOrderBookAwsConnect = false;
-            mOrderBookBwsConnect = false;
+            if (mCurOrderA != null)
+            {
+                await CancelCurOrderA();
+            }
+            await CloseWS(state);
+            Logger.Debug("开始重新连接ws");
+            SubWebSocket(state);
+            await Task.Delay(5 * 1000);
+        }
+
+        private async Task CloseWS(ConnectState state = ConnectState.All)
+        {
             await Task.Delay(5 * 1000);
             Logger.Debug("销毁ws");
-            mOrderws.Dispose();
-            mOrderBookAws.Dispose();
-            mOrderBookBws.Dispose();
+            if (state.HasFlag(ConnectState.A))
+            {
+                mOrderBookAwsConnect = false;
+                mOrderBookAws.Dispose();
+            }
+            if (state.HasFlag(ConnectState.B))
+            {
+                mOrderBookBwsConnect = false;
+                mOrderBookBws.Dispose();
+            }
+            if (state.HasFlag(ConnectState.Orders))
+            {
+                mOrderwsConnect = false;
+                mOrderws.Dispose();
+            }
+               
         }
 
         /// <summary>
@@ -612,26 +637,34 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
             }
         }
-        private void OnOrderbookHandler(ExchangeOrderBook order)
-        {
-            if (order.MarketSymbol == mData.SymbolA)
-                OnOrderbookAHandler(order);
-            else
-                OnOrderbookBHandler(order);
-        }
 
+
+        private ExchangeOrderBook CLone(ExchangeOrderBook order)
+        {
+            string str = JsonConvert.SerializeObject(order);
+            return JsonConvert.DeserializeObject<ExchangeOrderBook>(str);
+        }
         private void OnOrderbookAHandler(ExchangeOrderBook order)
         {
             mOrderBookAwsCounter++;
+//             if (mOrderBookA == null)
+//             {
+//                 mOrderBookA = CLone(order);
+//             }
             mOrderBookA = order;
             OnOrderBookHandler();
         }
         private void OnOrderbookBHandler(ExchangeOrderBook order)
         {
             mOrderBookBwsCounter++;
+//             if (mOrderBookB == null)
+//             {
+//                 mOrderBookB = CLone(order);
+//             }
             mOrderBookB = order;
             OnOrderBookHandler();
         }
+
         async void OnOrderBookHandler()
         {
             if (Precondition())
@@ -794,6 +827,72 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             return returnDiff;
         }
 
+        private async Task CheckOrderBook()
+        {
+            ExchangeOrderPrice? lastA =null ;
+            ExchangeOrderPrice?  lastB =null;
+            ExchangeOrderPrice? curA;
+            ExchangeOrderPrice? curB;
+            while (true)
+            {
+                await Task.Delay(30 * 1000);
+                if (mOrderBookA==null || mOrderBookB==null || !OnConnect() )
+                    continue;
+                else
+                {
+                    if (lastA==null)
+                    {
+                        lock (mOrderBookA)
+                        {
+                            lastA = mOrderBookA.Asks.FirstOrDefault().Value;
+                        }
+                        await Task.Delay(15 * 1000);
+                    }
+                    if (lastB == null)
+                    {
+                        lock (mOrderBookB)
+                        {
+                            lastB = mOrderBookB.Asks.FirstOrDefault().Value;
+                        }
+                        await Task.Delay(15 * 1000);
+                    }
+
+                    lock (mOrderBookA)
+                    {
+                        curA = mOrderBookA.Asks.FirstOrDefault().Value;
+                    }
+                    lock (mOrderBookB)
+                    {
+                        curB = mOrderBookB.Asks.FirstOrDefault().Value;
+                    }
+                    ConnectState? state = null;
+                    if ((lastA.Value.Price == curA.Value.Price && lastA.Value.Amount == curA.Value.Amount))
+                    {
+                        state = ConnectState.A;
+                       
+                    }
+                    if ((lastB.Value.Price == curB.Value.Price && lastB.Value.Amount == curB.Value.Amount))
+                    {
+                        if (state==null)
+                        {
+                            state = ConnectState.B;
+                        }
+                        else
+                        {
+                            state |= ConnectState.B;
+                        }
+                    }
+                    if (state!=null)
+                    {
+                        Logger.Error("CheckOrderBook  orderbook 错误");
+                        await ReconnectWS(state.Value);
+                    }
+                    lastA = curA;
+                    lastB = curB;
+                }
+               
+            }
+        }
         /// <summary>
         /// 刷新差价
         /// </summary>
@@ -1629,6 +1728,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 return (Diff)this.MemberwiseClone();
             }
+        }
+        [Flags]
+        private enum ConnectState
+        {
+            All = 7,
+            A = 1,
+            B = 2,
+            Orders = 4
         }
 
     }
