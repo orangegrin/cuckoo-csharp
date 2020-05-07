@@ -284,6 +284,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     if (Math.Abs(posA.Amount + posB.Amount)>mData.PerTrans*10)
                     {
                         Logger.Error(Utils.Str2Json("CheckPosition ex", "A,B交易所相差过大 程序关闭，请手动处理"));
+                        Logger.Error("posA.Amount:" + posA.Amount+ "posB.Amount :"+ posB.Amount);
                         throw new Exception("A,B交易所相差过大 程序关闭，请手动处理");
                     }
                     for (int i=0; ;)
