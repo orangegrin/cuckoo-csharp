@@ -46,6 +46,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         private List<string> mOrderIds = new List<string>();
         /// <summary>
+        /// A交易所 历史成交订单详情
+        /// </summary>
+        private Dictionary<string, ExchangeOrderResult> mOrderResultsDic = new Dictionary<string, ExchangeOrderResult>();
+        /// <summary>
         /// A交易所止损止盈订单ID
         /// </summary>
         private List<string> mProfitOrderIds = new List<string>();
@@ -966,6 +970,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 var v = await mExchangeAAPI.PlaceOrderAsync(requestA);
                 mCurOrderA = v;
                 mOrderIds.Add(mCurOrderA.OrderId);
+                //检查如果已经成交的订单中有本订单号,那么启用成交逻辑
+                if (mOrderResultsDic.TryGetValue(mCurOrderA.OrderId,out ExchangeOrderResult filledOrder))
+                    OnOrderAHandler(filledOrder);
                 Logger.Debug(Utils.Str2Json("requestA", requestA.ToString()));
                 Logger.Debug(Utils.Str2Json("Add mCurrentLimitOrder", mCurOrderA.ToExcleString(), "CurAmount", mData.CurAAmount));
                 if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
@@ -1147,7 +1154,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (order.MarketSymbol != mData.SymbolA)
                 return;
             if (!IsMyOrder(order.OrderId))
+            {
+                AddFilledOrderResult(order);
                 return;
+            }
+
             switch (order.Result)
             {
                 case ExchangeAPIOrderResult.Unknown:
@@ -1357,6 +1368,19 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             var s = 1 / mData.MinPriceUnit;
             return Math.Round(price * s) / s;
+        }
+        private void AddFilledOrderResult(ExchangeOrderResult orderRequest)
+        {
+            if (orderRequest.Result == ExchangeAPIOrderResult.Filled || orderRequest.Result == ExchangeAPIOrderResult.FilledPartially)
+            {
+                if (mOrderResultsDic.TryGetValue(orderRequest.OrderId, out ExchangeOrderResult lastResult))
+                {
+                    if (lastResult.Result != ExchangeAPIOrderResult.Filled)
+                    {
+                        mOrderResultsDic[orderRequest.OrderId] = orderRequest;
+                    }
+                }
+            }
         }
         /*
         /// <summary>
