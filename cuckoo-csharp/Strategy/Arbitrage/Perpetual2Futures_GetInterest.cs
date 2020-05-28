@@ -325,6 +325,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 mExchangePending = true;
                 Logger.Debug("-----------------------CheckPosition-----------------------------------");
+                lock(mOrderResultsDic)//清理数据
+                    mOrderResultsDic.Clear();
+                                
                 ExchangeMarginPositionResult posA ;
                 ExchangeMarginPositionResult posB ;
                 try
@@ -972,7 +975,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mOrderIds.Add(mCurOrderA.OrderId);
                 //检查如果已经成交的订单中有本订单号,那么启用成交逻辑
                 if (mOrderResultsDic.TryGetValue(mCurOrderA.OrderId,out ExchangeOrderResult filledOrder))
+                {
                     OnOrderAHandler(filledOrder);
+                    Logger.Debug("出现先ws返回 后rest返回");
+                }
+                    
                 Logger.Debug(Utils.Str2Json("requestA", requestA.ToString()));
                 Logger.Debug(Utils.Str2Json("Add mCurrentLimitOrder", mCurOrderA.ToExcleString(), "CurAmount", mData.CurAAmount));
                 if (mCurOrderA.Result == ExchangeAPIOrderResult.Canceled)
