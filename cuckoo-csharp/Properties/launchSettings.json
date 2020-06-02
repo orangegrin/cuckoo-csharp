@@ -2,7 +2,7 @@
   "profiles": {
     "cuckoo-csharp": {
       "commandName": "Project",
-      "commandLineArgs": "-i 8001 -c ./ftx_ethMA.json"
+      "commandLineArgs": "-i 9002 -c ./ftx_ethMA.json"
     }
   }
 }
