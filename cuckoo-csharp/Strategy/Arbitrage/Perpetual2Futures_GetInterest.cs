@@ -288,6 +288,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             while (true)
             {
+                if (!mData.OpenProcess)
+                {
+                    await Task.Delay(60 * 1000);
+                    continue;
+                }
                 if (!OnConnect())
                 {
                     await Task.Delay(5 * 1000);
@@ -707,6 +712,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 return false;
             if (mOrderBookA.Asks.Count == 0 || mOrderBookA.Bids.Count == 0 || mOrderBookB.Bids.Count == 0 || mOrderBookB.Asks.Count == 0)
                 return false;
+            if (!mData.OpenProcess)
+                return false;
             return true;
         }
         private async Task Execute()
@@ -927,7 +934,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     else
                         avgDiff = mData.MidDiff;
                     avgDiff = Math.Round(avgDiff, 4);//强行转换
-
+                    string remark = jsonResult["remark"].ToString().ToLower();
+                    mData.OpenProcess = !remark.Contains("close");
                     //                     for (int i = 0; i < rangeList.Count; i++)
                     //                     {
                     //                         if (i < mData.DiffGrid.Count)
@@ -1713,6 +1721,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// 止损或者止盈的比例
             /// </summary>
             public decimal StopOrProftiRate = 0.5m;
+            /// <summary>
+            /// 是否开启交易
+            /// </summary>
+            public bool OpenProcess = true;
             /// <summary>
             /// redis连接数据
             /// </summary>
