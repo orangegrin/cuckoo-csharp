@@ -801,7 +801,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     catch (System.Exception ex)
                     {
                         Logger.Error(Utils.Str2Json("mRunningTask ex", ex));
-                        if (ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found"))
+                        if (ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found") || ex.ToString().Contains("Order already closed"))
                             mCurOrderA = null;
                         mRunningTask = null;
                     }
