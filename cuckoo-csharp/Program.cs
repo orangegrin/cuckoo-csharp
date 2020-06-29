@@ -39,7 +39,7 @@ namespace cuckoo_csharp
 
         private static void OnParsedHandler(Options op)
         {
-            Perpetual2Futures_GetInterestMA.Options config = null;
+            BB_SMA.Options config = null;
             if (File.Exists(op.ConfigPath))
             {
                 string text;
@@ -49,7 +49,7 @@ namespace cuckoo_csharp
                 }
                 if (!string.IsNullOrEmpty(text))
                 {
-                    config = JsonConvert.DeserializeObject<Perpetual2Futures_GetInterestMA.Options>(text);
+                    config = JsonConvert.DeserializeObject<BB_SMA.Options>(text);
                 }
                 else
                 {
@@ -58,7 +58,7 @@ namespace cuckoo_csharp
             }
             if (config != null)
             {
-                Perpetual2Futures_GetInterestMA it = new Perpetual2Futures_GetInterestMA(config, op.ID);
+                BB_SMA it = new BB_SMA(config, op.ID);
                 it.Start();
                 while (true)
                 {
