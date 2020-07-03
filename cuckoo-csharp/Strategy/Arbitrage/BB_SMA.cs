@@ -321,7 +321,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mData = temp;
                 }
                 await Execute();
-                await Task.Delay(mData.IntervalMillisecond + mCurCDTime*1000);
+                //await Task.Delay(mData.IntervalMillisecond + mCurCDTime*1000);
+                await Task.Delay(10000);
                 mCurCDTime = 0;
                 mExchangePending = false;
             }
@@ -350,7 +351,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             DateTime now = DateTime.UtcNow;
 
             var smaCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(), now.AddSeconds(-mData.GetPerTimeSeconds() * mData.SMPPerTime-5), now.AddSeconds(-5));
-            await Task.Delay(5 * 1000);
+            //await Task.Delay(1 * 1000);
             var bbCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(), now.AddSeconds(-mData.GetPerTimeSeconds() * mData.BollingerBandsPer-5), now.AddSeconds(-5));
             //test  
 //             var lastTime = new DateTime(2020, 6, 28, 18, 41, 33, DateTimeKind.Utc);
@@ -403,6 +404,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 amount = Math.Abs(mCurAAmount);
                 Logger.Debug("start close ");
             }
+            canTrade = false;
             if (canTrade)
             {
                 mIsFirstOpen = false;
