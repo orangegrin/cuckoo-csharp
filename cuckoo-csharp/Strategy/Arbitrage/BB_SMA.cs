@@ -345,14 +345,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         }
         private async Task Execute()
         {
-
             int outTime = 60;
 
             DateTime now = DateTime.UtcNow;
 
-            var smaCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(), now.AddSeconds(-mData.GetPerTimeSeconds() * mData.SMPPerTime-5), now.AddSeconds(-5));
-            await Task.Delay(1 * 1000);
-            var bbCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(), now.AddSeconds(-mData.GetPerTimeSeconds() * mData.BollingerBandsPer-5), now.AddSeconds(-5));
+            var smaCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(), now.AddSeconds(-mData.GetPerTimeSeconds() * mData.SMPPerTime-5), now);
+            //await Task.Delay(1 * 1000);
+            var bbCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(), now.AddSeconds(-mData.GetPerTimeSeconds() * mData.BollingerBandsPer-5), now);
             //test  
 //             var lastTime = new DateTime(2020, 6, 28, 18, 41, 33, DateTimeKind.Utc);
 //             var smaCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(),lastTime.AddSeconds(-mData.GetPerTimeSeconds() * mData.SMPPerTime ), lastTime.AddSeconds(0));
@@ -368,7 +367,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             bool closePosition1 = Math.Abs((closePrice - sma) / sma) > mData.CloseRate;
             bool closePosition2 = bbLimit < 0.5m-mData.BBCloseRate || bbLimit > 0.5m+mData.BBCloseRate;
 
-            Logger.Debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"+ now.AddSeconds(5).ToString());
+            Logger.Debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++4"+ now.ToString());
             Logger.Debug("closePrice:" + closePrice + " sma:" + sma + "lastSmaTime:" + smaCandles.Last<MarketCandle>().Timestamp.ToString() + "   bbLimit " + bbLimit + "  condtion1:" + (Math.Abs((closePrice - sma) / sma)) + "  canClose " + closePosition1.ToString()+ closePosition2.ToString());
 
             bool canTrade = false;
