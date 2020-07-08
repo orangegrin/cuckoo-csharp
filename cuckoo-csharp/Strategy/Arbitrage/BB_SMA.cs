@@ -288,7 +288,27 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 await Task.Delay(5 * 60 * 1000);
             }
         }
-#endregion
+        #endregion
+
+
+        private async Task CountDiffGridMaxCount(decimal marketPrice)
+        {
+            try
+            {
+                //decimal noUseBtc =  await mExchangeAAPI.GetWalletSummaryAsync(""); 
+                //decimal allCoin = noUseBtc;
+                decimal avgPrice = marketPrice;
+                //mAllPosition = allCoin * mData.Leverage / avgPrice ;//单位eth个数
+                mData.PerTrans = Math.Round(mData.PerBuyUSD / avgPrice / mData.MinAmountA) * mData.MinAmountA;
+                mData.SaveToDB(mDBKey);
+                Logger.Debug(Utils.Str2Json("mData.PerTrans", mData.PerTrans, "allPosition", mAllPosition));
+            }
+            catch (System.Exception ex)
+            {
+                Logger.Error("ChangeMaxCount ex" + ex.ToString());
+            }
+        }
+
         private void OnProcessExit(object sender, EventArgs e)
         {
             Logger.Debug("------------------------ OnProcessExit ---------------------------");
@@ -366,7 +386,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             var bbLimit = GetBollingerBandsLimit(bbCandles.ToList());
             bool closePosition1 = Math.Abs((closePrice - sma) / sma) > mData.CloseRate;
             bool closePosition2 = bbLimit < 0.5m-mData.BBCloseRate || bbLimit > 0.5m+mData.BBCloseRate;
-
+            await CountDiffGridMaxCount(closePrice);
             Logger.Debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++4"+ now.ToString());
             Logger.Debug("closePrice:" + closePrice + " sma:" + sma + "lastSmaTime:" + smaCandles.Last<MarketCandle>().Timestamp.ToString() + "   bbLimit " + bbLimit + "  condtion1:" + (Math.Abs((closePrice - sma) / sma)) + "  canClose " + closePosition1.ToString()+ closePosition2.ToString());
 
@@ -376,10 +396,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if ( closePrice!= sma)//如果仓位==0 并且满足开仓条件
             {
                 isBuy = closePrice > sma;
-                if (mCurAAmount == 0 )
-                    amount = mData.PerBuyUSD;
+                if (mCurAAmount == 0)
+                    amount = mData.PerTrans;
                 else
-                    amount = isBuy ? mData.PerBuyUSD - mCurAAmount : mData.PerBuyUSD - (-mCurAAmount);
+                    amount = isBuy ? mData.PerTrans - mCurAAmount : mData.PerTrans - (-mCurAAmount);
 
                 if (amount > 0)
                 {
@@ -712,10 +732,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             public string SymbolA;
             public string Symbol;
             public decimal PerBuyUSD = 0;
+            public decimal PerTrans = 0;
             /// <summary>
             /// 最小价格单位
             /// </summary>
             public decimal MinPriceUnit = 0.5m;
+            /// <summary>
+            /// 最少购买币 单位
+            /// </summary>
+            public decimal MinAmountA = 0.0001m;
             /// <summary>
             /// 当前仓位数量
             /// </summary>
@@ -727,6 +752,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             public int SMPPerTime = 720;
             public int BollingerBandsPer = 2000;
             public int BollingerBandsStand = 2;
+            public int Leverage = 1;
             /// <summary>
             /// 如果完成交易 ,那么进入交易冷却时间,交易冷却时间走完才能进行下次交易
             /// </summary>
