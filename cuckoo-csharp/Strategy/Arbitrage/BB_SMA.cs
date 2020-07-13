@@ -111,6 +111,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             }
             if (mData.CurAAmount != 0)
                 mIsFirstOpen = false;
+            if (mData.LastTradeDate!=null  &&  mData.LastTradeDate.Year> (DateTime.UtcNow.Year-1))
+            {
+                TimeSpan cd =  mData.LastTradeDate.AddSeconds(mData.TradeCoolDownTime*mData.GetPerTimeSeconds()) - DateTime.UtcNow;
+                var temp = Convert.ToInt32(cd.TotalSeconds);
+                mCurCDTime = temp > 0 ? temp : 0;
+                Logger.Debug("remainder time " + mCurCDTime + " seconds    mData.LastTradeDate:" + mData.LastTradeDate.ToString("yyyy-MM-dd hh:mm:ss"));
+
+            }
             mExchangeAAPI = ExchangeAPI.GetExchangeAPI(mData.ExchangeNameA);
         }
         public void Start()
@@ -299,8 +307,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 //decimal allCoin = noUseBtc;
                 decimal avgPrice = marketPrice;
                 //mAllPosition = allCoin * mData.Leverage / avgPrice ;//单位eth个数
-                mData.PerTrans = Math.Round(mData.PerBuyUSD / avgPrice / mData.MinAmountA) * mData.MinAmountA;
-                mData.SaveToDB(mDBKey);
+                decimal newPerTrans = Math.Round(mData.PerBuyUSD / avgPrice / mData.MinAmountA) * mData.MinAmountA;
+                
+                if (mData.PerTrans != newPerTrans )
+                {
+                    mData.PerTrans = newPerTrans;
+                    mData.SaveToDB(mDBKey);
+                }
                 Logger.Debug(Utils.Str2Json("mData.PerTrans", mData.PerTrans, "allPosition", mAllPosition));
             }
             catch (System.Exception ex)
@@ -314,7 +327,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             Logger.Debug("------------------------ OnProcessExit ---------------------------");
             mExchangePending = true;
         }
-       
+
         private void OnOrderbookAHandler(ExchangeOrderBook order)
         {
             mOrderBookAwsCounter++;
@@ -340,6 +353,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     temp.CurAAmount = mData.CurAAmount;
                     mData = temp;
                 }
+                //Logger.Debug(mData.PerBuyUSD.ToString());
                 await Execute();
                 await Task.Delay(mData.IntervalMillisecond + mCurCDTime*1000);
                 //await Task.Delay(10000);
@@ -368,10 +382,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             int outTime = 60;
 
             DateTime now = DateTime.UtcNow;
+            double perTimeSeconds = mData.GetPerTimeSeconds();
 
-            var smaCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(), now.AddSeconds(-mData.GetPerTimeSeconds() * mData.SMPPerTime-5), now);
+            var smaCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(), now.AddSeconds(-perTimeSeconds * (mData.SMPPerTime+1)-5), now.AddSeconds(-perTimeSeconds));
             //await Task.Delay(1 * 1000);
-            var bbCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(), now.AddSeconds(-mData.GetPerTimeSeconds() * mData.BollingerBandsPer-5), now);
+            var bbCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(), now.AddSeconds(-mData.GetPerTimeSeconds() * (mData.BollingerBandsPer+1)-5), now.AddSeconds(-perTimeSeconds));
             //test  
 //             var lastTime = new DateTime(2020, 6, 28, 18, 41, 33, DateTimeKind.Utc);
 //             var smaCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(),lastTime.AddSeconds(-mData.GetPerTimeSeconds() * mData.SMPPerTime ), lastTime.AddSeconds(0));
@@ -423,11 +438,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 amount = Math.Abs(mCurAAmount);
                 Logger.Debug("start close ");
             }
+            //canTrade = false;
             if (canTrade)
             {
                 mIsFirstOpen = false;
                 mRunningTask = DoTrade(isBuy, amount);
                 mCurCDTime = mData.TradeCoolDownTime * mData.GetPerTimeSeconds();
+                mData.LastTradeDate = DateTime.UtcNow;
+                mData.SaveToDB(mDBKey);
                 Logger.Debug("cool down :" + mCurCDTime);
             }
                 
@@ -767,7 +785,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// 正常情况应该是 0.5m
             /// </summary>
             public decimal BBCloseRate = 0.5m;
-
+            /// <summary>
+            /// 上次交易时间,用于确定下次交易时间
+            /// </summary>
+            public DateTime LastTradeDate;
             /// <summary>
             /// h = hour,m=min,s = second
             /// </summary>
