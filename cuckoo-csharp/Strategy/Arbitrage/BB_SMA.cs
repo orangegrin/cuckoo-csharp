@@ -344,6 +344,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (Precondition())
             {
                 mExchangePending = true;
+                if (mCurCDTime>0)
+                {
+                    await Task.Delay(mCurCDTime * 1000);
+                    mCurCDTime = 0;
+                }
                 Options temp = Options.LoadFromDB<Options>(mDBKey);
                 Options last_mData = mData;
                 if (mCurOrderA==null)//避免多线程读写错误
@@ -355,9 +360,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 //Logger.Debug(mData.PerBuyUSD.ToString());
                 await Execute();
-                await Task.Delay(mData.IntervalMillisecond + mCurCDTime*1000);
-                //await Task.Delay(10000);
-                mCurCDTime = 0;
+                await Task.Delay(mData.IntervalMillisecond );
                 mExchangePending = false;
             }
         }
