@@ -110,7 +110,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 config.SaveToDB(mDBKey);
             }
             if (mData.CurAAmount != 0)
+            {
                 mIsFirstOpen = false;
+                mData.LastIsBuy = mData.CurAAmount > 0;
+            }
             if (mData.LastTradeDate!=null  &&  mData.LastTradeDate.Year> (DateTime.UtcNow.Year-1))
             {
                 TimeSpan cd =  mData.LastTradeDate.AddSeconds(mData.TradeCoolDownTime*mData.GetPerTimeSeconds()) - DateTime.UtcNow;
