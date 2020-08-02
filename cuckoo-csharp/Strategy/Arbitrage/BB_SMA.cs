@@ -115,7 +115,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mData.LastIsBuy = mData.CurAAmount > 0;
             }
             if (mData.LastTradeDate!=null  &&  mData.LastTradeDate.Year> (DateTime.UtcNow.Year-1))
-            {
+            {  
                 TimeSpan cd =  mData.LastTradeDate.AddSeconds(mData.TradeCoolDownTime*mData.GetPerTimeSeconds()) - DateTime.UtcNow;
                 var temp = Convert.ToInt32(cd.TotalSeconds);
                 mCurCDTime = temp > 0 ? temp : 0;
@@ -214,7 +214,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mOrderwsConnect = false;
                 mOrderws.Dispose();
             }
-               
         }
 
         /// <summary>
@@ -389,10 +388,21 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
             DateTime now = DateTime.UtcNow;
             double perTimeSeconds = mData.GetPerTimeSeconds();
-
-            var smaCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(), now.AddSeconds(-perTimeSeconds * (mData.SMPPerTime+1)-5), now.AddSeconds(-perTimeSeconds));
+            IEnumerable<MarketCandle> smaCandles;
             //await Task.Delay(1 * 1000);
-            var bbCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(), now.AddSeconds(-mData.GetPerTimeSeconds() * (mData.BollingerBandsPer+1)-5), now.AddSeconds(-perTimeSeconds));
+            IEnumerable<MarketCandle>  bbCandles;
+            try
+            {
+                smaCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(), now.AddSeconds(-perTimeSeconds * (mData.SMPPerTime + 1) - 5), now.AddSeconds(-perTimeSeconds));
+                //await Task.Delay(1 * 1000);
+                bbCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(), now.AddSeconds(-mData.GetPerTimeSeconds() * (mData.BollingerBandsPer + 1) - 5), now.AddSeconds(-perTimeSeconds));
+            }
+            catch (System.Exception ex)
+            {
+                Logger.Error("获取蜡烛图抛错"+ ex.ToString());
+                return;
+            }
+           
             //test  
 //             var lastTime = new DateTime(2020, 6, 28, 18, 41, 33, DateTimeKind.Utc);
 //             var smaCandles = await mExchangeAAPI.GetCandlesAsync(mData.SymbolA, mData.GetPerTimeSeconds(),lastTime.AddSeconds(-mData.GetPerTimeSeconds() * mData.SMPPerTime ), lastTime.AddSeconds(0));
@@ -455,8 +465,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Debug("cool down :" + mCurCDTime);
             }
                 
-
-
             if (mRunningTask != null)
             {
                 try
@@ -467,7 +475,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 catch (System.Exception ex)
                 {
                     Logger.Error(Utils.Str2Json("mRunningTask ex", ex));
-                    if (ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found") || ex.ToString().Contains("Order already closed"))
+                    if (ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found") || ex.ToString().Contains("Order already closed")|| ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later"))
                         mCurOrderA = null;
                     mRunningTask = null;
                 }
@@ -668,7 +676,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 catch (Exception ex)
                 {
-                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Not logged in"))
+                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Not logged in") || ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later"))
                     {
                         Logger.Error(Utils.Str2Json("req", req.ToStringInvariant(), "ex", ex));
                         await Task.Delay(2000);
