@@ -116,13 +116,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             AppDomain.CurrentDomain.ProcessExit += new EventHandler(OnProcessExit);
             mExchangeAAPI.LoadAPIKeys(mData.EncryptedFileA);
-            //mExchangeAAPI.SubAccount = mData.SubAccount;
+            mExchangeAAPI.SubAccount = mData.SubAccountA;
             mExchangeBAPI.LoadAPIKeys(mData.EncryptedFileB);
-            mExchangeBAPI.SubAccount = mData.SubAccount;
-            //UpdateAvgDiffAsync();
+            mExchangeBAPI.SubAccount = mData.SubAccountB;
+            UpdateAvgDiffAsync();
             SubWebSocket();
             WebSocketProtect();
-            //CheckPosition();
+            CheckPosition();
             ChangeMaxCount();
             CheckOrderBook();
         }
@@ -309,7 +309,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 Logger.Debug("-----------------------CheckPosition-----------------------------------");
                 lock(mOrderResultsDic)//清理数据
                     mOrderResultsDic.Clear();
-                                
                 ExchangeMarginPositionResult posA ;
                 ExchangeMarginPositionResult posB ;
                 try
@@ -628,10 +627,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             {
                 try
                 {
-                    decimal noUseBtc = await GetAmountsAvailableToTradeAsync(mExchangeAAPI, mData.SymbolA);
+                    decimal noUseBtcA = await GetAmountsAvailableToTradeAsync(mExchangeAAPI, mData.FoundSymbolA);
+                    decimal noUseBtcB = await GetAmountsAvailableToTradeAsync(mExchangeBAPI, mData.FoundSymbolB);
+                    decimal noUseBtc = Math.Min(noUseBtcA, noUseBtcB);
                     decimal allCoin = noUseBtc;
                     decimal avgPrice = ((mOrderBookA.Bids.FirstOrDefault().Value.Price + mOrderBookB.Asks.FirstOrDefault().Value.Price) / 2);
-                    mAllPosition = allCoin * mData.Leverage / avgPrice/2;//单位eth个数
+                    mAllPosition = allCoin * mData.Leverage / avgPrice;//单位eth个数
                     mData.PerTrans = Math.Round(mData.PerBuyUSD / avgPrice /mData.MinAmountA) * mData.MinAmountA;
                     mData.ClosePerTrans = Math.Round(mData.ClosePerBuyUSD / avgPrice / mData.MinAmountA) * mData.MinAmountA;
                     decimal lastPosition = 0;
@@ -1489,7 +1490,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 catch (Exception ex)
                 {
-                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Not logged in") || ex.ToString().Contains("Rate limit exceeded"))
+                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Not logged in") || ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later"))
                     {
                         Logger.Error(Utils.Str2Json( "req", req.ToStringInvariant(), "ex", ex));
                         await Task.Delay(2000);
@@ -1627,6 +1628,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             public string ExchangeNameB;
             public string SymbolA;
             public string SymbolB;
+            /// <summary>
+            /// A保证金种类
+            /// </summary>
+            public string FoundSymbolA;
+            /// <summary>
+            /// B保证金种类
+            /// </summary>
+            public string FoundSymbolB;
             public string Symbol;
             public decimal DeltaDiff = 0m;
             public decimal MidDiff = 0.0m;
@@ -1737,9 +1746,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// </summary>
             public DateTime CloseDate = DateTime.Now.AddMinutes(1);
             /// <summary>
-            /// 子账号标识
+            /// 子账号标识A
             /// </summary>
-            public string SubAccount = "";
+            public string SubAccountA = "";
+            /// <summary>
+            /// 子账号标识B
+            /// </summary>
+            public string SubAccountB = "";
             /// <summary>
             /// 用户id
             /// </summary>
