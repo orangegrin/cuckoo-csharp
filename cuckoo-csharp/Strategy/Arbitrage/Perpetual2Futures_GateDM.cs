@@ -522,7 +522,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         }
                         Logger.Error(" posA.LiquidationPrice:" + posA.LiquidationPrice + " posB.LiquidationPrice:" + posB.LiquidationPrice);
                     }
-                    isError = true;
+                    //isError = true;
                     if (!isError)
                     {
                         decimal lastAmount = Math.Abs(realAmount);
