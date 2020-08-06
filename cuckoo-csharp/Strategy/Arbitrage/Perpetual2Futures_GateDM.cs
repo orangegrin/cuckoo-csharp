@@ -522,6 +522,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         }
                         Logger.Error(" posA.LiquidationPrice:" + posA.LiquidationPrice + " posB.LiquidationPrice:" + posB.LiquidationPrice);
                     }
+                    isError = true;
                     if (!isError)
                     {
                         decimal lastAmount = Math.Abs(realAmount);
@@ -634,7 +635,26 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     decimal noUseBtcB = await GetAmountsAvailableToTradeAsync(mExchangeBAPI, mData.FoundSymbolB);
                     decimal noUseBtc = Math.Min(noUseBtcA, noUseBtcB);
                     decimal allCoin = noUseBtc;
-                    decimal avgPrice = ((mOrderBookA.Bids.FirstOrDefault().Value.Price + mOrderBookB.Asks.FirstOrDefault().Value.Price) / 2);
+                    decimal priceA = mOrderBookA.Bids.FirstOrDefault().Value.Price;
+                    decimal priceB = mOrderBookB.Asks.FirstOrDefault().Value.Price;
+                    Logger.Debug("priceA:"+ priceA+ "priceB"+ priceB);
+                    if (Math.Abs (priceA - priceB)>20)
+                    {
+
+                        Logger.Error("CountDiffGridMaxCount ex  获取价格bug");
+                        lock(mOrderBookA.Bids)
+                        {
+                            priceA = mOrderBookA.Bids.FirstOrDefault().Value.Price;
+                        }
+                        lock(mOrderBookB.Asks)
+                        {
+                            priceB = mOrderBookB.Asks.FirstOrDefault().Value.Price;
+                        }
+                        
+                        Logger.Debug("priceA:" + priceA + "priceB" + priceB);
+                        return;
+                    }
+                    decimal avgPrice = ((priceA+priceB) / 2);
                     mAllPosition = allCoin * mData.Leverage / avgPrice;//单位eth个数
                     mData.PerTrans = Math.Round(mData.PerBuyUSD / avgPrice /mData.MinAmountA) * mData.MinAmountA;
                     mData.ClosePerTrans = Math.Round(mData.ClosePerBuyUSD / avgPrice / mData.MinAmountA) * mData.MinAmountA;
