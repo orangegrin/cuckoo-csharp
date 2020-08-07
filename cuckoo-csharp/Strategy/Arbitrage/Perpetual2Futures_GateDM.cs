@@ -38,6 +38,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// B交易所的订单薄
         /// </summary>
         private ExchangeOrderBook mOrderBookB;
+
+        private decimal mCurPriceA;
+        private decimal mCurPriceB;
         /// <summary>
         /// 当前挂出去的订单
         /// </summary>
@@ -449,7 +452,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                                 request.ExtraParameters.Add("orderID", lastResult.OrderId);
                             }
                         }
-                        if (request.Price > mOrderBookA.Bids.FirstOrDefault().Value.Price * 3)//如果止盈点价格>三倍当前价格那么不挂止盈单
+                        if (request.Price > mCurPriceB* 1.5m || request.Price< mCurPriceB* 0.5m)//如果止盈点价格>三倍当前价格那么不挂止盈单
                         {
                             if (lastResult != null)
                                 await api.CancelOrderAsync(lastResult.OrderId);
@@ -487,11 +490,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     decimal curPriceB = 0;
                     lock (mOrderBookA)
                     {
-                        curPriceA = mOrderBookA.Asks.FirstOrDefault().Value.Price;
+                        curPriceA = mCurPriceA;
                     }
                     lock (mOrderBookB)
                     {
-                        curPriceB = mOrderBookB.Asks.FirstOrDefault().Value.Price;
+                        curPriceB = mCurPriceB;
                     }
                     bool isError = false;
                     if (aBuy)
@@ -635,20 +638,19 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     decimal noUseBtcB = await GetAmountsAvailableToTradeAsync(mExchangeBAPI, mData.FoundSymbolB);
                     decimal noUseBtc = Math.Min(noUseBtcA, noUseBtcB);
                     decimal allCoin = noUseBtc;
-                    decimal priceA = mOrderBookA.Bids.FirstOrDefault().Value.Price;
-                    decimal priceB = mOrderBookB.Asks.FirstOrDefault().Value.Price;
+                    decimal priceA = mCurPriceA;
+                    decimal priceB = mCurPriceB;
                     Logger.Debug("priceA:"+ priceA+ "priceB"+ priceB);
-                    if (Math.Abs (priceA - priceB)>20)
+                    if (Math.Abs (priceA - priceB)>20 || priceA ==0 || priceB==0)
                     {
-
                         Logger.Error("CountDiffGridMaxCount ex  获取价格bug");
                         lock(mOrderBookA.Bids)
                         {
-                            priceA = mOrderBookA.Bids.FirstOrDefault().Value.Price;
+                            priceA = mCurPriceA;
                         }
                         lock(mOrderBookB.Asks)
                         {
-                            priceB = mOrderBookB.Asks.FirstOrDefault().Value.Price;
+                            priceB = mCurPriceB;
                         }
                         
                         Logger.Debug("priceA:" + priceA + "priceB" + priceB);
@@ -774,6 +776,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //有可能orderbook bids或者 asks没有改变
             if (buyPriceA != 0 && sellPriceA != 0 && sellPriceB != 0 && buyPriceB != 0 && buyAmount != 0)
             {
+                mCurPriceA = buyPriceA;
+                mCurPriceB = buyPriceB;
                 a2bDiff = (buyPriceA- buyPriceB);
                 b2aDiff = (sellPriceA-sellPriceB);
                 Diff diff = GetDiff(a2bDiff, b2aDiff,out buyAmount);
@@ -791,6 +795,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug("范围更新不及时，不纳入计算");
                     return;
                 }
+                //return;
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff < diff.A2BDiff && mData.CurAAmount + mData.PerTrans <= diff.MaxABuyAmount) //满足差价并且当前A空仓
