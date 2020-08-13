@@ -525,7 +525,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         }
                         Logger.Error(" posA.LiquidationPrice:" + posA.LiquidationPrice + " posB.LiquidationPrice:" + posB.LiquidationPrice);
                     }
-                    isError = true;
+                    //isError = true;
                     if (!isError)
                     {
                         decimal lastAmount = Math.Abs(realAmount);
@@ -876,10 +876,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
         private async Task CheckOrderBook()
         {
-            ExchangeOrderPrice? lastA =null ;
-            ExchangeOrderPrice?  lastB =null;
-            ExchangeOrderPrice? curA;
-            ExchangeOrderPrice? curB;
+            ExchangeOrderPrice? lastAAsk =null ;
+            ExchangeOrderPrice?  lastBAsk =null;
+            ExchangeOrderPrice? curAAsk;
+            ExchangeOrderPrice? curBAsk;
+
+            ExchangeOrderPrice? lastABid = null;
+            ExchangeOrderPrice? lastBBid = null;
+            ExchangeOrderPrice? curABid;
+            ExchangeOrderPrice? curBBid;
+
             while (true)
             {
                 await Task.Delay(30 * 1000);
@@ -887,38 +893,59 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     continue;
                 else
                 {
-                    if (lastA==null)
+                    if (lastAAsk==null)
                     {
                         lock (mOrderBookA)
                         {
-                            lastA = mOrderBookA.Asks.FirstOrDefault().Value;
+                            lastAAsk = mOrderBookA.Asks.FirstOrDefault().Value;
                         }
-                        await Task.Delay(15 * 1000);
+                        await Task.Delay(12 * 1000);
                     }
-                    if (lastB == null)
+                    if (lastBAsk == null)
                     {
                         lock (mOrderBookB)
                         {
-                            lastB = mOrderBookB.Asks.FirstOrDefault().Value;
+                            lastBAsk = mOrderBookB.Asks.FirstOrDefault().Value;
                         }
-                        await Task.Delay(15 * 1000);
+                        await Task.Delay(12 * 1000);
                     }
+
+
+                    if (lastABid == null)
+                    {
+                        lock (mOrderBookA)
+                        {
+                            lastABid = mOrderBookA.Bids.FirstOrDefault().Value;
+                        }
+                        await Task.Delay(12 * 1000);
+                    }
+                    if (lastBBid == null)
+                    {
+                        lock (mOrderBookB)
+                        {
+                            lastBBid = mOrderBookB.Bids.FirstOrDefault().Value;
+                        }
+                        await Task.Delay(12 * 1000);
+                    }
+
 
                     lock (mOrderBookA)
                     {
-                        curA = mOrderBookA.Asks.FirstOrDefault().Value;
+                        curAAsk = mOrderBookA.Asks.FirstOrDefault().Value;
+                        curABid = mOrderBookA.Bids.FirstOrDefault().Value;
                     }
                     lock (mOrderBookB)
                     {
-                        curB = mOrderBookB.Asks.FirstOrDefault().Value;
+                        curBAsk = mOrderBookB.Asks.FirstOrDefault().Value;
+                        curBBid = mOrderBookB.Bids.FirstOrDefault().Value;
                     }
                     ConnectState? state = null;
-                    if ((lastA.Value.Price == curA.Value.Price && lastA.Value.Amount == curA.Value.Amount))
+                    if ((lastAAsk.Value.Price == curAAsk.Value.Price && lastAAsk.Value.Amount == curAAsk.Value.Amount)|| (lastABid.Value.Price == curABid.Value.Price && lastABid.Value.Amount == curABid.Value.Amount))
                     {
                         state = ConnectState.A;
                        
                     }
-                    if ((lastB.Value.Price == curB.Value.Price && lastB.Value.Amount == curB.Value.Amount))
+                    if ((lastBAsk.Value.Price == curBAsk.Value.Price && lastBAsk.Value.Amount == curBAsk.Value.Amount)||(lastBBid.Value.Price == curBBid.Value.Price && lastBBid.Value.Amount == curBBid.Value.Amount))
                     {
                         if (state==null)
                         {
@@ -934,8 +961,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         Logger.Error("CheckOrderBook  orderbook 错误");
                         await ReconnectWS(state.Value);
                     }
-                    lastA = curA;
-                    lastB = curB;
+                    lastAAsk = curAAsk;
+                    lastBAsk = curBAsk;
+
+                    lastABid = curABid;
+                    lastBBid = curBBid;
                 }
                
             }
