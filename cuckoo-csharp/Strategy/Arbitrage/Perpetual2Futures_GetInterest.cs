@@ -762,7 +762,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug("范围更新不及时，不纳入计算");
                     return;
                 }
-                //return;
+                return;
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff < diff.A2BDiff && mData.CurAAmount + mData.PerTrans <= diff.MaxABuyAmount) //满足差价并且当前A空仓
@@ -1198,7 +1198,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             try
             {
                 await mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
-
             }
             catch (Exception ex)
             {
@@ -1209,9 +1208,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await mExchangeAAPI.CancelOrderAsync(mCurOrderA.OrderId, mData.SymbolA);
                 }
             }
-
-
-           
         }
         /// <summary>
         /// 订单成交 ，修改当前仓位和删除当前订单
