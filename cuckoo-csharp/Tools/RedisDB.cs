@@ -36,7 +36,7 @@ namespace cuckoo_csharp.Tools
             RedisDB.configStr = configStr;
             if (connection == null || !connection.IsConnected)
             {
-                connection = ConnectionMultiplexer.Connect(RedisDB.configStr);
+                connection = ConnectionMultiplexer.Connect(RedisDB.configStr); 
                 instance = connection.GetDatabase();
             }
         }
@@ -53,6 +53,23 @@ namespace cuckoo_csharp.Tools
         {
             var val = JsonConvert.SerializeObject(value);
             return database.StringSet(key, val, expiry, when, flags);
+        }
+        public static void SubScribe(string cnl)
+        {
+            Console.WriteLine("主线程：" + Thread.CurrentThread.ManagedThreadId);
+            var sub = connection.GetSubscriber();
+            sub.Subscribe(cnl, SubHandel);
+            Console.WriteLine("订阅了一个频道：" + cnl);
+        }
+        public static void SubHandel(RedisChannel cnl, RedisValue val)
+        {
+            Console.WriteLine();
+            Console.WriteLine("频道：" + cnl + "\t收到消息:" + val); ;
+            Console.WriteLine("线程：" + Thread.CurrentThread.ManagedThreadId + ",是否线程池：" + Thread.CurrentThread.IsThreadPoolThread);
+            if (val == "close")
+                connection.GetSubscriber().Unsubscribe(cnl);
+            if (val == "closeall")
+                connection.GetSubscriber().UnsubscribeAll();
         }
     }
 
