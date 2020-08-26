@@ -113,7 +113,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
             if (!limitMaker.limitMakerConfig.IsLimit)
             {
-                Logger.Debug("！！！！！！！！！！！！！！！！marketmarketmarketmarketmarketmarket！！！！！！！！！！！！！！！！！！！！！！！！！！！！");
                 var task = limitMaker.GetOrderBook();
                 Task.WaitAll(task);
                 var orderBook = task.Result;
@@ -259,7 +258,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             while (true)
             {
                 DoTrade();
-                await Task.Delay(500);
+                await Task.Delay(200);
             }
         }
 
@@ -285,11 +284,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     temp.CurAAmount = mData.CurAAmount;
                     //mData = temp;
                 }
-                //                 if (last_mData.OpenPositionBuyA != mData.OpenPositionBuyA || last_mData.OpenPositionSellA != mData.OpenPositionSellA)//仓位修改立即刷新
-                //                     CountDiffGridMaxCount();
-                Execute();
-                //await Execute();
-                //await Task.Delay(mData.IntervalMillisecond);
+//                 if (last_mData.OpenPositionBuyA != mData.OpenPositionBuyA || last_mData.OpenPositionSellA != mData.OpenPositionSellA)//仓位修改立即刷新
+//                     CountDiffGridMaxCount();
+                await Execute();
+                await Task.Delay(mData.IntervalMillisecond);
                 mExchangePending = false;
             }
         }
@@ -318,7 +316,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             //if (buyPriceA != 0 && sellPriceA != 0 && sellPriceB != 0 && buyPriceB != 0 && buyAmount != 0)
             if (true )
             {
-                // PrintInfo(buyPriceA, sellPriceA, 0, 0, a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, 0, 0);
+               // PrintInfo(buyPriceA, sellPriceA, 0, 0, a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, 0, 0);
 
                 //如果盘口差价超过4usdt 不进行挂单，但是可以改单（bitmex overload 推送ws不及时）
                 //                 if (mCurOrderA == null && ((sellPriceA <= buyPriceA) || (sellPriceA - buyPriceA >= 10) || (sellPriceB <= buyPriceB) || (sellPriceB - buyPriceB >= 10)))
@@ -328,7 +326,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 //                 }
                 //return;
 
-                Logger.Debug("________________________DOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO");
+
                 //照抄 b交易所的盘口
                 // await mExchangeAAPI.CancelOrderAsync("all", mData.SymbolA);
                 //mRunningTask =  DrawKLine(copyBookBBids, copyBookBAsks);
@@ -340,28 +338,33 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     if (!item.OnConnect())
                         continue;
                     await item.CheckMaxOrdersCountAsync();
-
-                    var request = RandomOrder(item);
-                    ExchangeOrderResult Result = null;
+                    List<ExchangeOrderRequest> requests = new List<ExchangeOrderRequest>();
+                    for (int i = 0; i < item.limitMakerConfig.OncePlaceCount; i++)
+                    {
+                        var request = RandomOrder(item);
+                        requests.Add(request);
+                        Logger.Debug("PlanceOrdersAsync requestA:::" + request.ToString());
+                    }
+                    
+                    List< ExchangeOrderResult> Results = null;
                     try
                     {
-                        Logger.Debug("PlanceOrdersAsync requestA:::" + request.ToString());
-                        Result = await AddOrder(request, item);
-                        Logger.Debug("PlanceOrdersAsync Result:::" + Result.ToExcleString());
+                        
+                        Results = await AddOrder(requests, item);
+                        Logger.Debug("PlanceOrdersAsync Result:::" + Results.ToExcleString());
                         Task.Delay(50);
                     }
                     catch (System.Exception ex)
                     {
                         Logger.Error(Utils.Str2Json("mRunningTask ex", ex));
                         if (ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found") || ex.ToString().Contains("Order already closed")|| item.exchangeAPI.ErrorPlanceOrderPrice(ex))
-                            Result = null;
+                            Results = null;
                         mRunningTask = null;
                     }
-                    if (Result!=null)
+                    if (Results!=null)
                     {
-                        Logger.Debug("ResultResult:  " + Result.ToExcleString());
-
-                        item.mOpenOrderDic.Add(Result.OrderId, Result);
+                        Logger.Debug("ResultResult:  " + Results.ToExcleString());
+                        item.mOpenOrderDic.Add(Results.OrderId, Results);
                     }
                 }
             }
@@ -543,40 +546,59 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         /// <param name="requestA"></param>
         /// <returns> 返回已经添加的订单详情 </returns>
-        private async Task<ExchangeOrderResult> AddOrder(ExchangeOrderRequest requestA,LimitMaker maker)
+        private async Task<List<ExchangeOrderResult>> AddOrder(List<ExchangeOrderRequest> requestA,LimitMaker maker)
         {
-            ExchangeOrderResult curResult = null;
-            requestA.Price = NormalizationMinUnit(requestA.Price);
+            ExchangeOrderResult[] curResults = null;
+            foreach (var item in requestA)
+            {
+                item.Price = NormalizationMinUnit(item.Price);
+            }
+
+            
             bool isAddNew = true;
             try
             {
-                var v = await maker.exchangeAPI.PlaceOrderAsync(requestA);
-                curResult = v;
+                var v = await maker.exchangeAPI.PlaceOrdersAsync(requestA.ToArray());
+                curResults = v;
                 //测试多等待10再添加订单
                 //await Task.Delay(10000);
                 lock(maker.mOrderIds)
                 {
-                    maker.mOrderIds.Add(curResult.OrderId);
+                    foreach (var item in curResults)
+                    {
+                        maker.mOrderIds.Add(item.OrderId);
+                    }
                 }
                 
                 //检查如果已经成交的订单中有本订单号,那么启用成交逻辑
                 lock(maker.mOrderResultsDic)
                 {
-                    if (maker.mOrderResultsDic.TryGetValue(curResult.OrderId, out ExchangeOrderResult filledOrder))
+                    foreach (var item in curResults)
                     {
-                        maker.OnOrderAHandler(filledOrder);
-                        Logger.Debug("出现先ws返回 后rest返回");
+                        if (maker.mOrderResultsDic.TryGetValue(item.OrderId, out ExchangeOrderResult filledOrder))
+                        {
+                            maker.OnOrderAHandler(filledOrder);
+                            Logger.Debug("出现先ws返回 后rest返回");
+                        }
                     }
                 }
-                Logger.Debug(Utils.Str2Json("requestA", requestA.ToString()));
-                Logger.Debug(Utils.Str2Json("Add mCurrentLimitOrder", curResult.ToExcleString(), "CurAmount", mData.CurAAmount));
-                if (curResult.Result == ExchangeAPIOrderResult.Canceled)
+                int count = 0;
+                foreach (var item in curResults)
                 {
-                    curResult = null;
-                    mOnTrade = false;
-                    await Task.Delay(2000);
+                    Logger.Debug(Utils.Str2Json("requestA", requestA[count].ToString()));
+                    Logger.Debug(Utils.Str2Json("Add mCurrentLimitOrder", item.ToExcleString(), "CurAmount", mData.CurAAmount));
+                    if (item.Result == ExchangeAPIOrderResult.Canceled)
+                    {
+                        ExchangeOrderResult theResult = maker.mOrderResultsDic[item.OrderId];
+                        if (theResult != null)
+                            maker.mOrderResultsDic[item.OrderId] = null;
+                        curResults = null;
+                        mOnTrade = false;
+                        await Task.Delay(2000);
+                    }
+                    count++;
                 }
-                await Task.Delay(100);
+                await Task.Delay(10);
             }
             catch (Exception ex)
             {
@@ -584,12 +606,12 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 //如果是添加新单那么设置为null 
                 if (isAddNew || ex.ToString().Contains("Order already closed") || ex.ToString().Contains("Not Found"))
                 {
-                    curResult = null;
+                    curResults = null;
                     mOnTrade = false;
                 }
                 if (ex.ToString().Contains("405 Method Not Allowed"))//删除订单
                 {
-                    curResult = null;
+                    curResults = null;
                     mOnTrade = false;
                 }
                 Logger.Error(Utils.Str2Json("ex", ex));
@@ -598,7 +620,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 if (ex.ToString().Contains("RateLimitError"))
                     await Task.Delay(30000);
             }
-            return curResult;
+            return curResults.ToList();
         }
 
 
@@ -855,10 +877,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             public int mOrderBookBwsCounter = 0;
             public int mOrderDetailsAwsCounter = 0;
             /// <summary>
-            /// 当前等待次数
-            /// </summary>
-            public int mCurWaitCount = 0;
-            /// <summary>
             /// A交易所的历史订单ID
             /// </summary>
             public List<string> mOrderIds = new List<string>();
@@ -923,7 +941,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 SubWebSocket(ConnectState.All, this);
                 WebSocketProtect(this);
 
-                mCurWaitCount = limitMakerConfig.WaitCount;
+
                 //测试 sign 
                 var request0 = new ExchangeOrderRequest()
                 {
@@ -1412,21 +1430,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
             }
             #endregion
-            /// <summary>
-            /// 检查是否满足交易等待时间
-            /// </summary>
-            /// <returns></returns>
-            public bool CheckNeedWait()
-            {
-                if(mCurWaitCount <= 0)
-                {
-                    mCurWaitCount = limitMakerConfig.WaitCount;
-                    return true;
-                }
-                mCurWaitCount--;
-                return false;
-            }
-
 
             public async Task CountDiffGridMaxCount()
             {
@@ -1490,9 +1493,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// </summary>
             public bool IsLimit = true;
             /// <summary>
-            /// 等待多少次后再开始
+            /// 每次提交订单数量
             /// </summary>
-            public int WaitCount = 1;
+            public int OncePlaceCount = 5;
             /// <summary>
             /// 吃前多少档 的数量
             /// </summary>
