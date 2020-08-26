@@ -1,0 +1,77 @@
+{
+  "ExchangeNameA": "CCFOX",
+  "ExchangeNameB": "FTX",
+  "SymbolA": "1000002", //"1000018", //"999999",
+  "SymbolB": "BTC-PERP",
+  "Symbol": "BTCZH",
+  "DeltaDiff": 0.0,
+  "MidDiff": 0.0,
+  "DiffGrid": [
+    {
+      "A2BDiff": -0.3,
+      "B2ADiff": 0.3,
+      "ProfitRange": 0.3,
+      "MaxABuyAmount": 0.0,
+      "MaxASellAmount": 0.0,
+      "Rate": 0.7
+    },
+    {
+      "A2BDiff": -0.3,
+      "B2ADiff": 0.3,
+      "ProfitRange": 0.3,
+      "MaxABuyAmount": 0.0,
+      "MaxASellAmount": 0.0,
+      "Rate": 0.3
+    }
+  ],
+  "LimitMakers": [
+    {
+      "Id": "1",
+      "CurAmount": 0,
+      "CurMoney": 1000,
+      "MaxLeverage": 0.1,
+      "MinChangeAmountRate": 0.05,
+      "MaxChangeAmountRate": 0.1,
+      "WaitCount": 0,
+      "PerRate": 2,
+      "EelayTime": 3000,
+      "EncryptedFile": "./CCFOX_h5"
+    },
+    {
+      "Id": "2",
+      "CurAmount": 0,
+      "CurMoney": 1000,
+      "MaxLeverage": 0.1,
+      "MinChangeAmountRate": 0.05,
+      "MaxChangeAmountRate": 0.1,
+      "WaitCount": 1,
+      "PerRate": 2,
+      "IsLimit": false,
+      "EatLevel": 5,
+      "MaxEat": 0.1,
+      "MinEat": 0.05,
+      "PerEatRate": 2,
+      "EelayTime": 3000,
+      "EncryptedFile": "./CCFOX"
+    }
+  ],
+  "PerTrans": 1.0,
+  "ClosePerTrans": 1.0,
+  "PerBuyUSD": 100.0,
+  "ClosePerBuyUSD": 100.0,
+  "MinPriceUnit": 0.05,
+  "MinOrderPrice": 0.00001,
+  "CurAmount": 0.0,
+  "IntervalMillisecond": 1000,
+  "AutoCalcProfitRange": true,
+  "AutoCalcMaxPosition": true,
+  "OpenPositionBuyA": true,
+  "OpenPositionSellA": true,
+  "Leverage": 3.0,
+  "AmountSymbol": "USDT",
+  "EncryptedFileA": "./CCFOX",
+  "EncryptedFileB": "./CCFOX"
+
+
+}
+
