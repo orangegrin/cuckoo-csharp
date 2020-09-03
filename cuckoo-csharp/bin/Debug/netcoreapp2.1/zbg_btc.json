@@ -4,6 +4,7 @@
   "SymbolA": "1000002", //"1000018", //"999999",
   "SymbolB": "BTC-PERP",
   "Symbol": "BTCZH",
+  "RandomPriceMax": 30,
   "DeltaDiff": 0.0,
   "MidDiff": 0.0,
   "DiffGrid": [
@@ -28,9 +29,9 @@
     {
       "Id": "1",
       "CurAmount": 0,
-      "CurMoney": 1000,
+      "CurMoney": 10000,
       "MaxLeverage": 0.1,
-      "MinChangeAmountRate": 0.05,
+      "MinChangeAmountRate": 0.01,
       "MaxChangeAmountRate": 0.1,
       "WaitCount": 0,
       "PerRate": 2,
@@ -40,19 +41,20 @@
     {
       "Id": "2",
       "CurAmount": 0,
-      "CurMoney": 1000,
+      "CurMoney": 10000,
       "MaxLeverage": 0.1,
-      "MinChangeAmountRate": 0.05,
-      "MaxChangeAmountRate": 0.1,
+      "MinChangeAmountRate": 0.01,
+      "MaxChangeAmountRate": 0.05,
       "WaitCount": 1,
       "PerRate": 2,
       "IsLimit": false,
-      "EatLevel": 5,
+      "NeedOrderBook": true,
+      "EatLevel": 3,
       "MaxEat": 0.1,
       "MinEat": 0.05,
       "PerEatRate": 2,
       "EelayTime": 3000,
-      "EncryptedFile": "./CCFOX"
+      "EncryptedFile": "./CCFOX_uname"
     }
   ],
   "PerTrans": 1.0,
