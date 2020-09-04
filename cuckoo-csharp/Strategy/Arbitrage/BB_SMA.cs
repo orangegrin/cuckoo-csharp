@@ -348,7 +348,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mExchangePending = true;
                 if (mCurCDTime>0)
                 {
-                    await Task.Delay(mCurCDTime * 1000);
+                    //修改了 检查时间方式
+                    //await Task.Delay(mCurCDTime * 1000);
                     mCurCDTime = 0;
                 }
                 Options temp = Options.LoadFromDB<Options>(mDBKey);
@@ -414,12 +415,33 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             decimal lastHourClose = smaCandles.Last<MarketCandle>().ClosePrice;
             var sma = GetLastSMA(smaCandles.Select(candle => candle.ClosePrice).ToArray());
             decimal closePrice = smaCandles.Last<MarketCandle>().ClosePrice;
+            decimal hightPrice = smaCandles.Last<MarketCandle>().HighPrice;
+            decimal lowPrice = smaCandles.Last<MarketCandle>().LowPrice;
             var bbLimit = GetBollingerBandsLimit(bbCandles.ToList());
             bool closePosition1 = Math.Abs((closePrice - sma) / sma) > mData.CloseRate;
             bool closePosition2 = bbLimit < 0.5m-mData.BBCloseRate || bbLimit > 0.5m+mData.BBCloseRate;
             await CountDiffGridMaxCount(closePrice);
             Logger.Debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++4"+ now.ToString());
             Logger.Debug("closePrice:" + closePrice + " sma:" + sma + "lastSmaTime:" + smaCandles.Last<MarketCandle>().Timestamp.ToString() + "   bbLimit " + bbLimit + "  condtion1:" + (Math.Abs((closePrice - sma) / sma)) + "  canClose " + closePosition1.ToString()+ closePosition2.ToString());
+
+            //检查是否在锁区时间
+            TimeSpan cd = mData.LastTradeDate.AddSeconds(mData.TradeCoolDownTime * mData.GetPerTimeSeconds()) - DateTime.UtcNow;
+            var temp = Convert.ToInt32(cd.TotalSeconds);
+            if (temp>0)//如果 cd中，那么比较是否在特殊情况下。如果在特殊情况下可以解锁
+            {
+                var diff = Math.Abs(hightPrice - lowPrice);
+                Logger.Debug("hightPrice:" + hightPrice + " lowPrice:" + lowPrice + " diff:" + diff+ " mData.OpenLockRate:" + mData.OpenLockRate);
+                if (diff/closePrice > mData.OpenLockRate)//超跌 超涨
+                {
+                    Logger.Debug("超涨解锁");
+                    mData.LastTradeDate.AddYears(-1);//设置上次操作时间为1年前，就相当于解锁
+                    mData.SaveToDB(mDBKey);
+                }
+                else
+                {
+                    return;
+                }
+            }
 
             bool canTrade = false;
             bool isBuy = false;
@@ -799,6 +821,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// 正常情况应该是 0.5m
             /// </summary>
             public decimal BBCloseRate = 0.5m;
+            /// <summary>
+            /// 超过这个变化范围解锁
+            /// </summary>
+            public decimal OpenLockRate = 0.02m;
             /// <summary>
             /// 上次交易时间,用于确定下次交易时间
             /// </summary>
