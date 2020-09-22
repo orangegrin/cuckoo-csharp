@@ -66,7 +66,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <summary>
         /// 叠加等待时间
         /// </summary>
-        private int mCurCDTime = 0;
+        private Int64 mCurCDTime = 0;
+        /// <summary>
+        /// 上次超涨解锁时间
+        /// </summary>
+        private DateTime mLastUnlockDate;
 
         /// <summary>
         /// 当前开仓数量
@@ -117,7 +121,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             if (mData.LastTradeDate!=null  &&  mData.LastTradeDate.Year> (DateTime.UtcNow.Year-1))
             {  
                 TimeSpan cd =  mData.LastTradeDate.AddSeconds(mData.TradeCoolDownTime*mData.GetPerTimeSeconds()) - DateTime.UtcNow;
-                var temp = Convert.ToInt32(cd.TotalSeconds);
+                var temp = Convert.ToInt64(cd.TotalSeconds);
                 mCurCDTime = temp > 0 ? temp : 0;
                 Logger.Debug("remainder time " + mCurCDTime + " seconds    mData.LastTradeDate:" + mData.LastTradeDate.ToString("yyyy-MM-dd hh:mm:ss"));
 
@@ -426,22 +430,31 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
             //检查是否在锁区时间
             TimeSpan cd = mData.LastTradeDate.AddSeconds(mData.TradeCoolDownTime * mData.GetPerTimeSeconds()) - DateTime.UtcNow;
-            var temp = Convert.ToInt32(cd.TotalSeconds);
-            if (temp>0)//如果 cd中，那么比较是否在特殊情况下。如果在特殊情况下可以解锁
+            if (mData.LastTradeDate != null && mData.LastTradeDate.Year > (DateTime.UtcNow.Year - 1))
             {
-                var diff = Math.Abs(hightPrice - lowPrice);
-                Logger.Debug("hightPrice:" + hightPrice + " lowPrice:" + lowPrice + " diff:" + diff+ " mData.OpenLockRate:" + mData.OpenLockRate);
-                if (diff/closePrice > mData.OpenLockRate)//超跌 超涨
+                var temp = Convert.ToInt64(cd.TotalSeconds);
+                if (temp > 0)//如果 cd中，那么比较是否在特殊情况下。如果在特殊情况下可以解锁
                 {
-                    Logger.Debug("超涨解锁");
-                    mData.LastTradeDate.AddYears(-1);//设置上次操作时间为1年前，就相当于解锁
-                    mData.SaveToDB(mDBKey);
-                }
-                else
-                {
-                    return;
+                    var diff = Math.Abs(hightPrice - lowPrice);
+                    Logger.Debug("hightPrice:" + hightPrice + " lowPrice:" + lowPrice + " diff:" + diff + " mData.OpenLockRate:" + mData.OpenLockRate + " mLastUnlockDate:"+ mLastUnlockDate);
+                    if (mLastUnlockDate == null ||//如果没有解锁过
+                        (mLastUnlockDate != null && (now - mLastUnlockDate).TotalSeconds > (mData.GetPerTimeSeconds() * 1.2)))//或者上次解锁 时间和当前时间相差 1.2个解锁单位时间 。那么可以再次解锁
+                    {
+                        if (diff / closePrice > mData.OpenLockRate)//超跌 超涨
+                        {
+                            Logger.Debug("超涨解锁");
+                            mData.LastTradeDate = mData.LastTradeDate.AddMonths(-1);//设置上次操作时间为1年前，就相当于解锁
+                            mData.SaveToDB(mDBKey);
+                            mLastUnlockDate = now;
+                        }
+                        else
+                        {
+                            return;
+                        }
+                    }
                 }
             }
+           
 
             bool canTrade = false;
             bool isBuy = false;
@@ -497,7 +510,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 catch (System.Exception ex)
                 {
                     Logger.Error(Utils.Str2Json("mRunningTask ex", ex));
-                    if (ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found") || ex.ToString().Contains("Order already closed")|| ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later"))
+                    if (ex.ToString().Contains("Invalid orderID") || ex.ToString().Contains("Not Found") || ex.ToString().Contains("Order already closed")|| ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("please try again later"))
                         mCurOrderA = null;
                     mRunningTask = null;
                 }
@@ -824,7 +837,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// <summary>
             /// 超过这个变化范围解锁
             /// </summary>
-            public decimal OpenLockRate = 0.02m;
+            public decimal OpenLockRate = 0.025m;
             /// <summary>
             /// 上次交易时间,用于确定下次交易时间
             /// </summary>
