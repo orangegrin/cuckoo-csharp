@@ -364,7 +364,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         }
                         catch (System.Exception ex)
                         {
-                            if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("Not logged in"))
+                            if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") ||  ex.ToString().Contains("Try again") || ex.ToString().Contains("Not logged in"))
                             {
                                 await Task.Delay(2000);
                             }
@@ -470,7 +470,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             }
                             catch (System.Exception ex)
                             {
-                                if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("Not logged in"))
+                                if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") ||  ex.ToString().Contains("Try again") || ex.ToString().Contains("Not logged in"))
                                 {
                                     await Task.Delay(2000);
                                 }
@@ -762,7 +762,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug("范围更新不及时，不纳入计算");
                     return;
                 }
-                return;
+                ///return;
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff < diff.A2BDiff && mData.CurAAmount + mData.PerTrans <= diff.MaxABuyAmount) //满足差价并且当前A空仓
@@ -1183,7 +1183,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mOnTrade = false;
                 }
                 Logger.Error(Utils.Str2Json("ex", ex));
-                if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("Not logged in")|| ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later"))
+                if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") ||  ex.ToString().Contains("Try again") || ex.ToString().Contains("Not logged in")|| ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") ||  ex.ToString().Contains("Try again"))
                     await Task.Delay(5000);
                 if (ex.ToString().Contains("RateLimitError"))
                     await Task.Delay(30000);
@@ -1438,7 +1438,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                     catch (System.Exception ex)
                     {
-                        if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("Not logged in"))
+                        if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") ||  ex.ToString().Contains("Try again") || ex.ToString().Contains("Not logged in"))
                         {
                             await Task.Delay(2000);
                         }
@@ -1479,7 +1479,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 catch (Exception ex)
                 {
-                    if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Not logged in") )
+                    if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") ||  ex.ToString().Contains("Try again") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Not logged in") )
                     {
                         Logger.Error(Utils.Str2Json( "req", req.ToStringInvariant(), "ex", ex));
                         await Task.Delay(2000);
