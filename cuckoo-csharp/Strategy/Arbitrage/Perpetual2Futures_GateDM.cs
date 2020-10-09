@@ -368,7 +368,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         }
                         catch (System.Exception ex)
                         {
-                            if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("Not logged in") || ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("Try again"))
+                            if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("Not logged in") || ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("please try again later") || ex.ToString().Contains("Try again"))
                             {
                                 await Task.Delay(2000);
                             }
@@ -473,7 +473,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             }
                             catch (System.Exception ex)
                             {
-                                if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("Not logged in") || ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("Try again"))
+                                if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("Not logged in") || ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("please try again later") || ex.ToString().Contains("Try again"))
                                 {
                                     await Task.Delay(2000);
                                 }
@@ -1246,7 +1246,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mOnTrade = false;
                 }
                 Logger.Error(Utils.Str2Json("ex", ex));
-                if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("Not logged in") || ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("Try again"))
+                if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("Not logged in") || ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("please try again later") || ex.ToString().Contains("Try again"))
                     await Task.Delay(5000);
                 if (ex.ToString().Contains("RateLimitError"))
                     await Task.Delay(30000);
@@ -1548,7 +1548,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 catch (Exception ex)
                 {
-                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Not logged in") || ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("Try again"))
+                    if (ex.ToString().Contains("overloaded") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Not logged in") || ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("please try again later") || ex.ToString().Contains("Try again"))
                     {
                         Logger.Error(Utils.Str2Json( "req", req.ToStringInvariant(), "ex", ex));
                         await Task.Delay(2000);
