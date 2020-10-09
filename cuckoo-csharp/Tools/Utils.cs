@@ -88,6 +88,138 @@ namespace cuckoo_csharp.Tools
             Console.WriteLine(jsonResult);
             return jsonResult;
         }
+
+        public static async Task<JObject> PostHttpReponseAsync(string fullUrl, Dictionary<string, object> payload = null, string method = null, Dictionary<string, string> header = null)
+        {
+
+            InternalHttpWebRequest internalHttpWebRequest = new InternalHttpWebRequest(new UriBuilder(fullUrl).Uri)
+            {
+                Method = method
+            };
+            if (header!=null)
+            {
+                foreach (var item in header)
+                {
+                    internalHttpWebRequest.AddHeader(item.Key, item.Value);
+                }
+            }
+            
+            HttpWebRequest request = internalHttpWebRequest.request;
+            CryptoUtility.WritePayloadJsonToRequestAsync(internalHttpWebRequest, payload);
+            
+            request.KeepAlive = false;
+            HttpWebResponse response = null;
+            string responseString = null;
+            try
+            {
+                try
+                {
+                    response = await request.GetResponseAsync() as HttpWebResponse;
+                    if (response == null)
+                    {
+                        throw new Exception("Unknown response from server");
+                    }
+                }
+                catch (WebException we)
+                {
+                   response = we.Response as HttpWebResponse;
+                    if (response == null)
+                    {
+                        throw new Exception(we.Message ?? "Unknown response from server");
+                    }
+                }
+                using (Stream responseStream = response.GetResponseStream())
+                {
+                    responseString = new StreamReader(responseStream).ReadToEnd();
+                    if (response.StatusCode != HttpStatusCode.OK && response.StatusCode != HttpStatusCode.Created)
+                    {
+                        // 404 maybe return empty responseString
+                        if (string.IsNullOrWhiteSpace(responseString))
+                        {
+                            throw new Exception(string.Format("{0} - {1}",
+                                response.StatusCode.ConvertInvariant<int>(), response.StatusCode));
+                        }
+                        throw new Exception(responseString);
+                    }
+                    Logger.Error("responseString:::::" + responseString);
+                    //RequestStateChanged?.Invoke(this, RequestMakerState.Finished, responseString);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("sdfsdfsdf:::::"+ex.Message + ex.StackTrace);
+                throw ;
+            }
+            finally
+            {
+                response?.Dispose();
+            }
+            string stringResult = responseString;
+            JObject jsonResult;
+            try
+            {
+                
+                jsonResult = JsonConvert.DeserializeObject<JObject>(stringResult);
+                Logger.Debug(jsonResult.ToString());
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("DDSDSDSSSDSS:::::" + ex.Message + ex.StackTrace);
+                throw  ex;
+            }
+            return jsonResult;
+        }
+
+        public static string Post(string url, Dictionary<string, object> dic, Dictionary<string, string> header = null)
+        {
+            string result = "";
+            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
+            req.Method = "POST";
+//             if (header != null)
+//             {
+//                 foreach (var item in header)
+//                 {
+//                     internalHttpWebRequest.AddHeader(item.Key, item.Value);
+//                 }
+//             }
+            req.ContentType = "application/json";
+            #region 添加Post 参数
+            string body = CryptoUtility.GetJsonForPayload(dic);
+
+
+
+            byte[] data = Encoding.UTF8.GetBytes(body.ToString());
+            req.ContentLength = data.Length;
+            using (Stream reqStream = req.GetRequestStream())
+            {
+                reqStream.Write(data, 0, data.Length);
+                reqStream.Close();
+            }
+            #endregion
+            HttpWebResponse resp = (HttpWebResponse)req.GetResponse();
+            Stream stream = resp.GetResponseStream();
+            //获取响应内容
+            using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+            {
+                result = reader.ReadToEnd();
+            }
+            return result;
+        }
+
+        public static void PrintList<T>(this IEnumerable<T> list)
+        {
+            foreach (var item in list)
+            {
+                Logger.Debug(item.ToString());
+            }
+        }
+
+
+
+
+
+
+
         /// <summary>
         /// 写入csv格式数据
         /// </summary>
@@ -228,7 +360,6 @@ namespace cuckoo_csharp.Tools
                 int w = (list[i] + 1) + ran.Next(0, totalWeights);   // （权重+1） + 从0到（总权重-1）的随机数
                 wlist.Add(new KeyValuePair<int, int>(i, w));
             }
-
             //排序
             wlist.Sort(
               delegate (KeyValuePair<int, int> kvp1, KeyValuePair<int, int> kvp2)
@@ -246,8 +377,6 @@ namespace cuckoo_csharp.Tools
             //随机法则
             return newList;
         }
-
-
         /// <summary>
         /// 随机种子值
         /// </summary>
@@ -260,5 +389,104 @@ namespace cuckoo_csharp.Tools
             return BitConverter.ToInt32(bytes, 0);
         }
 
+       
+
+
+
+        public class InternalHttpWebRequest : IHttpWebRequest
+        {
+            internal readonly HttpWebRequest request;
+
+            public InternalHttpWebRequest(Uri fullUri)
+            {
+                request = HttpWebRequest.Create(fullUri) as HttpWebRequest;
+                request.KeepAlive = false;
+            }
+
+            public void AddHeader(string header, string value)
+            {
+                switch (header.ToStringLowerInvariant())
+                {
+                    case "content-type":
+                        request.ContentType = value;
+                        break;
+
+                    case "content-length":
+                        request.ContentLength = value.ConvertInvariant<long>();
+                        break;
+
+                    case "user-agent":
+                        request.UserAgent = value;
+                        break;
+
+                    case "accept":
+                        request.Accept = value;
+                        break;
+
+                    case "connection":
+                        request.Connection = value;
+                        break;
+
+                    default:
+                        request.Headers[header] = value;
+                        break;
+                }
+            }
+
+            public Uri RequestUri
+            {
+                get { return request.RequestUri; }
+            }
+
+            public string Method
+            {
+                get { return request.Method; }
+                set { request.Method = value; }
+            }
+
+            public int Timeout
+            {
+                get { return request.Timeout; }
+                set { request.Timeout = value; }
+            }
+
+            public int ReadWriteTimeout
+            {
+                get { return request.ReadWriteTimeout; }
+                set { request.ReadWriteTimeout = value; }
+            }
+
+            public async Task WriteAllAsync(byte[] data, int index, int length)
+            {
+                try
+                {
+                    if (request.Method == "GET")
+                    {
+                        request.Method = "POST";
+                        using (Stream stream = await request.GetRequestStreamAsync())
+                        {
+                            await stream.WriteAsync(data, 0, data.Length);
+                        }
+                        request.Method = "GET";
+                    }
+                    else
+                    {
+                        using (Stream stream = await request.GetRequestStreamAsync())
+                        {
+                            await stream.WriteAsync(data, 0, data.Length);
+                        }
+                    }
+
+                    //                     Stream stream = await request.GetRequestStreamAsync();
+                    //                     await stream.WriteAsync(data, 0, data.Length);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Debug(ex.ToString());
+                    throw ex;
+                }
+
+            }
+        }
     }
 }

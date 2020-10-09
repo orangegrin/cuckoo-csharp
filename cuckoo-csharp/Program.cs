@@ -39,7 +39,7 @@ namespace cuckoo_csharp
 
         private static void OnParsedHandler(Options op)
         {
-            RandomMarketMaker.Options config = null;
+            EatFoundingRate.Options config = null;
             if (File.Exists(op.ConfigPath))
             {
                 string text;
@@ -49,7 +49,7 @@ namespace cuckoo_csharp
                 }
                 if (!string.IsNullOrEmpty(text))
                 {
-                    config = JsonConvert.DeserializeObject<RandomMarketMaker.Options>(text);
+                    config = JsonConvert.DeserializeObject<EatFoundingRate.Options>(text);
                 }
                 else
                 {
@@ -58,7 +58,7 @@ namespace cuckoo_csharp
             }
             if (config != null)
             {
-                RandomMarketMaker it = new RandomMarketMaker(config, op.ID);
+                EatFoundingRate it = new EatFoundingRate(config, op.ID);
                 it.Start();
                 while (true)
                 {

@@ -59,7 +59,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         //第一次提交接近标记价格订单
         private bool mIsFirst = true;
 
-
+        private RedisDBSubscriber dBSubscriber;
+        /// <summary>
+        /// 当前挂单次数
+        /// </summary>
+        private int mCurAddOrderTimes = 0;
         /// <summary>
         /// 
         /*
@@ -170,6 +174,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 mData = config;
                 config.SaveToDB(mDBKey);
             }
+            mIndexPrice = 346.3m;
+            //订阅 指数
+            dBSubscriber = new RedisDBSubscriber(mData.RedisConfigData_ZBG);
+            dBSubscriber.SubScribe(mData.RedisChannle, (indexString) =>
+            {
+                BtcGlodIndex index = JsonConvert.DeserializeObject<BtcGlodIndex>(indexString);
+                mIndexPrice = index.index;
+                Logger.Debug("mIndexPrice:" + mIndexPrice);
+            });
+
             mlastFillTime = DateTime.UtcNow.AddDays(-1);
             //添加做市
             foreach (var item in mData.LimitMakers)
@@ -188,10 +202,13 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 maker.Init();
                 maker.CancelAllOrders();
             }
-            //             CheckPosition();
-            //             ChangeMaxCount();
-            // CheckOrderBook();
+
+
+
             Update();
+
+
+
 
             /*redis subscriber
             ConnectionMultiplexer connection;
@@ -269,8 +286,57 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         {
             while (true)
             {
+                mCurAddOrderTimes++;
                 DoTrade();
+
+                
                 await Task.Delay(mData.IntervalMillisecond);
+                try
+                {
+                    await CloseOldOrders();
+                }
+                catch (Exception ex)
+                {
+
+                    Logger.Error("CloseOldOrders ex:" + ex);
+                }
+
+                
+            }
+        }
+        /// <summary>
+        /// 删除超时订单
+        /// </summary>
+        /// <returns></returns>
+        private async Task CloseOldOrders()
+        {
+            if (mCurAddOrderTimes > mData.CheckOpenOrderTimes)
+            {
+                mCurAddOrderTimes = 0;
+                foreach (var maker in limitMakers)
+                {
+                    if (maker.limitMakerConfig.IsLimit)
+                    {
+                        var orders = await maker.exchangeAPI.GetOpenOrderDetailsAsync(maker.SymbolA);
+                        foreach (var order in orders)
+                        {
+                            //如果 订单存留时间大于 一定时间那么直接删除
+                             if ((DateTime.UtcNow - order.OrderDate).TotalMinutes > 4)
+                            {
+                                try
+                                {
+                                    maker.exchangeAPI.CancelOrderAsync(order.OrderId, order.MarketSymbol);
+                                    Logger.Error("删除超时订单:" + order.OrderId);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Logger.Error("删除超时订单抛错:" + order.OrderId + ex.ToString());
+                                }
+                            }
+                        }
+                    }
+                    await Task.Delay(2000);
+                }
             }
         }
 
@@ -296,7 +362,15 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 //                 if (last_mData.OpenPositionBuyA != mData.OpenPositionBuyA || last_mData.OpenPositionSellA != mData.OpenPositionSellA)//仓位修改立即刷新
                 //                     CountDiffGridMaxCount();
-                Execute();
+                try
+                {
+                   await Execute();
+                }
+                catch (Exception ex)
+                {
+
+                    Logger.Error("DoTradeDoTrade ex:" + ex);
+                }
                 //await Execute();
                 //await Task.Delay(mData.IntervalMillisecond);
                 mExchangePending = false;
@@ -325,7 +399,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
             //有可能orderbook bids或者 asks没有改变
             //if (buyPriceA != 0 && sellPriceA != 0 && sellPriceB != 0 && buyPriceB != 0 && buyAmount != 0)
-            if (true )
+            if (mIndexPrice!=0)
             {
                 // PrintInfo(buyPriceA, sellPriceA, 0, 0, a2bDiff, b2aDiff, diff.A2BDiff, diff.B2ADiff, buyAmount, bidAAmount, askAAmount, 0, 0);
 
@@ -343,7 +417,8 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 //mRunningTask =  DrawKLine(copyBookBBids, copyBookBAsks);
 
                 //初始化 
-                mIndexPrice = 465.5m;
+
+                //mIndexPrice = 465.5m;
                 foreach (var item in limitMakers)
                 {
                     if (!item.OnConnect())
@@ -402,7 +477,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     if (Result!=null)
                     {
                         Logger.Debug("ResultResult:  " + Result.ToExcleString());
-
                         item.mOpenOrderDic.Add(Result.OrderId, Result);
                     }
                 }
@@ -725,6 +799,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// 是否开启交易
             /// </summary>
             public bool OpenProcess = true;
+            /// <summary>
+            ///  间隔挂单次数检查 挂单情况
+            /// </summary>
+            public int CheckOpenOrderTimes = 100;
 
 
 

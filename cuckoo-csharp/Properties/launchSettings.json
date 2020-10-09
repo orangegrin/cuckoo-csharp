@@ -2,7 +2,7 @@
   "profiles": {
     "cuckoo-csharp": {
       "commandName": "Project",
-      "commandLineArgs": "-i 1 -c ./zbg_activeMarketLv4.json"
+      "commandLineArgs": "-i 1 -c ./zbg_eatFoundingRate.json"
     }
   }
 }
