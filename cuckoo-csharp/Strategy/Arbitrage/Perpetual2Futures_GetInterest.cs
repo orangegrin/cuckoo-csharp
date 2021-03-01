@@ -17,7 +17,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
     /// 期对期
     /// 要求 A价<B价，并且A限价开仓
     /// </summary>
-    public class Perpetual2Futures_GetInterestMA
+    public class Perpetual2Futures_EatInterest
     {
         private IExchangeAPI mExchangeAAPI;
         private IExchangeAPI mExchangeBAPI;
@@ -97,10 +97,10 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// </summary>
         private decimal mPerBuyAmount = 0;
 
-        public Perpetual2Futures_GetInterestMA(Options config, int id = -1)
+        public Perpetual2Futures_EatInterest(Options config, int id = -1)
         {
             mId = id;
-            mDBKey = string.Format("Perpetual2Futures_GetInterestMA:CONFIG:{0}:{1}:{2}:{3}:{4}", config.ExchangeNameA, config.ExchangeNameB, config.SymbolA, config.SymbolB, id);
+            mDBKey = string.Format("Perpetual2Futures_EatInterest:CONFIG:{0}:{1}:{2}:{3}:{4}", config.ExchangeNameA, config.ExchangeNameB, config.SymbolA, config.SymbolB, id);
             RedisDB.Init(config.RedisConfig);
             mData = Options.LoadFromDB<Options>(mDBKey);
             if (mData == null)
@@ -314,7 +314,9 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 {
                     //等待10秒 避免ws虽然推送数据刷新，但是rest 还没有刷新数据
                     await Task.Delay(10* 1000);
-                    posA = await mExchangeAAPI.GetOpenPositionAsync(mData.SymbolA);
+                    posA = new ExchangeMarginPositionResult();
+                    var v = mData.SymbolA.Split("/")[0];
+                    posA.Amount = await mExchangeAAPI.GetWalletSummaryAsync(v);
                     posB = await mExchangeBAPI.GetOpenPositionAsync(mData.SymbolB);
                     if (posA==null ||posB==null)
                     {
@@ -330,52 +332,66 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     await Task.Delay(1000);
                     continue;
                 }
-                decimal realAmount = posA.Amount;
+                decimal realAmount = -posB.Amount;
                 if ((posA.Amount + posB.Amount) !=0)//如果没有对齐停止交易，市价单到对齐
                 {
-                    if (Math.Abs(posA.Amount + posB.Amount)>mData.PerTrans*10)
+                   
+
+                    if (Math.Abs(posA.Amount + posB.Amount) < 1)//相差小于1 不操作
                     {
-                        Logger.Error(Utils.Str2Json("CheckPosition ex", "A,B交易所相差过大 程序关闭，请手动处理"));
-                        throw new Exception("A,B交易所相差过大 程序关闭，请手动处理");
+                        
                     }
-                    for (int i=0; ;)
+                    else if( Math.Abs(posA.Amount)>Math.Abs(posB.Amount))//现货>期货 不需要改变仓位
                     {
-                        decimal count = posA.Amount + posB.Amount;
-                        ExchangeOrderRequest requestA = new ExchangeOrderRequest();
-                        requestA.Amount = Math.Abs(count);
-                        requestA.MarketSymbol = mData.SymbolA;
-                        if (count>0)//表示需要A卖count张 ，之和就==0
+
+                    }
+                    else
+                    {
+                        if (Math.Abs(posA.Amount + posB.Amount) > mData.PerTrans * 10)
                         {
-                            requestA.IsBuy = false;
+                            Logger.Error(Utils.Str2Json("CheckPosition ex", "A,B交易所相差过大 程序关闭，请手动处理"));
+                            throw new Exception("A,B交易所相差过大 程序关闭，请手动处理posA.Amount:" + posA.Amount + "posB.Amount:" + posB.Amount);
                         }
-                        else//表示需要A买count张 ，之和就==0
+                        for (int i = 0; ;)
                         {
-                            requestA.IsBuy = true;
-                        }
-                        requestA.OrderType = OrderType.Market;
-                        try
-                        {
-                            Logger.Debug(Utils.Str2Json("差数量" , count));
-                            Logger.Debug(Utils.Str2Json("requestA", requestA.ToString()));
-                            var orderResults = await mExchangeAAPI.PlaceOrderAsync(requestA);
-                            ExchangeOrderResult resultA = orderResults;
-                            realAmount += requestA.IsBuy ? requestA.Amount : -requestA.Amount;
-                            break; 
-                        }
-                        catch (System.Exception ex)
-                        {
-                            if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") ||  ex.ToString().Contains("Try again") || ex.ToString().Contains("Not logged in"))
+                            decimal count = posA.Amount + posB.Amount;
+                            ExchangeOrderRequest requestA = new ExchangeOrderRequest();
+                            requestA.Amount = Math.Abs(count);
+                            requestA.MarketSymbol = mData.SymbolA;
+                            if (count > 0)//表示需要A卖count张 ，之和就==0
                             {
-                                await Task.Delay(2000);
+                                requestA.IsBuy = false;
                             }
-                            else
+                            else//表示需要A买count张 ，之和就==0
                             {
-                                Logger.Error(Utils.Str2Json("CheckPosition ex", ex.ToString()));
-                                throw ex;
+                                requestA.IsBuy = true;
+                            }
+                            requestA.OrderType = OrderType.Market;
+                            try
+                            {
+                                Logger.Debug(Utils.Str2Json("差数量", count));
+                                Logger.Debug(Utils.Str2Json("requestA", requestA.ToString()));
+                                var orderResults = await mExchangeAAPI.PlaceOrderAsync(requestA);
+                                ExchangeOrderResult resultA = orderResults;
+                                realAmount += requestA.IsBuy ? requestA.Amount : -requestA.Amount;
+                                break;
+                            }
+                            catch (System.Exception ex)
+                            {
+                                if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("Do not send more than") || ex.ToString().Contains("Try again") || ex.ToString().Contains("Please retry request") || ex.ToString().ToLower().Contains("try again") || ex.ToString().Contains("Not logged in"))
+                                {
+                                    await Task.Delay(2000);
+                                }
+                                else
+                                {
+                                    Logger.Error(Utils.Str2Json("CheckPosition ex", ex.ToString()));
+                                    throw ex;
+                                }
                             }
                         }
                     }
                 }
+                   
                 if (realAmount!=mCurAAmount)
                 {
                     Logger.Debug(Utils.Str2Json("Change curAmount", realAmount));
@@ -470,7 +486,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             }
                             catch (System.Exception ex)
                             {
-                                if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") ||  ex.ToString().Contains("Try again") || ex.ToString().Contains("Not logged in"))
+                                if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("Do not send more than") ||  ex.ToString().Contains("Try again") || ex.ToString().Contains("Please retry request") || ex.ToString().ToLower().Contains("try again") || ex.ToString().Contains("Not logged in"))
                                 {
                                     await Task.Delay(2000);
                                 }
@@ -762,7 +778,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     Logger.Debug("范围更新不及时，不纳入计算");
                     return;
                 }
-                ///return;
+                //return;
                 //满足差价并且
                 //只能BBuyASell来开仓，也就是说 ABuyBSell只能用来平仓
                 if (a2bDiff < diff.A2BDiff && mData.CurAAmount + mData.PerTrans <= diff.MaxABuyAmount) //满足差价并且当前A空仓
@@ -913,7 +929,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         public async Task UpdateAvgDiffAsync()
         {
             string dataUrl = $"{"http://150.109.52.225:8006/arbitrage/process?programID="}{mId}{"&symbol="}{mData.Symbol}{"&exchangeB="}{mData.ExchangeNameB.ToLowerInvariant()}{"&exchangeA="}{mData.ExchangeNameA.ToLowerInvariant()}";
-            dataUrl = "http://150.109.52.225:8006/arbitrage/process?programID=" + mId + "&symbol=BTCZH&exchangeB=bitmex&exchangeA=bitmex";
+            //dataUrl = "http://150.109.52.225:8006/arbitrage/process?programID=" + mId + "&symbol=BTCZH&exchangeB=bitmex&exchangeA=bitmex";
             Logger.Debug(dataUrl);
             decimal lastLeverage = mData.Leverage;
             while (true)
@@ -923,7 +939,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     bool lastOpenPositionBuyA = mData.OpenPositionBuyA;
                     bool lastOpenPositionSellA = mData.OpenPositionSellA;
                     JObject jsonResult = await Utils.GetHttpReponseAsync(dataUrl);
-                    mData.DeltaDiff = Math.Round(100 * jsonResult["deltaDiff"].ConvertInvariant<decimal>(), 4) ;
+                    mData.DeltaDiff = 0;//Math.Round(100 * jsonResult["deltaDiff"].ConvertInvariant<decimal>(), 4) ;
                     mData.Leverage = jsonResult["leverage"].ConvertInvariant<decimal>();
                     mData.OpenPositionBuyA = jsonResult["openPositionBuyA"].ConvertInvariant<int>() == 0 ? false : true;
                     mData.OpenPositionSellA = jsonResult["openPositionSellA"].ConvertInvariant<int>() == 0 ? false : true;
@@ -1183,7 +1199,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     mOnTrade = false;
                 }
                 Logger.Error(Utils.Str2Json("ex", ex));
-                if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") ||  ex.ToString().Contains("Try again") || ex.ToString().Contains("Not logged in")|| ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") ||  ex.ToString().Contains("Try again"))
+                if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("Do not send more than") ||  ex.ToString().Contains("Try again") || ex.ToString().Contains("Please retry request") || ex.ToString().ToLower().Contains("try again") || ex.ToString().Contains("Not logged in")|| ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("Do not send more than") ||  ex.ToString().Contains("Try again") || ex.ToString().Contains("Please retry request") || ex.ToString().ToLower().Contains("try again"))
                     await Task.Delay(5000);
                 if (ex.ToString().Contains("RateLimitError"))
                     await Task.Delay(30000);
@@ -1438,7 +1454,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
                     catch (System.Exception ex)
                     {
-                        if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") ||  ex.ToString().Contains("Try again") || ex.ToString().Contains("Not logged in"))
+                        if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("Do not send more than") || ex.ToString().Contains("Try again") || ex.ToString().Contains("Please retry request") || ex.ToString().ToLower().Contains("try again") || ex.ToString().Contains("Not logged in"))
                         {
                             await Task.Delay(2000);
                         }
@@ -1479,7 +1495,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 catch (Exception ex)
                 {
-                    if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") ||  ex.ToString().Contains("Try again") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Not logged in") )
+                    if (ex.ToString().Contains("Rate limit exceeded") || ex.ToString().Contains("Please try again later") || ex.ToString().Contains("Do not send more than") ||  ex.ToString().Contains("Try again") || ex.ToString().Contains("Please retry request") || ex.ToString().ToLower().Contains("try again") || ex.ToString().Contains("403 Forbidden") || ex.ToString().Contains("Not logged in") )
                     {
                         Logger.Error(Utils.Str2Json( "req", req.ToStringInvariant(), "ex", ex));
                         await Task.Delay(2000);
