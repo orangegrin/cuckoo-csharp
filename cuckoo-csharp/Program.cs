@@ -39,7 +39,7 @@ namespace cuckoo_csharp
 
         private static void OnParsedHandler(Options op)
         {
-            Perpetual2Futures_GetInterestMA.Options config = null;
+            BuyCoinStrategy.Options config = null;
             if (File.Exists(op.ConfigPath))
             {
                 string text;
@@ -49,7 +49,7 @@ namespace cuckoo_csharp
                 }
                 if (!string.IsNullOrEmpty(text))
                 {
-                    config = JsonConvert.DeserializeObject<Perpetual2Futures_GetInterestMA.Options>(text);
+                    config = JsonConvert.DeserializeObject<BuyCoinStrategy.Options>(text);
                 }
                 else
                 {
@@ -58,7 +58,7 @@ namespace cuckoo_csharp
             }
             if (config != null)
             {
-                Perpetual2Futures_GetInterestMA it = new Perpetual2Futures_GetInterestMA(config, op.ID);
+                BuyCoinStrategy it = new BuyCoinStrategy(config, op.ID);
                 it.Start();
                 while (true)
                 {
