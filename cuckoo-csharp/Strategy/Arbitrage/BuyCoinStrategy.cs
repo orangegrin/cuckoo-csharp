@@ -376,20 +376,41 @@ namespace cuckoo_csharp.Strategy.Arbitrage
         /// <returns></returns>
         private async Task<ExchangeOrderResult> AddOpenOrder(decimal buyPriceA,decimal bidPrice)
         {
-            
-            decimal amount = NormalizationMinAmountUnit(((mData.StartMoney -mData.UseMoney)/ bidPrice) * mData.OpenPositionRate);
-            if (amount < mData.MinOrderAmount)
+            try
             {
-                Logger.Debug("小于最小开仓数量不能开仓");
-                return null;
-            }// 340*(1-0.003)
-            decimal price = NormalizationMinPriceUnit(buyPriceA * (1 - mData.OpenRate));
-            Logger.Debug($"AddOpenOrder amount {amount } price{price} mData.StartMone{mData.StartMoney} mData.UseMoney {mData.UseMoney} buyPriceA {buyPriceA} bidPrice {bidPrice}");
-            ExchangeOrderResult openOrder = await AddOrder(true, mData.SymbolA, price, amount);
-            if (openOrder == null)
-                return null;
-            mData.mCurOpenOrder.OpenOrder = openOrder;
-            return openOrder;
+                decimal amount = NormalizationMinAmountUnit(((mData.StartMoney - mData.UseMoney) / bidPrice) * mData.OpenPositionRate);
+                if (amount < mData.MinOrderAmount)
+                {
+                    Logger.Debug("小于最小开仓数量不能开仓");
+                    return null;
+                }// 340*(1-0.003)
+                decimal price = NormalizationMinPriceUnit(buyPriceA * (1 - mData.OpenRate));
+                Logger.Debug($"AddOpenOrder amount {amount } price{price} mData.StartMone{mData.StartMoney} mData.UseMoney {mData.UseMoney} buyPriceA {buyPriceA} bidPrice {bidPrice}");
+                ExchangeOrderResult openOrder = await AddOrder(true, mData.SymbolA, price, amount);
+                if (openOrder == null)
+                    return null;
+                mData.mCurOpenOrder.OpenOrder = openOrder;
+                if (openOrder != null)
+                {
+                    mData.StartPrice = price;
+                }
+                return openOrder;
+            }
+            catch (Exception addOpenOrderEx)
+            {
+                if (addOpenOrderEx.ToString().Contains("Not enough balances"))
+                {
+                    Logger.Error("开仓本金不够！！！！！！！！！！！！！！！！！！");
+                    Logger.Error(addOpenOrderEx);
+                    return null;
+                }
+                else
+                {
+                    throw addOpenOrderEx;
+                }    
+                
+            }
+            
         }
         /// <summary>
         /// 用于检测计算 使用的币数量
@@ -482,7 +503,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 }
                 Logger.Debug($"实际开仓数量 mFreeCoinAmount {mFreeCoinAmount } coinUSDValue {amount } newUseMoney {newUseMoney} mData.LastFillPrice {mData.LastFillPrice}");
                 //2没有仓位限价bid1开仓
-                var openOrder = mData.mCurOpenOrder.OpenOrder;
+                ExchangeOrderResult openOrder = mData.mCurOpenOrder.OpenOrder;
                 if (amount == 0 || mData.mOpenProfitOrders.Count ==0)
                 {
                     if (mData.mCurOpenOrder.OpenOrder==null)
@@ -503,7 +524,6 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             hadChange = true;
                         }
                     }
-
                 }
                 else if (amount >= 0)
                 {
@@ -512,7 +532,24 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                         openOrder = await AddOpenOrder(mData.LastFillPrice,buyPriceA);
                         hadChange = true;
                     }
+                    //*  TODO 暂时屏蔽功能
+                    else //如果和盘口差价太远的时候也要调整价格，避免一段范围没有交易
+                    {
+                        if (mData.mCurOpenOrder.ProfitOrder == null)//首单开仓，没有止盈单的情况下，价格上涨改单，价格下跌不改单
+                        {
+                            if (mData.StartPrice * (1 + mData.ChangeRate) < buyPriceA)
+                            {
+                                Logger.Debug($"挂单和盘口差价太远，取消再添加 mData.StartPrice {mData.StartPrice } buyPriceA {buyPriceA }" );
+                                await CancelCurOrderA(openOrder.OrderId);
+                                openOrder = await AddFirstOpenOrder(openOrder, buyPriceA);
+                                hadChange = true;
+                            }
+                        }
+                    }
+                    //*/
                 }
+                
+
                 //3 开始检查 订单是否有成交
                 List<ExchangeOrderResult> openList = null;
                 List<ExchangeOrderResult> fillList = null;
@@ -538,7 +575,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                 {
                     fillDic[item.OrderId]= item;
                 }
-                Logger.Debug($"Execute 1 ");
+                Logger.Debug($"Execute 1 "+ openOrder);
                 // 检查开仓单
                 if (openOrder != null)
                 {
@@ -708,10 +745,118 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                                 mData.mOpenProfitOrders.Remove(profit);
                                 break;
                             }
-                            
                         }
-                        
                     }
+
+                    #region 合并订单
+                    //如果超过最大开仓订单数量，那么合并订单
+                    /*
+                    try
+                    {
+                        if (mData.mOpenProfitOrders.Count > mData.MaxOrderAmount && mData.mOpenProfitOrders.Count > mData.MergeOrderCount)
+                        {
+                            Logger.Debug($"超过最大开仓数量，开始合并订单  mOpenProfitOrders.Count{ mData.mOpenProfitOrders.Count} MergeOrderCount {mData.MergeOrderCount} MaxOrderAmount {mData.MaxOrderAmount}");
+                            List<ExchangeOrderResult> mergeList = new List<ExchangeOrderResult>();
+                            int count = mData.mOpenProfitOrders.Count;
+                            for (int i = count - mData.MaxOrderAmount; i < count; i++)
+                            {
+                                mergeList.Add(mData.mOpenProfitOrders[i]);
+                            }
+
+                            List<ExchangeOrderResult> cancelList = new List<ExchangeOrderResult>();
+                            foreach (var item in mergeList)//删除需要合并的订单，取消止盈挂单，
+                            {
+                                foreach (var profit in mData.mOpenProfitOrders)
+                                {
+                                    if (profit.OrderId == item.OrderId)
+                                    {
+                                        try
+                                        {
+                                            await CancelCurOrderA(item.OrderId);
+                                            mData.mOpenProfitOrders.Remove(profit);
+                                            cancelList.Add(profit);
+                                            break;
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            Logger.Error(" 合并订单 错误" + item.ToString());
+                                        }
+                                    }
+                                }
+                            }
+                            //算出均价，和挂单总数 添加到止盈订单列表的第一个位置
+                            decimal amountAll = 0;
+                            decimal avgPrice = 0;
+                            decimal priceAll = 0;
+
+                            foreach (var item in cancelList)
+                            {
+                                decimal notFilledAmount = item.Amount - item.AmountFilled;
+                                amountAll += notFilledAmount;
+                                priceAll += item.Price * notFilledAmount;
+                            }
+                            avgPrice = NormalizationMinPriceUnit(priceAll / amountAll);
+
+
+                            //获取当前币数量，提交止盈单数量不能超过此数量
+                            decimal amountWallet = 0;
+                            while (true)
+                            {
+                                try
+                                {
+                                    amountWallet = (await mExchangeAAPI.GetAmountsAvailableToTradeAsync())[mData.BalanceSymbol];
+                                    break;
+                                }
+                                catch (Exception ex)
+                                {
+                                    Logger.Debug("GetWalletSummaryAsync error " + ex.ToString());
+                                    await Task.Delay(1000);
+                                }
+                            }
+                            if (amountAll > amountWallet)
+                            {
+                                amountAll = amountWallet;
+                            }
+                            avgPrice = NormalizationMinPriceUnit(avgPrice);
+                            amountAll = NormalizationMinAmountUnit(amountAll);
+                            Logger.Debug($"avgPrice {avgPrice} amountAll {amountAll} amountWallet{amountWallet}");
+                            ExchangeOrderResult order = null;
+                            try
+                            {
+                                Logger.Debug($"add merge order   amount {amountAll}  price {avgPrice} ");
+                                while (true)
+                                {
+                                    if (order == null)
+                                    {
+                                        
+                                        await Task.Delay(1000);
+                                    }
+                                    else
+                                    {
+                                        order = await AddOrder(false, mData.SymbolA, avgPrice, amountAll);
+                                        mData.mOpenProfitOrders.Insert(0, order);
+                                        hadChange = true;
+                                        break;
+                                    }
+                                        
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.Error($"merge order errro: {ex}");
+                                throw ex;
+                            }
+                        }
+
+                    }
+                    catch (Exception ex)
+                    {
+
+                        throw ex;
+                    }
+                    */
+                    #endregion
+                    
                     if (restOpen)//止盈订单成交，重置开仓订单价格数量，
                     {
                         if (mData.mCurOpenOrder.OpenOrder!=null)//删除当前开仓订单
@@ -788,7 +933,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                             state = ConnectState.A;
 
                         }
-
+                        else
+                        {
+                            var ask1 = mOrderBookA.Asks.FirstOrDefault().Value;
+                            var bid1 = mOrderBookA.Bids.FirstOrDefault().Value;
+                            if (bid1.Price > ask1.Price)
+                            {
+                                Logger.Error("买1 >卖1   orderbook 错误");
+                                state = ConnectState.A;
+                            }
+                        }
                         if (state != null)
                         {
                             Logger.Error("CheckOrderBook  orderbook 错误");
@@ -1079,6 +1233,11 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// 首单开仓起始价格
             /// </summary>
             public decimal StartPrice;
+
+            /// <summary>
+            /// 和盘口差价太大，修改到盘口附近
+            /// </summary>
+            public decimal ChangeRate = 0.02m;
             /// <summary>
             /// 上次成交均价
             /// </summary>
@@ -1087,7 +1246,14 @@ namespace cuckoo_csharp.Strategy.Arbitrage
             /// 基础数量 ，用于扣手续费
             /// </summary>
             public decimal BaseAmont;
-
+            /// <summary>
+            /// 最大订单数量，超过此数量合并
+            /// </summary>
+            public int MaxOrderAmount;
+            /// <summary>
+            /// 每次合并数量
+            /// </summary>
+            public int MergeOrderCount;
 
             /// <summary>
             /// 最小价格单位
