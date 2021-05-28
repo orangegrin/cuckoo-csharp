@@ -749,16 +749,16 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                     }
 
                     #region 合并订单
-                    //如果超过最大开仓订单数量，那么合并订单
-                    /*
+                    //如果超过最大开仓订单数量，删除超过的订单
+                    
                     try
                     {
                         if (mData.mOpenProfitOrders.Count > mData.MaxOrderAmount && mData.mOpenProfitOrders.Count > mData.MergeOrderCount)
                         {
-                            Logger.Debug($"超过最大开仓数量，开始合并订单  mOpenProfitOrders.Count{ mData.mOpenProfitOrders.Count} MergeOrderCount {mData.MergeOrderCount} MaxOrderAmount {mData.MaxOrderAmount}");
+                            Logger.Debug($"超过最大开仓数量，开始取消订单  mOpenProfitOrders.Count{ mData.mOpenProfitOrders.Count} MergeOrderCount {mData.MergeOrderCount} MaxOrderAmount {mData.MaxOrderAmount}");
                             List<ExchangeOrderResult> mergeList = new List<ExchangeOrderResult>();
                             int count = mData.mOpenProfitOrders.Count;
-                            for (int i = count - mData.MaxOrderAmount; i < count; i++)
+                            for (int i = 0; i < mData.MergeOrderCount; i++)
                             {
                                 mergeList.Add(mData.mOpenProfitOrders[i]);
                             }
@@ -772,6 +772,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                                     {
                                         try
                                         {
+                                            Logger.Error(" 超过最大订单数量取消订单" + item.ToString());
                                             await CancelCurOrderA(item.OrderId);
                                             mData.mOpenProfitOrders.Remove(profit);
                                             cancelList.Add(profit);
@@ -784,68 +785,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
                                     }
                                 }
                             }
-                            //算出均价，和挂单总数 添加到止盈订单列表的第一个位置
-                            decimal amountAll = 0;
-                            decimal avgPrice = 0;
-                            decimal priceAll = 0;
-
-                            foreach (var item in cancelList)
-                            {
-                                decimal notFilledAmount = item.Amount - item.AmountFilled;
-                                amountAll += notFilledAmount;
-                                priceAll += item.Price * notFilledAmount;
-                            }
-                            avgPrice = NormalizationMinPriceUnit(priceAll / amountAll);
-
-
-                            //获取当前币数量，提交止盈单数量不能超过此数量
-                            decimal amountWallet = 0;
-                            while (true)
-                            {
-                                try
-                                {
-                                    amountWallet = (await mExchangeAAPI.GetAmountsAvailableToTradeAsync())[mData.BalanceSymbol];
-                                    break;
-                                }
-                                catch (Exception ex)
-                                {
-                                    Logger.Debug("GetWalletSummaryAsync error " + ex.ToString());
-                                    await Task.Delay(1000);
-                                }
-                            }
-                            if (amountAll > amountWallet)
-                            {
-                                amountAll = amountWallet;
-                            }
-                            avgPrice = NormalizationMinPriceUnit(avgPrice);
-                            amountAll = NormalizationMinAmountUnit(amountAll);
-                            Logger.Debug($"avgPrice {avgPrice} amountAll {amountAll} amountWallet{amountWallet}");
-                            ExchangeOrderResult order = null;
-                            try
-                            {
-                                Logger.Debug($"add merge order   amount {amountAll}  price {avgPrice} ");
-                                while (true)
-                                {
-                                    if (order == null)
-                                    {
-                                        
-                                        await Task.Delay(1000);
-                                    }
-                                    else
-                                    {
-                                        order = await AddOrder(false, mData.SymbolA, avgPrice, amountAll);
-                                        mData.mOpenProfitOrders.Insert(0, order);
-                                        hadChange = true;
-                                        break;
-                                    }
-                                        
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                Logger.Error($"merge order errro: {ex}");
-                                throw ex;
-                            }
+                           
                         }
 
                     }
@@ -854,7 +794,7 @@ namespace cuckoo_csharp.Strategy.Arbitrage
 
                         throw ex;
                     }
-                    */
+                    //*/
                     #endregion
                     
                     if (restOpen)//止盈订单成交，重置开仓订单价格数量，
