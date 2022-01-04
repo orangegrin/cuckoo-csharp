@@ -1,0 +1,26 @@
+{
+  "ExchangeNameA": "FTX",
+  "ExchangeNameB": "BinanceDM",
+  "OtherCoinSymbol": "ETH-PERP",
+  "MainCoinSymbolA": "BTC-PERP",
+  "MainCoinSymbolB": "BTCUSDT",
+  "BalanceSymbol": "USD",
+  "StrategyName": "BTC_Candle_Correlation_Strategy",
+  "MinPriceUnit": 0.1,
+  "MinOrderAmount": 0.001,
+  "MinAmountUnit": 0.001,
+  "IntervalMillisecond": 30000,
+  "AutoCalcMaxPosition": false,
+  "EncryptedFileA": "./FTX_balance8800",
+  "EncryptedFileB": "./bian",
+  "RedisConfig": "localhost,password=l3h2p1w0*",
+  "SubAccount": "balance8800",
+  "Leverage": 0.2,
+  "Len": 9,
+  "Mult": 0.9,
+  "TimeSpanUnit": "d",
+  "CheckMin": 10,
+  "CheckUnit": "s",
+  "IsCoin": true
+
+}

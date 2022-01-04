@@ -1,11 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28307.329
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30413.136
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "cuckoo-csharp", "cuckoo-csharp\cuckoo-csharp.csproj", "{2AEEEEF4-C153-40FC-AE93-69333198BB6D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BTC_Candle", "cuckoo-csharp\BTC_Candle.csproj", "{2AEEEEF4-C153-40FC-AE93-69333198BB6D}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ExchangeSharp", "..\ExchangeSharp\ExchangeSharp\ExchangeSharp.csproj", "{7B3A4B45-5721-4E67-A4A0-55136E90DF99}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StrategyHelper", "..\StrategyHelper\StrategyHelper.csproj", "{48337028-E796-41F5-BCD6-C12A9BB32343}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{7B3A4B45-5721-4E67-A4A0-55136E90DF99}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7B3A4B45-5721-4E67-A4A0-55136E90DF99}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7B3A4B45-5721-4E67-A4A0-55136E90DF99}.Release|Any CPU.Build.0 = Release|Any CPU
+		{48337028-E796-41F5-BCD6-C12A9BB32343}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{48337028-E796-41F5-BCD6-C12A9BB32343}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{48337028-E796-41F5-BCD6-C12A9BB32343}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{48337028-E796-41F5-BCD6-C12A9BB32343}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

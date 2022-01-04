@@ -3,8 +3,8 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp2.1</TargetFramework>
-    <RootNamespace>cuckoo_csharp</RootNamespace>
-    <StartupObject>cuckoo_csharp.Program</StartupObject>
+    <RootNamespace>BTC_Candle</RootNamespace>
+    <StartupObject>BTC_Candle.Program</StartupObject>
     <ApplicationIcon />
   </PropertyGroup>
 
@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\ExchangeSharp\ExchangeSharp\ExchangeSharp.csproj" />
+    <ProjectReference Include="..\..\StrategyHelper\StrategyHelper.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -51,6 +52,15 @@
     <None Update="DataSet1.xsd">
       <Generator>MSDataSetGenerator</Generator>
       <LastGenOutput>DataSet1.Designer.cs</LastGenOutput>
+    </None>
+    <None Update="ftx_BTCCandle_ETH.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="ftx_BTCCandle_ETH_4h.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="MailUserList.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 

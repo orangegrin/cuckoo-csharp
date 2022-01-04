@@ -2,7 +2,7 @@
   "profiles": {
     "cuckoo-csharp": {
       "commandName": "Project",
-      "commandLineArgs": "-i 10001 -c ./ftx_BuyCoin.json"
+      "commandLineArgs": "-i 1000 -c ./ftx_BTCCandle_ETH.json -r"
     }
   }
 }

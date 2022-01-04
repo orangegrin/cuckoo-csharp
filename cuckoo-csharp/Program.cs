@@ -9,10 +9,11 @@ using Newtonsoft.Json;
 using cuckoo_csharp.Strategy.Arbitrage;
 using CommandLine;
 using System.Text;
-using cuckoo_csharp.Tools;
+using Tools;
 using System.Threading;
+using StrategyHelper.Tools;
 
-namespace cuckoo_csharp
+namespace BTC_Candle
 {
     class Program
     {
@@ -23,6 +24,10 @@ namespace cuckoo_csharp
             public string ConfigPath { get; set; }
             [Option('i', "identify", Required = true, HelpText = "Set identify")]
             public int ID { get; set; }
+            [Option('r', "reset", Default = false, Required = false, HelpText = "Is ResetData")]
+            public bool ResetData { get; set; }
+            [Option("cp", Default = false, Required = false, HelpText = "Is Clean Position")]
+            public bool CleanPosition { get; set; }
         }
         static void Main(string[] args)
         {
@@ -39,7 +44,7 @@ namespace cuckoo_csharp
 
         private static void OnParsedHandler(Options op)
         {
-            BuyCoinStrategy.Options config = null;
+            cuckoo_csharp.Strategy.Arbitrage.BTC_Candle_Correlation_Strategy.Options config = null;
             if (File.Exists(op.ConfigPath))
             {
                 string text;
@@ -49,7 +54,7 @@ namespace cuckoo_csharp
                 }
                 if (!string.IsNullOrEmpty(text))
                 {
-                    config = JsonConvert.DeserializeObject<BuyCoinStrategy.Options>(text);
+                    config = JsonConvert.DeserializeObject<cuckoo_csharp.Strategy.Arbitrage.BTC_Candle_Correlation_Strategy.Options>(text);
                 }
                 else
                 {
@@ -58,8 +63,16 @@ namespace cuckoo_csharp
             }
             if (config != null)
             {
-                BuyCoinStrategy it = new BuyCoinStrategy(config, op.ID);
+                string logName = Path.GetFileName(op.ConfigPath).Replace(".json", "") + "_" + Path.GetFileName(config.EncryptedFileA) + "_" + op.ID;
+                AddLog(logName);
+                //ZigZagStrategy it = new ZigZagStrategy(config, op.ID,op.ResetData,op.CleanPosition); 4.4
+                BTC_Candle_Correlation_Strategy it = new BTC_Candle_Correlation_Strategy(config, op.ID, op.ResetData);
+                //ZigZagStrategyTest it = new ZigZagStrategyTest(null, op.ID);
                 it.Start();
+//                 while (true)
+//                 {
+//                     Console.ReadLine();
+//                 }
                 while (true)
                 {
                     Thread.Sleep(1 * 1000);
@@ -75,5 +88,25 @@ namespace cuckoo_csharp
         {
             Logger.Error((Exception)e.ExceptionObject);
         }
+
+        static private void AddLog(string name)
+        {
+            //var config = new NLog.Config.LoggingConfiguration();
+            var config = NLog.LogManager.Configuration;
+
+            // Targets where to log to: File and Console
+            var logfile = new NLog.Targets.FileTarget("logfileAll") { FileName = "log/" + name + ".log" };
+            logfile.ArchiveEvery = NLog.Targets.FileArchivePeriod.Friday;
+            //var logconsole = new NLog.Targets.ConsoleTarget("logconsole");
+
+            // Rules for mapping loggers to targets            
+            //config.AddRule(NLog.LogLevel.Info, NLog.LogLevel.Fatal, logconsole);
+            config.AddRule(NLog.LogLevel.Debug, NLog.LogLevel.Fatal, logfile);
+
+            // Apply config           
+            NLog.LogManager.Configuration = config;
+            Logger.Debug("AddLog file " + name);
+        }
+
     }
 }
